@@ -1,0 +1,163 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "develop", "claude/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "22"
+
+jobs:
+  backend:
+    name: Backend
+    runs-on: ubuntu-latest
+
+    # Integration tests run against real PostgreSQL + PostGIS. SQLite has no
+    # geography type and no ST_DWithin, so a suite that passed on it would say
+    # nothing about the queries this system actually runs.
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: raksha
+          POSTGRES_PASSWORD: raksha_ci_password
+          POSTGRES_DB: raksha_net_ai
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U raksha"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      POSTGRES_USER: raksha
+      POSTGRES_PASSWORD: raksha_ci_password
+      POSTGRES_DB: raksha_net_ai
+      POSTGRES_HOST: localhost
+      RAKSHA_ENVIRONMENT: test
+      RAKSHA_SECRET_KEY: ci-only-secret-key-not-used-in-any-deployment
+      RAKSHA_BCRYPT_ROUNDS: "4"
+      RAKSHA_RATE_LIMIT_ENABLED: "false"
+      RAKSHA_TEST_DATABASE_URL: postgresql+psycopg://raksha:raksha_ci_password@localhost:5432/raksha_net_ai_test
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Create the test database
+        env:
+          PGPASSWORD: raksha_ci_password
+        run: |
+          psql -h localhost -U raksha -d raksha_net_ai \
+            -c "CREATE DATABASE raksha_net_ai_test OWNER raksha;"
+          psql -h localhost -U raksha -d raksha_net_ai_test \
+            -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+
+      - name: Lint
+        working-directory: backend
+        run: ruff check .
+
+      - name: Format check
+        working-directory: backend
+        run: black --check .
+
+      - name: Type check
+        working-directory: backend
+        run: mypy app
+
+      - name: Migrations apply and roll back
+        working-directory: backend
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
+
+      - name: Tests
+        working-directory: backend
+        run: pytest --cov=app --cov-report=term-missing --cov-fail-under=80
+
+      - name: AI boundary tests
+        run: |
+          pip install -r backend/requirements.txt
+          python -m pytest ai/tests -q
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [citizen-web, control-center]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --workspace @raksha/${{ matrix.app }}
+
+      - name: Type check
+        run: npm run typecheck --workspace @raksha/${{ matrix.app }}
+
+      - name: Tests
+        run: npm run test --workspace @raksha/${{ matrix.app }}
+
+      - name: Build
+        run: npm run build --workspace @raksha/${{ matrix.app }}
+
+  security:
+    name: Security audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Audit Python dependencies
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          pip-audit -r backend/requirements.txt --strict
+
+      - name: Audit npm dependencies
+        run: |
+          npm ci
+          npm audit --audit-level=high
+
+      - name: Check that no .env file is committed
+        run: |
+          if git ls-files | grep -E '(^|/)\.env$|(^|/)\.env\.(local|development|production)$'; then
+            echo "A .env file is committed. Remove it and rotate anything it held."
+            exit 1
+          fi
