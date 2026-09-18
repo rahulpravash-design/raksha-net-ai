@@ -53,11 +53,15 @@ class NullAnalyzer:
 def get_analyzer(enabled: bool) -> EmergencyAnalyzer:
     """Return the configured analyzer.
 
-    Phase 6 adds the real implementations behind this function; nothing outside
-    `ai/` changes when it does.
+    The import is local so that importing ``ai.common`` — which the backend
+    does unconditionally — never pulls in the analyzer implementation. With AI
+    disabled (the default), nothing beyond this module and
+    :class:`NullAnalyzer` is touched, which is what keeps ``docs/ARCHITECTURE.md``
+    section 9's promise true: core business logic runs and passes its tests
+    with AI entirely absent.
     """
     if not enabled:
         return NullAnalyzer()
-    raise NotImplementedError(
-        "No analyzer is implemented yet. See docs/ROADMAP.md, Phase 6."
-    )
+    from ai.nlp.text_analyzer import HeuristicTextAnalyzer
+
+    return HeuristicTextAnalyzer()

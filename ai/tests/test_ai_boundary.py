@@ -44,10 +44,20 @@ def test_the_default_analyzer_declines_rather_than_guessing() -> None:
         )
 
 
-def test_enabling_ai_without_an_implementation_fails_loudly() -> None:
-    """Silently falling back to "no analysis" would hide a misconfiguration."""
-    with pytest.raises(NotImplementedError):
-        get_analyzer(enabled=True)
+def test_enabling_ai_returns_a_real_analyzer() -> None:
+    """Phase 6 ships a real implementation behind the same switch."""
+    from ai.nlp.text_analyzer import HeuristicTextAnalyzer
+
+    analyzer = get_analyzer(enabled=True)
+    assert isinstance(analyzer, HeuristicTextAnalyzer)
+
+    result = analyzer.analyze(
+        AnalysisRequest(
+            incident_id="i1", description="Five people are trapped, water is rising fast."
+        )
+    )
+    assert result.model_name == HeuristicTextAnalyzer.name
+    validate_analysis(result)  # must pass the same validator as any other model
 
 
 def test_a_request_carries_no_personal_data() -> None:
