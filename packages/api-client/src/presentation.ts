@@ -1,0 +1,182 @@
+/**
+ * Presentation helpers shared by every front end.
+ *
+ * Priority colour is defined once, here, so a CRITICAL incident cannot look
+ * like one thing in the citizen app and another in the control centre.
+ */
+
+import type {
+  IncidentCategory,
+  IncidentStatus,
+  PriorityBand,
+  UserRole,
+} from "./types";
+import { DISPATCH_ROLES, OPERATIONAL_ROLES } from "./types";
+
+export interface BandStyle {
+  /** Tailwind classes for a filled badge. */
+  badge: string;
+  /** Tailwind classes for a left border accent on a list row. */
+  accent: string;
+  /** Hex colour for a map marker, where Tailwind classes cannot reach. */
+  marker: string;
+  label: string;
+}
+
+/**
+ * Colour is never the only signal: each band also carries its own text label,
+ * so the meaning survives for a colour-blind operator or a greyscale printout.
+ */
+export const BAND_STYLES: Record<PriorityBand, BandStyle> = {
+  CRITICAL: {
+    badge: "bg-red-600 text-white",
+    accent: "border-l-red-600",
+    marker: "#dc2626",
+    label: "Critical",
+  },
+  HIGH: {
+    badge: "bg-orange-500 text-white",
+    accent: "border-l-orange-500",
+    marker: "#f97316",
+    label: "High",
+  },
+  MEDIUM: {
+    badge: "bg-amber-400 text-amber-950",
+    accent: "border-l-amber-400",
+    marker: "#fbbf24",
+    label: "Medium",
+  },
+  LOW: {
+    badge: "bg-emerald-600 text-white",
+    accent: "border-l-emerald-600",
+    marker: "#059669",
+    label: "Low",
+  },
+};
+
+export const UNSCORED_BAND_STYLE: BandStyle = {
+  badge: "bg-slate-300 text-slate-900",
+  accent: "border-l-slate-300",
+  marker: "#94a3b8",
+  label: "Not scored",
+};
+
+export function bandStyle(band: PriorityBand | null): BandStyle {
+  return band ? BAND_STYLES[band] : UNSCORED_BAND_STYLE;
+}
+
+const CATEGORY_LABELS: Record<IncidentCategory, string> = {
+  FLOOD: "Flood",
+  FIRE: "Fire",
+  ROAD_ACCIDENT: "Road accident",
+  MEDICAL: "Medical emergency",
+  BUILDING_COLLAPSE: "Building collapse",
+  MISSING_PERSON: "Missing person",
+  LANDSLIDE: "Landslide",
+  INDUSTRIAL_ACCIDENT: "Industrial accident",
+  GAS_LEAK: "Gas leak",
+  ELECTRICAL_HAZARD: "Electrical hazard",
+  OTHER: "Other",
+};
+
+export function categoryLabel(category: IncidentCategory): string {
+  return CATEGORY_LABELS[category] ?? category;
+}
+
+const STATUS_LABELS: Record<IncidentStatus, string> = {
+  REPORTED: "Reported",
+  RECEIVED: "Received",
+  UNDER_REVIEW: "Under review",
+  PRIORITIZED: "Prioritised",
+  ASSIGNED: "Assigned",
+  RESPONDER_EN_ROUTE: "Responder en route",
+  ON_SCENE: "On scene",
+  RESOLVED: "Resolved",
+  CLOSED: "Closed",
+  CANCELLED: "Cancelled",
+  DUPLICATE: "Duplicate",
+  REJECTED: "Rejected",
+};
+
+export function statusLabel(status: IncidentStatus): string {
+  return STATUS_LABELS[status] ?? status;
+}
+
+/** Plain-language status text for the person who filed the report. */
+const CITIZEN_STATUS_MESSAGES: Record<IncidentStatus, string> = {
+  REPORTED: "Your report has been received and is waiting to be reviewed.",
+  RECEIVED: "The control centre has your report.",
+  UNDER_REVIEW: "An operator is reviewing your report now.",
+  PRIORITIZED: "Your report has been prioritised and is awaiting assignment.",
+  ASSIGNED: "A response team has been assigned.",
+  RESPONDER_EN_ROUTE: "A response team is on the way.",
+  ON_SCENE: "The response team has arrived at the location.",
+  RESOLVED: "The incident has been resolved.",
+  CLOSED: "This report is now closed.",
+  CANCELLED: "This report was cancelled.",
+  DUPLICATE: "This was recorded as a duplicate of another report.",
+  REJECTED: "This report was not accepted by the control centre.",
+};
+
+export function citizenStatusMessage(status: IncidentStatus): string {
+  return CITIZEN_STATUS_MESSAGES[status] ?? statusLabel(status);
+}
+
+export function isOperationalRole(role: UserRole): boolean {
+  return OPERATIONAL_ROLES.includes(role);
+}
+
+export function canDispatch(role: UserRole): boolean {
+  return DISPATCH_ROLES.includes(role);
+}
+
+/** Absolute time, rendered in the viewer's locale. */
+export function formatDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+/**
+ * Relative time for a queue that is scanned rather than read.
+ *
+ * `now` is a parameter so the output is deterministic under test and so a
+ * server render and the client hydration agree.
+ */
+export function formatRelative(iso: string, now: Date = new Date()): string {
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return "—";
+
+  const seconds = Math.round((now.getTime() - then.getTime()) / 1000);
+  if (seconds < 0) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} h ${minutes % 60} min ago`;
+
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "1 day ago" : `${days} days ago`;
+}
+
+/** Coordinates as an operator reads them aloud. */
+export function formatCoordinates(
+  latitude: string | number,
+  longitude: string | number,
+): string {
+  const lat = Number(latitude);
+  const lon = Number(longitude);
+  if (Number.isNaN(lat) || Number.isNaN(lon)) return "—";
+  return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+}
+
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
