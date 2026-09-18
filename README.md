@@ -19,7 +19,7 @@ live map and queue to triage from.
 | Version | Phases | State |
 |---|---|---|
 | **V1 — Foundation** | 0–5 | **Implemented.** Report → triage → map → status, end to end |
-| V2 — AI analysis | 6–7 | Specified, not implemented |
+| V2 — AI analysis | 6–7 | Phase 6 **implemented** (a rule-based text analyzer and its review workflow). Phase 7 (priority-engine hardening) not implemented |
 | V3 — Multimodal | 8–9 | Specified, not implemented |
 | V4 — Resources & dispatch | 10–11 | Specified, not implemented |
 | V5–V7 | 12–18 | Specified, not implemented |
@@ -46,6 +46,20 @@ risk. See `docs/SECURITY.md` §12.
   and an incident console for status changes and priority override.
 - An append-only audit log of every sensitive action.
 
+## What V2 (Phase 6) adds
+
+- An AI analyzer (`ai/nlp/text_analyzer.py`) that proposes a category,
+  severity, headcount and rescue signals from a report's own description —
+  a transparent, rule-based baseline, honestly labelled as such rather than an
+  unevaluated trained model.
+- Every proposal is stored in `incident_analyses`, separate from `incidents`,
+  and never changes an incident by itself.
+- A control-centre review panel where a dispatcher accepts, edits or rejects
+  each proposal; acceptance runs through the exact same audited,
+  priority-recalculating path a manual fact correction does.
+- `RAKSHA_AI_ENABLED` still defaults to `false`; the Docker Compose dev stack
+  turns it on because this analyzer needs no external provider or API key.
+
 ## Architecture
 
 ```
@@ -64,8 +78,9 @@ risk. See `docs/SECURITY.md` §12.
                                      └─────────┬──────────┘
                     ┌──────────────────┬───────┴────────┬─────────────────┐
                     ▼                  ▼                ▼                 ▼
-          PostgreSQL + PostGIS      Redis         object storage     ai/ (Phase 6)
-          (system of record)     (rate limit)     (media)         behind one interface
+          PostgreSQL + PostGIS      Redis         object storage      ai/ (Phase 6)
+          (system of record)     (rate limit)     (media)          text analyzer,
+                                                                   behind one interface
 ```
 
 `docs/ARCHITECTURE.md` explains each choice and records the decisions.

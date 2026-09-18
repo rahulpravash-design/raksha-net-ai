@@ -169,11 +169,15 @@ For any non-trivial change:
 
 ## 10. Current development phase
 
-**Phase 0 (foundation) and Phase 1–5 (V1 foundation) are implemented.**
+**Phases 0–6 are implemented**: the V1 foundation, plus the AI emergency
+analyzer (a rule-based V2 baseline behind the same `EmergencyAnalyzer`
+interface a trained model will later occupy).
 
 See `docs/ROADMAP.md` for the phase definitions and completion criteria.
 The current phase marker is maintained at the top of `docs/ROADMAP.md`.
 
 Do not implement a future phase unless explicitly asked. In particular:
-the AI analyzer, computer vision, voice reporting, automated dispatch,
-hospital coordination and prediction are **documented but not implemented**.
+computer vision, voice reporting, automated dispatch, hospital coordination
+and prediction are **documented but not implemented**. The priority engine's
+production hardening (Phase 7 — externalised weights, override analytics) is
+also not implemented; V1's deterministic engine ships as-is.

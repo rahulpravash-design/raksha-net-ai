@@ -1,7 +1,12 @@
 # RAKSHA NET AI — AI Architecture
 
-Status: **Specified. Not implemented in V1.**
-V1 ships a `NullAnalyzer`; `RAKSHA_AI_ENABLED` defaults to `false`.
+Status: **Phase 6 (text analysis) implemented. Vision, speech and severity
+model stages below remain specified, not implemented.**
+
+`RAKSHA_AI_ENABLED` still defaults to `false`; the platform ships a
+`NullAnalyzer` until it is turned on. With it on, `get_analyzer()` returns
+`ai/nlp/text_analyzer.py`'s `HeuristicTextAnalyzer` — the "simple baseline"
+section 7 calls for, not yet the fine-tuned model section 7 lists as "later".
 
 ---
 

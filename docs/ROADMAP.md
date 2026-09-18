@@ -1,6 +1,6 @@
 # RAKSHA NET AI — Development Roadmap
 
-> **Current phase marker: Phases 0–5 complete (V1 Foundation). Next: Phase 6.**
+> **Current phase marker: Phases 0–6 complete. Next: Phase 7.**
 >
 > Do not implement a future phase unless explicitly requested.
 
@@ -122,7 +122,7 @@ the queue and on the map → dispatcher changes status → citizen sees the chan
 
 ---
 
-## Phase 6 — AI Emergency Analyzer ⬜ NOT STARTED
+## Phase 6 — AI Emergency Analyzer ✅ COMPLETE
 
 **Objective.** Structured information extracted from report text, as a proposal.
 
@@ -130,14 +130,33 @@ Scope: `incident_analyses`; the `EmergencyAnalyzer` interface with a real text
 implementation; classification, entity extraction and severity proposal; strict
 output validation; the dispatcher review UI (accept / edit / reject).
 
-Depends on: Phase 5. Requires a labelled synthetic dataset first.
+Depends on: Phase 5.
 
-Tests: validator rejects malformed, out-of-range and unknown-field output;
-analysis failure never blocks reporting; AI output never writes to
-`incidents.priority_*`; review decisions are audited.
+**What shipped.** `ai/nlp/text_analyzer.py`'s `HeuristicTextAnalyzer` is the V2
+implementation behind `get_analyzer(enabled=True)`: keyword and regex
+extraction over the report's own description, with confidence deliberately
+capped below certainty (`docs/AI_ARCHITECTURE.md` section 7's "a simple
+baseline ships first"). A trained classifier is deferred, honestly, until the
+labelled dataset this phase originally called for exists — shipping an
+unevaluated model would be worse than shipping a transparent heuristic.
+Swapping it in later changes nothing outside `ai/`.
+
+`incident_analyses` stores every proposal, kept apart from `incidents`
+(CLAUDE.md section 2, rule 2). Accepting or editing a proposal is never a
+direct write: it is built into an `IncidentUpdate` and passed to
+`IncidentService.update_facts`, the same audited, priority-recalculating path
+a dispatcher's manual correction takes. A rejected or unreviewed proposal
+never touches the incident.
+
+Tests: the validator rejects malformed, out-of-range and unknown-field output
+(`ai/tests`); a disabled or failing analyzer never blocks reporting; AI output
+never writes to `incidents.priority_*`; every proposal, acceptance, edit and
+rejection is audited (`backend/tests/integration/test_analyses_api.py`); the
+control-centre review panel is covered for the accept, edit and reject paths
+and for the non-dispatch read-only view (`apps/control-center/tests`).
 
 **Done when:** a dispatcher sees an AI proposal beside the citizen's own words
-and must act for anything to change.
+and must act for anything to change. ✅
 
 ---
 

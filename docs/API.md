@@ -175,6 +175,49 @@ score from current facts. Both paths write an audit entry.
 
 ---
 
+## 5a. AI analysis
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/incidents/{id}/analyses` | operational role | Request an AI proposal |
+| GET | `/incidents/{id}/analyses` | operational role | List proposals for an incident |
+| POST | `/incidents/{id}/analyses/{analysis_id}/review` | DISPATCHER+ | Accept, edit or reject a proposal |
+
+A proposal is never a fact: `IncidentAnalysisRead` is a separate resource from
+`IncidentRead`, and nothing here writes to an incident by itself
+(`docs/AI_ARCHITECTURE.md` section 1).
+
+### `POST /incidents/{id}/analyses`
+No body. Runs the configured analyzer (`ai/nlp/text_analyzer.py` in V2 — a
+rule-based baseline, `docs/AI_ARCHITECTURE.md` section 7) against the report's
+own description and persists the result.
+
+`201` -> `IncidentAnalysisRead`, always with `review_decision: null`.
+`503 ANALYSIS_UNAVAILABLE` if `RAKSHA_AI_ENABLED` is false or the analyzer
+raised — the incident remains fully usable either way.
+`422 ANALYSIS_REJECTED` if the model's own output failed validation (an
+out-of-vocabulary observation, an implausible headcount, an internally
+inconsistent proposal); the reasons are returned and nothing is stored.
+
+### `POST /incidents/{id}/analyses/{analysis_id}/review`
+```json
+{"decision": "ACCEPTED", "note": "Matches the photos too."}
+```
+```json
+{"decision": "EDITED", "category": "FIRE", "people_affected": 9,
+ "note": "Reporter called back; it's a fire, not a flood."}
+```
+```json
+{"decision": "REJECTED", "note": "Description does not support this."}
+```
+`ACCEPTED` applies the proposal's own values; `EDITED` applies the values
+given in the request instead. Either way, applied fields go through the exact
+same path as `PATCH /incidents/{id}` — priority is recomputed and the change
+is audited. `REJECTED` changes nothing on the incident. An analysis can be
+reviewed once: a second attempt gets `409 ANALYSIS_ALREADY_REVIEWED`.
+
+---
+
 ## 6. Media
 
 | Method | Path | Auth | Description |
@@ -215,9 +258,6 @@ incident summary used by the map.
 | Phase | Endpoint | Purpose |
 |---|---|---|
 | 5 | `WS /api/v1/ws/incidents` | Live incident stream for the control centre |
-| 6 | `POST /incidents/{id}/analyze` | Request AI analysis |
-| 6 | `GET /incidents/{id}/analyses` | AI proposals with confidence |
-| 6 | `POST /analyses/{id}/review` | Accept / edit / reject a proposal |
 | 9 | `POST /reports/voice` | Voice report upload and transcription |
 | 10 | `GET /resources`, `GET /geo/resources/nearby` | Resource inventory and search |
 | 11 | `POST /incidents/{id}/dispatch` | Human-approved dispatch |
