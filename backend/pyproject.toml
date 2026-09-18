@@ -53,6 +53,9 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The repository root, so `import ai...` resolves the same way it does for the
+# running application (see scripts/dev_backend.sh and backend/Dockerfile).
+pythonpath = [".."]
 addopts = "-q --strict-markers"
 filterwarnings = ["ignore::DeprecationWarning"]
 markers = [

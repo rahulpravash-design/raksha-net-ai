@@ -109,3 +109,16 @@ class MediaType(StrEnum):
     IMAGE = "IMAGE"
     AUDIO = "AUDIO"
     VIDEO = "VIDEO"
+
+
+class AnalysisReviewDecision(StrEnum):
+    """A dispatcher's disposition of one AI proposal.
+
+    There is no "pending" member: a row with ``review_decision IS NULL`` is
+    pending. That keeps "has this been reviewed" a single null check rather
+    than a value comparison that can drift out of sync with it.
+    """
+
+    ACCEPTED = "ACCEPTED"
+    EDITED = "EDITED"
+    REJECTED = "REJECTED"

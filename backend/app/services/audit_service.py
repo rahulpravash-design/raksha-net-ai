@@ -34,6 +34,10 @@ class AuditAction:
     INCIDENT_ASSIGNED = "incident.assigned"
     MEDIA_UPLOADED = "media.uploaded"
     MEDIA_ACCESSED = "media.accessed"
+    AI_ANALYSIS_CREATED = "ai.analysis_created"
+    AI_ANALYSIS_UNAVAILABLE = "ai.analysis_unavailable"
+    AI_ANALYSIS_REJECTED = "ai.analysis_rejected"
+    AI_ANALYSIS_REVIEWED = "ai.analysis_reviewed"
 
 
 class AuditService:

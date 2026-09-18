@@ -120,6 +120,18 @@ class InvalidStatusTransitionError(ConflictError):
     message = "That status change is not permitted from the current status."
 
 
+class AnalysisAlreadyReviewedError(ConflictError):
+    code = "ANALYSIS_ALREADY_REVIEWED"
+    message = "This AI analysis has already been reviewed."
+
+
+# --- 422 -----------------------------------------------------------------
+class AnalysisRejectedError(AppError):
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
+    code = "ANALYSIS_REJECTED"
+    message = "The AI analysis output failed validation and was discarded."
+
+
 # --- 413 / 415 / 429 ---------------------------------------------------------
 class MediaTooLargeError(AppError):
     status_code = status.HTTP_413_CONTENT_TOO_LARGE
@@ -131,6 +143,15 @@ class UnsupportedMediaTypeError(AppError):
     status_code = status.HTTP_415_UNSUPPORTED_MEDIA_TYPE
     code = "MEDIA_UNSUPPORTED_TYPE"
     message = "That file type is not accepted."
+
+
+class AnalysisUnavailableError(AppError):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    code = "ANALYSIS_UNAVAILABLE"
+    message = (
+        "AI analysis is not available right now. "
+        "The incident remains fully usable from the reporter's own words."
+    )
 
 
 class RateLimitedError(AppError):

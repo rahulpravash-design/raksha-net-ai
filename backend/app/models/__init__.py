@@ -4,12 +4,14 @@ Importing this package registers every mapper with :class:`app.db.base.Base`,
 which Alembic's autogenerate relies on.
 """
 
+from app.models.analysis import IncidentAnalysis
 from app.models.enums import (
     ADMIN_ROLES,
     DISPATCH_ROLES,
     OPEN_STATUSES,
     OPERATIONAL_ROLES,
     TERMINAL_STATUSES,
+    AnalysisReviewDecision,
     IncidentCategory,
     IncidentStatus,
     MediaType,
@@ -31,8 +33,10 @@ __all__ = [
     "OPEN_STATUSES",
     "OPERATIONAL_ROLES",
     "TERMINAL_STATUSES",
+    "AnalysisReviewDecision",
     "AuditLog",
     "Incident",
+    "IncidentAnalysis",
     "IncidentCategory",
     "IncidentMedia",
     "IncidentStatus",
