@@ -17,6 +17,7 @@ import {
   type StatusHistoryEntry,
 } from "@raksha/api-client";
 
+import { AIAnalysisPanel } from "@/components/AIAnalysisPanel";
 import { useAuth } from "@/components/AuthProvider";
 import { MediaGallery } from "@/components/MediaGallery";
 import { PriorityExplanation } from "@/components/PriorityExplanation";
@@ -183,6 +184,12 @@ export default function IncidentConsolePage() {
               </div>
             </dl>
           </section>
+
+          <AIAnalysisPanel
+            incidentId={incident.id}
+            canReview={mayDispatch}
+            onApplied={() => void load()}
+          />
 
           <section className="surface rounded-xl p-4">
             <h2 className="font-semibold">Location</h2>

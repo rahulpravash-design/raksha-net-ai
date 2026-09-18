@@ -228,6 +228,65 @@ export interface GeoFeatureCollection {
   truncated: boolean;
 }
 
+export type AnalysisReviewDecision = "ACCEPTED" | "EDITED" | "REJECTED";
+
+/**
+ * One thing a model believes it can see or hear, phrased as an observation —
+ * never a fact (`docs/AI_ARCHITECTURE.md` section 6). Empty for the V2 text
+ * analyzer, which never sees an image or an audio clip.
+ */
+export interface AnalysisObservation {
+  label: string;
+  confidence: number;
+  source: "TEXT" | "IMAGE" | "AUDIO";
+}
+
+/**
+ * An AI proposal for one incident. Deliberately not part of `Incident`:
+ * nothing here is a verified fact until a dispatcher reviews it.
+ */
+export interface IncidentAnalysis {
+  id: string;
+  incident_id: string;
+  model_name: string;
+  model_version: string;
+  provider: string | null;
+  processing_ms: number | null;
+  proposed_category: IncidentCategory | null;
+  type_confidence: number | null;
+  proposed_severity: SeverityLevel | null;
+  severity_confidence: number | null;
+  people_affected: number | null;
+  people_trapped: boolean | null;
+  medical_support_required: boolean | null;
+  immediate_rescue_required: boolean | null;
+  entities: Record<string, string[]>;
+  observations: AnalysisObservation[];
+  reasoning_factors: string[];
+  review_decision: AnalysisReviewDecision | null;
+  reviewed_by: UserSummary | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  applied_fields: Record<string, unknown> | null;
+  created_at: string;
+}
+
+/**
+ * `ACCEPTED` applies the proposal's own values. `EDITED` applies the values
+ * given here instead — the dispatcher's correction, not the model's guess.
+ * `REJECTED` changes nothing on the incident.
+ */
+export interface AnalysisReviewInput {
+  decision: AnalysisReviewDecision;
+  note?: string | null;
+  category?: IncidentCategory | null;
+  severity?: SeverityLevel | null;
+  people_affected?: number | null;
+  people_trapped?: boolean | null;
+  medical_required?: boolean | null;
+  immediate_danger?: boolean | null;
+}
+
 /** The backend's error envelope, as documented in `docs/API.md`. */
 export interface ApiErrorBody {
   error: {

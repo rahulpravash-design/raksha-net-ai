@@ -9,10 +9,12 @@
  */
 
 import type {
+  AnalysisReviewInput,
   ApiErrorBody,
   CreateIncidentInput,
   GeoFeatureCollection,
   Incident,
+  IncidentAnalysis,
   IncidentQuery,
   IncidentStats,
   IncidentStatus,
@@ -221,6 +223,33 @@ export class ApiClient {
       method: "POST",
       body: { assigned_to_id: userId },
     });
+  }
+
+  // --- AI analysis -----------------------------------------------------------
+  /**
+   * Ask the configured analyzer to propose structured facts from the
+   * report's own description. Never changes the incident by itself — a
+   * dispatcher must separately {@link reviewAnalysis} the result.
+   */
+  async runAnalysis(incidentId: string): Promise<IncidentAnalysis> {
+    return this.request<IncidentAnalysis>(`/api/v1/incidents/${incidentId}/analyses`, {
+      method: "POST",
+    });
+  }
+
+  async listAnalyses(incidentId: string): Promise<IncidentAnalysis[]> {
+    return this.request<IncidentAnalysis[]>(`/api/v1/incidents/${incidentId}/analyses`);
+  }
+
+  async reviewAnalysis(
+    incidentId: string,
+    analysisId: string,
+    input: AnalysisReviewInput,
+  ): Promise<IncidentAnalysis> {
+    return this.request<IncidentAnalysis>(
+      `/api/v1/incidents/${incidentId}/analyses/${analysisId}/review`,
+      { method: "POST", body: input },
+    );
   }
 
   // --- media ---------------------------------------------------------------

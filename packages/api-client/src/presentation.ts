@@ -175,6 +175,28 @@ export function formatCoordinates(
   return `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
 }
 
+export type ConfidenceTier = "high" | "medium" | "low";
+
+/**
+ * The confidence policy from `docs/AI_ARCHITECTURE.md` section 5: a high
+ * confidence may be shown pre-filled for one-click acceptance, a medium one
+ * shown but not pre-filled, and a low or missing confidence shown as a
+ * de-emphasised hint. A missing confidence is treated as low, never as
+ * certainty — the same rule `ai.common.validation.is_low_confidence` applies
+ * on the backend.
+ */
+export function confidenceTier(confidence: number | null): ConfidenceTier {
+  if (confidence === null) return "low";
+  if (confidence >= 0.85) return "high";
+  if (confidence >= 0.6) return "medium";
+  return "low";
+}
+
+export function formatConfidence(confidence: number | null): string {
+  if (confidence === null) return "unknown confidence";
+  return `${Math.round(confidence * 100)}% confidence`;
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
