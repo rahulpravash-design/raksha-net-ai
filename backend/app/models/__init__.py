@@ -14,6 +14,7 @@ from app.models.enums import (
     TERMINAL_STATUSES,
     AnalysisReviewDecision,
     DispatchStatus,
+    HospitalNoticeStatus,
     IncidentCategory,
     IncidentStatus,
     MediaType,
@@ -23,6 +24,7 @@ from app.models.enums import (
     SeverityLevel,
     UserRole,
 )
+from app.models.hospital import Hospital, InboundPatientNotice
 from app.models.incident import (
     AuditLog,
     Incident,
@@ -42,6 +44,9 @@ __all__ = [
     "AuditLog",
     "Dispatch",
     "DispatchStatus",
+    "Hospital",
+    "HospitalNoticeStatus",
+    "InboundPatientNotice",
     "Incident",
     "IncidentAnalysis",
     "IncidentCategory",

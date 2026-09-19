@@ -232,6 +232,37 @@ DISPATCH_TO_RESOURCE_STATUS: dict[DispatchStatus, ResourceStatus] = {
 }
 
 
+class HospitalNoticeStatus(StrEnum):
+    NOTIFIED = "NOTIFIED"
+    ACKNOWLEDGED = "ACKNOWLEDGED"
+    ARRIVED = "ARRIVED"
+    DIVERTED = "DIVERTED"
+    CANCELLED = "CANCELLED"
+
+
+ALLOWED_NOTICE_TRANSITIONS: dict[
+    HospitalNoticeStatus, frozenset[HospitalNoticeStatus]
+] = {
+    HospitalNoticeStatus.NOTIFIED: frozenset(
+        {
+            HospitalNoticeStatus.ACKNOWLEDGED,
+            HospitalNoticeStatus.DIVERTED,
+            HospitalNoticeStatus.CANCELLED,
+        }
+    ),
+    HospitalNoticeStatus.ACKNOWLEDGED: frozenset(
+        {
+            HospitalNoticeStatus.ARRIVED,
+            HospitalNoticeStatus.DIVERTED,
+            HospitalNoticeStatus.CANCELLED,
+        }
+    ),
+    HospitalNoticeStatus.ARRIVED: frozenset(),
+    HospitalNoticeStatus.DIVERTED: frozenset(),
+    HospitalNoticeStatus.CANCELLED: frozenset(),
+}
+
+
 class AnalysisReviewDecision(StrEnum):
     """A dispatcher's disposition of one AI proposal.
 

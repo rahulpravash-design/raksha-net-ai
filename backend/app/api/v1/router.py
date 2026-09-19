@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     dispatches,
     geo,
     health,
+    hospitals,
     incidents,
     media,
     resources,
@@ -26,4 +27,6 @@ api_router.include_router(analyses.router)
 api_router.include_router(resources.router)
 api_router.include_router(resources.recommendations_router)
 api_router.include_router(dispatches.router)
+api_router.include_router(hospitals.router)
+api_router.include_router(hospitals.notices_router)
 api_router.include_router(geo.router)
