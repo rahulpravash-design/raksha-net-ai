@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     analyses,
+    analytics,
     auth,
     dispatches,
     geo,
@@ -31,4 +32,5 @@ api_router.include_router(dispatches.router)
 api_router.include_router(hospitals.router)
 api_router.include_router(hospitals.notices_router)
 api_router.include_router(notifications.router)
+api_router.include_router(analytics.router)
 api_router.include_router(geo.router)
