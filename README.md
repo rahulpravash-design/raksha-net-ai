@@ -23,7 +23,8 @@ live map and queue to triage from.
 | V3 — Multimodal | 8–9 | Specified, not implemented. Vision and voice both need an input this deployment does not have — see `docs/ROADMAP.md` |
 | V4 — Resources & dispatch | 10–11 | **Implemented.** Resource inventory with ranked recommendations, human-approved dispatch, and the responder application |
 | V5 — Hospitals & notifications | 12–13 | Phase 12 **implemented**. Phase 13 in-app only; SMS/email/push are stubbed |
-| V6–V7 | 14–18 | Specified, not implemented |
+| V6 — Analytics | 14 | **Implemented.** Response/resolution time, category and resource breakdowns, hotspots on coarsened coordinates |
+| V7 | 15–18 | Phase 15 skipped deliberately. 16–18 specified, not implemented |
 
 `docs/ROADMAP.md` holds the phase definitions and completion criteria.
 

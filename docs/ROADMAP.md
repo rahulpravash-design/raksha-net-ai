@@ -1,7 +1,8 @@
 # RAKSHA NET AI — Development Roadmap
 
-> **Current phase marker: Phases 0–13 complete, except Phases 8 and 9.**
-> **Next: Phase 14 (Analytics). See `CHECKPOINT.md` for the exact resume point.**
+> **Current phase marker: Phases 0–14 complete, except Phases 8 and 9.**
+> **Next: Phase 16 (Security hardening). Phase 15 is deliberately skipped.
+> See `CHECKPOINT.md` for the exact resume point.**
 >
 > Do not implement a future phase unless explicitly requested.
 
@@ -312,10 +313,28 @@ recipient can opt out per channel. ⬜
 
 ---
 
-## Phase 14 — Analytics ⬜ NOT STARTED
+## Phase 14 — Analytics ✅ COMPLETE
 
-Response-time and resolution metrics, category breakdowns, resource
-utilisation, and hotspot detection on **coarsened** coordinates.
+**What shipped.** Five read-only endpoints under `/api/v1/analytics`,
+restricted to dispatch-capable roles (`DISPATCHER`, `ADMIN`, `SUPER_ADMIN`) —
+a hospital operator or a single responder does not need the strategic
+picture: response-time (report to first dispatch) and resolution-time
+(report to resolved) statistics with sample size, mean, median, min and max;
+a category breakdown with counts and average priority score; resource
+utilisation by type (active count, currently available, dispatches in the
+window); and hotspot detection.
+
+The hotspot endpoint is the one place this phase touches a coordinate, and it
+is built to the letter of `CLAUDE.md` section 5: incident coordinates are
+snapped to a ~0.01°  (~1.1 km) grid entirely in PostgreSQL `numeric` (exact
+decimal) space before the query returns, so the response never carries a
+reported incident's actual latitude or longitude — only a rounded cell centre
+and how many incidents fell inside it. A test asserts this directly: two
+incidents reported at different points inside the same cell resolve to one
+hotspot whose coordinates equal neither report's own position.
+
+All five endpoints accept `since`/`until`/`category` filters where relevant.
+No migration was needed — every query reads existing tables.
 
 ---
 
