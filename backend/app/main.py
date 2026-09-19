@@ -78,7 +78,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Middleware runs in reverse registration order, so the correlation id is
     # registered last and therefore wraps everything else.
     app.add_middleware(RateLimitMiddleware, settings=settings)
-    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware, settings=settings)
     app.add_middleware(AccessLogMiddleware)
     app.add_middleware(CorrelationIdMiddleware)
     app.add_middleware(

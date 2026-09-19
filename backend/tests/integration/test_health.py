@@ -38,6 +38,24 @@ def test_security_headers_are_present(client: TestClient) -> None:
     assert headers["X-Content-Type-Options"] == "nosniff"
     assert headers["X-Frame-Options"] == "DENY"
     assert headers["Referrer-Policy"] == "no-referrer"
+    assert headers["Cross-Origin-Opener-Policy"] == "same-origin"
+    assert headers["Cross-Origin-Resource-Policy"] == "same-origin"
+    # An API that returns JSON has no legitimate use for script or style.
+    assert headers["Content-Security-Policy"] == (
+        "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+    )
+    # Never asserted in the test environment: HSTS is meaningless over the
+    # plain HTTP this suite talks, and is only sent in a production-like one.
+    assert "Strict-Transport-Security" not in headers
+
+
+def test_the_strict_csp_does_not_apply_to_the_interactive_docs(
+    client: TestClient,
+) -> None:
+    """Swagger UI needs its own CDN script — the JSON API does not."""
+    response = client.get("/openapi.json")
+    assert response.status_code == 200
+    assert "Content-Security-Policy" not in response.headers
 
 
 def test_root_points_at_the_health_endpoint(client: TestClient) -> None:

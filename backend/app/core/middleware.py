@@ -64,8 +64,25 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
         return response
 
 
+#: The interactive API docs (dev-only — see ``Settings.docs_url``) load their
+#: own script and style from a CDN, which the strict CSP below forbids. Every
+#: other response on this API is JSON and needs no script, style or frame
+#: allowance at all.
+_DOCS_PATHS = frozenset({"/docs", "/redoc", "/openapi.json"})
+
+#: An API that returns JSON has no legitimate use for a script, a style sheet,
+#: a frame or a plugin. ``default-src 'none'`` denies everything and nothing
+#: is re-permitted, so this also satisfies ``docs/SECURITY.md`` section 6's
+#: requirement to forbid inline script.
+_CSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Conservative defaults for an API that also serves uploaded files."""
+
+    def __init__(self, app: object, settings: Settings) -> None:
+        super().__init__(app)  # type: ignore[arg-type]
+        self.settings = settings
 
     async def dispatch(self, request: Request, call_next: RequestHandler) -> Response:
         response = await call_next(request)
@@ -75,6 +92,17 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers.setdefault(
             "Permissions-Policy", "geolocation=(self), microphone=(), camera=()"
         )
+        response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+        response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+        if request.url.path not in _DOCS_PATHS:
+            response.headers.setdefault("Content-Security-Policy", _CSP)
+        if self.settings.is_production_like:
+            # Meaningful only over HTTPS — browsers ignore it on plain HTTP —
+            # so it is harmless to send in a development/test response too,
+            # but only asserted here where TLS is the deployment's own rule.
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=63072000; includeSubDomains"
+            )
         return response
 
 
