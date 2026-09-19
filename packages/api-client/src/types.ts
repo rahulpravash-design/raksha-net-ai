@@ -287,6 +287,128 @@ export interface AnalysisReviewInput {
   immediate_danger?: boolean | null;
 }
 
+export const RESOURCE_TYPES = [
+  "AMBULANCE",
+  "FIRE_ENGINE",
+  "RESCUE_TEAM",
+  "POLICE_UNIT",
+  "RESCUE_BOAT",
+  "SHELTER",
+  "OTHER_RESOURCE",
+] as const;
+export type ResourceType = (typeof RESOURCE_TYPES)[number];
+
+export type ResourceStatus =
+  | "AVAILABLE"
+  | "DISPATCHED"
+  | "EN_ROUTE"
+  | "ON_SCENE"
+  | "OUT_OF_SERVICE";
+
+export interface Resource {
+  id: string;
+  call_sign: string;
+  name: string;
+  resource_type: ResourceType;
+  status: ResourceStatus;
+  latitude: string;
+  longitude: string;
+  base_address: string | null;
+  capabilities: string[];
+  crew_size: number | null;
+  contact_phone: string | null;
+  is_active: boolean;
+  operator: UserSummary | null;
+  status_changed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NearbyResource {
+  id: string;
+  call_sign: string;
+  name: string;
+  resource_type: ResourceType;
+  status: ResourceStatus;
+  latitude: number;
+  longitude: number;
+  capabilities: string[];
+  crew_size: number | null;
+  distance_km: number;
+}
+
+/**
+ * A ranked suggestion. Suggestions only: the API that produces these has no
+ * field that could dispatch anything.
+ */
+export interface ResourceRecommendation {
+  resource: NearbyResource;
+  rank: number;
+  type_match: boolean;
+  matched_capabilities: string[];
+  estimated_minutes: number;
+  reasons: string[];
+}
+
+export interface ResourceRecommendations {
+  incident_id: string;
+  searched_radius_km: number;
+  items: ResourceRecommendation[];
+  note: string | null;
+}
+
+export const DISPATCH_STATUSES = [
+  "DISPATCHED",
+  "ACKNOWLEDGED",
+  "EN_ROUTE",
+  "ON_SCENE",
+  "COMPLETED",
+  "CANCELLED",
+] as const;
+export type DispatchStatus = (typeof DISPATCH_STATUSES)[number];
+
+/** What a responder is told about a scene — never who reported it. */
+export interface DispatchIncidentBrief {
+  id: string;
+  reference_code: string;
+  category: IncidentCategory;
+  priority_band: PriorityBand | null;
+  description: string;
+  latitude: number;
+  longitude: number;
+  address_text: string | null;
+  landmark: string | null;
+  people_affected: number | null;
+  people_trapped: boolean;
+  medical_required: boolean;
+  immediate_danger: boolean;
+  contact_phone: string | null;
+}
+
+export interface Dispatch {
+  id: string;
+  incident_id: string;
+  resource_id: string;
+  status: DispatchStatus;
+  distance_km: number | null;
+  estimated_minutes: number | null;
+  note: string | null;
+  cancel_reason: string | null;
+  /** The human who approved this. The schema will not accept a dispatch without one. */
+  approved_by: UserSummary;
+  resource: Resource;
+  acknowledged_at: string | null;
+  en_route_at: string | null;
+  on_scene_at: string | null;
+  closed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ResponderAssignment extends Dispatch {
+  incident: DispatchIncidentBrief;
+}
+
 /** The backend's error envelope, as documented in `docs/API.md`. */
 export interface ApiErrorBody {
   error: {

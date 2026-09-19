@@ -6,9 +6,12 @@
  */
 
 import type {
+  DispatchStatus,
   IncidentCategory,
   IncidentStatus,
   PriorityBand,
+  ResourceStatus,
+  ResourceType,
   UserRole,
 } from "./types";
 import { DISPATCH_ROLES, OPERATIONAL_ROLES } from "./types";
@@ -202,3 +205,58 @@ export function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+const RESOURCE_TYPE_LABELS: Record<ResourceType, string> = {
+  AMBULANCE: "Ambulance",
+  FIRE_ENGINE: "Fire engine",
+  RESCUE_TEAM: "Rescue team",
+  POLICE_UNIT: "Police unit",
+  RESCUE_BOAT: "Rescue boat",
+  SHELTER: "Shelter",
+  OTHER_RESOURCE: "Other",
+};
+
+export function resourceTypeLabel(value: ResourceType): string {
+  return RESOURCE_TYPE_LABELS[value] ?? value;
+}
+
+const RESOURCE_STATUS_LABELS: Record<ResourceStatus, string> = {
+  AVAILABLE: "Available",
+  DISPATCHED: "Dispatched",
+  EN_ROUTE: "En route",
+  ON_SCENE: "On scene",
+  OUT_OF_SERVICE: "Out of service",
+};
+
+export function resourceStatusLabel(value: ResourceStatus): string {
+  return RESOURCE_STATUS_LABELS[value] ?? value;
+}
+
+const DISPATCH_STATUS_LABELS: Record<DispatchStatus, string> = {
+  DISPATCHED: "Dispatched",
+  ACKNOWLEDGED: "Acknowledged",
+  EN_ROUTE: "En route",
+  ON_SCENE: "On scene",
+  COMPLETED: "Completed",
+  CANCELLED: "Cancelled",
+};
+
+export function dispatchStatusLabel(value: DispatchStatus): string {
+  return DISPATCH_STATUS_LABELS[value] ?? value;
+}
+
+/**
+ * The next steps a crew can report from where they are.
+ *
+ * Mirrors the backend's transition table so the app offers only legal moves.
+ * The backend remains the authority; this just avoids showing a button that
+ * can only fail.
+ */
+export const NEXT_DISPATCH_STATUSES: Record<DispatchStatus, DispatchStatus[]> = {
+  DISPATCHED: ["ACKNOWLEDGED", "EN_ROUTE", "CANCELLED"],
+  ACKNOWLEDGED: ["EN_ROUTE", "CANCELLED"],
+  EN_ROUTE: ["ON_SCENE", "CANCELLED"],
+  ON_SCENE: ["COMPLETED", "CANCELLED"],
+  COMPLETED: [],
+  CANCELLED: [],
+};

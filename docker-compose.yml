@@ -103,6 +103,20 @@ services:
       - backend
     restart: unless-stopped
 
+  responder-web:
+    build:
+      context: .
+      dockerfile: apps/responder-web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3002:3002"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
 volumes:
   postgres-data:
   redis-data:

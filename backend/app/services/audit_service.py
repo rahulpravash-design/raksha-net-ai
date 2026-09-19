@@ -37,6 +37,8 @@ class AuditAction:
     RESOURCE_CREATED = "resource.created"
     RESOURCE_UPDATED = "resource.updated"
     RESOURCE_STATUS_CHANGED = "resource.status_changed"
+    DISPATCH_CREATED = "dispatch.created"
+    DISPATCH_STATUS_CHANGED = "dispatch.status_changed"
     AI_ANALYSIS_CREATED = "ai.analysis_created"
     AI_ANALYSIS_UNAVAILABLE = "ai.analysis_unavailable"
     AI_ANALYSIS_REJECTED = "ai.analysis_rejected"

@@ -5,6 +5,7 @@ which Alembic's autogenerate relies on.
 """
 
 from app.models.analysis import IncidentAnalysis
+from app.models.dispatch import Dispatch
 from app.models.enums import (
     ADMIN_ROLES,
     DISPATCH_ROLES,
@@ -12,6 +13,7 @@ from app.models.enums import (
     OPERATIONAL_ROLES,
     TERMINAL_STATUSES,
     AnalysisReviewDecision,
+    DispatchStatus,
     IncidentCategory,
     IncidentStatus,
     MediaType,
@@ -38,6 +40,8 @@ __all__ = [
     "TERMINAL_STATUSES",
     "AnalysisReviewDecision",
     "AuditLog",
+    "Dispatch",
+    "DispatchStatus",
     "Incident",
     "IncidentAnalysis",
     "IncidentCategory",

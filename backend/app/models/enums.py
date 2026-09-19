@@ -183,6 +183,55 @@ CATEGORY_RESOURCE_PREFERENCE: dict[IncidentCategory, tuple[ResourceType, ...]] =
 }
 
 
+class DispatchStatus(StrEnum):
+    DISPATCHED = "DISPATCHED"
+    ACKNOWLEDGED = "ACKNOWLEDGED"
+    EN_ROUTE = "EN_ROUTE"
+    ON_SCENE = "ON_SCENE"
+    COMPLETED = "COMPLETED"
+    CANCELLED = "CANCELLED"
+
+
+#: A dispatch in one of these states is finished; the unit is free again.
+CLOSED_DISPATCH_STATUSES: frozenset[DispatchStatus] = frozenset(
+    {DispatchStatus.COMPLETED, DispatchStatus.CANCELLED}
+)
+
+#: The legal moves for a dispatch. A responder walks forward through these;
+#: nothing skips ahead, and a finished dispatch is finished.
+ALLOWED_DISPATCH_TRANSITIONS: dict[DispatchStatus, frozenset[DispatchStatus]] = {
+    DispatchStatus.DISPATCHED: frozenset(
+        {
+            DispatchStatus.ACKNOWLEDGED,
+            DispatchStatus.EN_ROUTE,
+            DispatchStatus.CANCELLED,
+        }
+    ),
+    DispatchStatus.ACKNOWLEDGED: frozenset(
+        {DispatchStatus.EN_ROUTE, DispatchStatus.CANCELLED}
+    ),
+    DispatchStatus.EN_ROUTE: frozenset(
+        {DispatchStatus.ON_SCENE, DispatchStatus.CANCELLED}
+    ),
+    DispatchStatus.ON_SCENE: frozenset(
+        {DispatchStatus.COMPLETED, DispatchStatus.CANCELLED}
+    ),
+    DispatchStatus.COMPLETED: frozenset(),
+    DispatchStatus.CANCELLED: frozenset(),
+}
+
+#: The resource status that matches each dispatch status, so the unit's own
+#: availability follows what its crew reports rather than drifting from it.
+DISPATCH_TO_RESOURCE_STATUS: dict[DispatchStatus, ResourceStatus] = {
+    DispatchStatus.DISPATCHED: ResourceStatus.DISPATCHED,
+    DispatchStatus.ACKNOWLEDGED: ResourceStatus.DISPATCHED,
+    DispatchStatus.EN_ROUTE: ResourceStatus.EN_ROUTE,
+    DispatchStatus.ON_SCENE: ResourceStatus.ON_SCENE,
+    DispatchStatus.COMPLETED: ResourceStatus.AVAILABLE,
+    DispatchStatus.CANCELLED: ResourceStatus.AVAILABLE,
+}
+
+
 class AnalysisReviewDecision(StrEnum):
     """A dispatcher's disposition of one AI proposal.
 

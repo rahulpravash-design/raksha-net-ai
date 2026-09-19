@@ -11,6 +11,8 @@
 import type {
   AnalysisReviewInput,
   ApiErrorBody,
+  Dispatch,
+  DispatchStatus,
   CreateIncidentInput,
   GeoFeatureCollection,
   Incident,
@@ -20,8 +22,14 @@ import type {
   IncidentStatus,
   IncidentSummary,
   MediaItem,
+  NearbyResource,
   Page,
   PriorityBand,
+  Resource,
+  ResourceRecommendations,
+  ResourceStatus,
+  ResourceType,
+  ResponderAssignment,
   StatusHistoryEntry,
   TokenResponse,
   User,
@@ -250,6 +258,98 @@ export class ApiClient {
       `/api/v1/incidents/${incidentId}/analyses/${analysisId}/review`,
       { method: "POST", body: input },
     );
+  }
+
+  // --- resources -------------------------------------------------------------
+  async resources(query: {
+    page?: number;
+    page_size?: number;
+    resource_type?: ResourceType[];
+    status?: ResourceStatus[];
+    active_only?: boolean;
+    q?: string;
+  } = {}): Promise<Page<Resource>> {
+    return this.request<Page<Resource>>("/api/v1/resources", { query: { ...query } });
+  }
+
+  async resource(id: string): Promise<Resource> {
+    return this.request<Resource>(`/api/v1/resources/${id}`);
+  }
+
+  async resourcesNearby(params: {
+    latitude: number;
+    longitude: number;
+    radius_km?: number;
+    resource_type?: ResourceType[];
+    available_only?: boolean;
+    limit?: number;
+  }): Promise<{ items: NearbyResource[]; count: number }> {
+    return this.request<{ items: NearbyResource[]; count: number }>(
+      "/api/v1/resources/nearby",
+      { query: { ...params } },
+    );
+  }
+
+  async setResourceStatus(
+    id: string,
+    status: ResourceStatus,
+    position?: { latitude: number; longitude: number },
+  ): Promise<Resource> {
+    return this.request<Resource>(`/api/v1/resources/${id}/status`, {
+      method: "POST",
+      body: { status, ...(position ?? {}) },
+    });
+  }
+
+  async resourceRecommendations(
+    incidentId: string,
+    limit = 10,
+  ): Promise<ResourceRecommendations> {
+    return this.request<ResourceRecommendations>(
+      `/api/v1/incidents/${incidentId}/resource-recommendations`,
+      { query: { limit } },
+    );
+  }
+
+  // --- dispatch --------------------------------------------------------------
+  /**
+   * Send a unit. The approver recorded on the dispatch is the authenticated
+   * caller — there is no field here to supply one.
+   */
+  async dispatchResource(
+    incidentId: string,
+    resourceId: string,
+    note?: string,
+  ): Promise<Dispatch> {
+    return this.request<Dispatch>(`/api/v1/incidents/${incidentId}/dispatches`, {
+      method: "POST",
+      body: { resource_id: resourceId, note: note ?? null },
+    });
+  }
+
+  async incidentDispatches(incidentId: string): Promise<Dispatch[]> {
+    return this.request<Dispatch[]>(`/api/v1/incidents/${incidentId}/dispatches`);
+  }
+
+  async myAssignments(openOnly = true): Promise<ResponderAssignment[]> {
+    return this.request<ResponderAssignment[]>("/api/v1/dispatches/mine", {
+      query: { open_only: openOnly },
+    });
+  }
+
+  async dispatch(id: string): Promise<ResponderAssignment> {
+    return this.request<ResponderAssignment>(`/api/v1/dispatches/${id}`);
+  }
+
+  async setDispatchStatus(
+    id: string,
+    status: DispatchStatus,
+    options: { note?: string; reason?: string } = {},
+  ): Promise<ResponderAssignment> {
+    return this.request<ResponderAssignment>(`/api/v1/dispatches/${id}/status`, {
+      method: "POST",
+      body: { status, note: options.note ?? null, reason: options.reason ?? null },
+    });
   }
 
   // --- media ---------------------------------------------------------------
