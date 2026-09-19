@@ -169,15 +169,25 @@ For any non-trivial change:
 
 ## 10. Current development phase
 
-**Phases 0–6 are implemented**: the V1 foundation, plus the AI emergency
-analyzer (a rule-based V2 baseline behind the same `EmergencyAnalyzer`
-interface a trained model will later occupy).
+**Phases 0–13 are implemented, except Phases 8 and 9.**
 
-See `docs/ROADMAP.md` for the phase definitions and completion criteria.
-The current phase marker is maintained at the top of `docs/ROADMAP.md`.
+Built: the V1 foundation (0–5), the AI emergency analyzer (6), the versioned
+priority-engine configuration (7), resource coordination (10), human-approved
+dispatch with the responder application (11), hospital coordination (12), and
+in-app notifications (13, with external channels stubbed).
 
-Do not implement a future phase unless explicitly asked. In particular:
-computer vision, voice reporting, automated dispatch, hospital coordination
-and prediction are **documented but not implemented**. The priority engine's
-production hardening (Phase 7 — externalised weights, override analytics) is
-also not implemented; V1's deterministic engine ships as-is.
+**Read `CHECKPOINT.md` before resuming.** It records the exact next step, what
+is deliberately unbuilt, and how to bring the stack up.
+
+See `docs/ROADMAP.md` for the phase definitions and completion criteria. The
+current phase marker is maintained at the top of that file.
+
+Do not implement a future phase unless explicitly asked. Not implemented:
+computer vision (8), voice transcription (9), analytics (14), prediction (15),
+security hardening (16), performance work (17) and production readiness (18).
+
+Three things are stubbed behind an interface rather than missing, and each
+reports its own absence rather than pretending: `NullAnalyzer` (AI, when
+`RAKSHA_AI_ENABLED` is false) and `NullNotifier` (SMS/email/push). When you
+add a real implementation, it goes behind the same interface and nothing
+outside that module changes.

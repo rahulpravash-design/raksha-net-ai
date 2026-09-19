@@ -1,6 +1,7 @@
 # RAKSHA NET AI — Development Roadmap
 
-> **Current phase marker: Phases 0–6 complete. Next: Phase 7.**
+> **Current phase marker: Phases 0–13 complete, except Phases 8 and 9.**
+> **Next: Phase 14 (Analytics). See `CHECKPOINT.md` for the exact resume point.**
 >
 > Do not implement a future phase unless explicitly requested.
 
@@ -160,14 +161,29 @@ and must act for anything to change. ✅
 
 ---
 
-## Phase 7 — Priority Engine (production hardening) ⬜ NOT STARTED
+## Phase 7 — Priority Engine (production hardening) ✅ COMPLETE
 
 *A deterministic engine already ships in V1.* This phase makes its
 configuration operational: externalised weights, versioned configuration,
 agreement metrics against dispatcher decisions, and an override analytics view.
 
+**What shipped.** `PriorityWeights` is an immutable, versioned configuration
+value. The engine stays pure — it receives a configuration, it never reads
+one. `app/services/priority/config_loader.py` registers an operator-supplied
+JSON file named by `RAKSHA_PRIORITY_WEIGHTS_PATH`, and
+`RAKSHA_PRIORITY_WEIGHTS_VERSION` pins or rolls back which registered
+configuration is active — neither needs a code deploy. A malformed file stops
+startup rather than silently leaving the wrong configuration in effect.
+
+Every incident records `priority_engine_version`, and
+`GET /incidents/stats/priority-agreement` reads history back through the
+thresholds of whichever configuration produced each score, so re-tuning never
+makes a past decision unreadable. It reports the override rate and the
+(engine said, human said) matrix.
+
 **Done when:** weights can be tuned without a code deploy, every score records
-the configuration version that produced it, and override rates are measurable.
+the configuration version that produced it, and override rates are
+measurable. ✅
 
 ---
 
@@ -175,6 +191,18 @@ the configuration version that produced it, and override rates are measurable.
 
 Observations from report photographs, with a fixed label vocabulary, confidence
 values and EXIF stripping. Observations are never rendered as facts.
+
+**Planned approach (decided, not built).** A rule-based colour-histogram
+heuristic over incident photos, folded into the existing analysis pipeline
+through a `CompositeAnalyzer`, on the same honesty terms as the Phase 6 text
+analyzer. The AI contract already carries what this needs:
+`AnalysisRequest.image_bytes` and `AnalysisResult.observations` exist and are
+validated, and `OBSERVATION_VOCABULARY` is already phrased as observations.
+
+**This phase cannot be marked complete as specified.** Its completion
+criterion is per-label evaluation metrics, and those require a labelled photo
+dataset that does not exist. A heuristic can ship; the metrics cannot be
+fabricated. Expect to mark it PARTIAL and say so.
 
 **Done when:** evaluation metrics are published per label and the UI marks every
 observation as AI-derived.
@@ -187,35 +215,100 @@ Audio upload, transcription with language hints (English, Tamil, code-mixed),
 then the Phase 6 pipeline. Word error rate is measured per language before the
 feature is offered; an unreliable transcript is worse than none.
 
+**Planned approach (decided, not built).** Audio *upload* is buildable now:
+extend the media validator's MIME allow-list and magic-byte table to cover
+audio, which the `MediaType.AUDIO` enum already anticipates. Transcription is
+not: there is no honest rule-based substitute for ASR the way there is for
+keyword extraction, and no provider is configured. Plan is a `Transcriber`
+protocol with a `NullTranscriber` — the same shape as `NullAnalyzer` and
+`NullNotifier` — so the absence is explicit rather than pretended.
+
 ---
 
-## Phase 10 — Resource Coordination ⬜ NOT STARTED
+## Phase 10 — Resource Coordination ✅ COMPLETE
 
-Resource inventory (ambulances, fire units, rescue teams, hospitals, shelters),
-status lifecycle, capability matching, KNN nearest-resource search, ranked
+Resource inventory (ambulances, fire units, rescue teams, boats, shelters),
+status lifecycle, capability matching, indexed nearest-resource search, ranked
 recommendations. Recommendations only — no dispatch in this phase.
 
+**What shipped.** `resources` carries a PostGIS location kept in sync exactly
+as an incident's is, so "nearest available unit" is one index-assisted
+`ST_DWithin` query. Recommendations rank suitability before proximity — a
+closer unit that cannot do the job is not the better suggestion — and return
+the reasons behind each ranking. The response has no dispatch field at all.
+A responder may set the status of a unit they operate; anyone else's unit
+reads as absent.
+
+**Done when:** a dispatcher can see, ranked and explained, which units could
+take an incident — and cannot send one from this API. ✅
+
 ---
 
-## Phase 11 — Dispatch & Responder Application ⬜ NOT STARTED
+## Phase 11 — Dispatch & Responder Application ✅ COMPLETE
 
 Human-approved dispatch, assignment lifecycle, the responder web application,
 routing and ETA. **Human approval is mandatory and is enforced by the schema:
 `dispatches.approved_by_id` is `NOT NULL`.**
 
+**What shipped.** The approver is taken from the authenticated dispatcher,
+never from the request body — there is no field a client could populate to
+make an unapproved dispatch look approved, and a test asserts the database
+itself rejects the row. A dispatch walks a validated lifecycle, and the unit's
+availability follows what its crew reports. Cancelling requires a reason.
+
+`apps/responder-web` is a third Next.js app: a crew's own assignments, the
+scene brief, a maps link, and only the progress buttons that are legal from
+where they are. The brief omits the reporter's identity.
+
+**ETA is a straight-line estimate, not routing** — it ignores roads, traffic
+and terrain, and every figure the API returns is labelled as such. Real
+routing (OSRM or similar) remains unbuilt.
+
+**Done when:** a dispatcher can commit a unit, the crew can work it to
+completion from their own device, and no dispatch exists without a named human
+approver. ✅
+
 ---
 
-## Phase 12 — Hospital Coordination ⬜ NOT STARTED
+## Phase 12 — Hospital Coordination ✅ COMPLETE
 
 Capacity reporting, inbound-patient notice, and strict data minimisation — a
 hospital receives clinical and ETA information, not the reporter's identity.
 
+**What shipped.** Hospitals carry live bed and ICU counts maintained by their
+own operator, and the nearest-facility search treats "has a free bed" as part
+of the filter rather than a detail the dispatcher must notice afterwards.
+
+Data minimisation is enforced by the shape of the record, not by convention:
+`inbound_patient_notices` has no column for the reporter, their contact
+details, the report text or its coordinates. A test asserts the response
+carries none of them.
+
+**Done when:** a hospital can be told what is coming without learning who
+called it in. ✅
+
 ---
 
-## Phase 13 — Notifications ⬜ NOT STARTED
+## Phase 13 — Notifications ⚠️ PARTIAL — in-app complete, external channels stubbed
 
 In-app, push, SMS and email, with templates, delivery tracking, retries and
 per-channel opt-out. Emergency-critical channels are never silently dropped.
+
+**What shipped.** The in-app inbox is complete and real: notifications on
+incident status change and on dispatch assignment/stand-down, scoped strictly
+to their recipient, with unread counts and read marking. Delivery is recorded
+per channel.
+
+**What is stubbed.** SMS, email and push go through a `Notifier` protocol
+whose only implementation is `NullNotifier`. An attempted SMS is stored as
+`UNAVAILABLE` with the reason — the "never silently dropped" requirement is
+met — but nothing is actually transmitted. Wiring a real provider means
+returning it from `get_notifier()`; nothing else changes.
+
+**Not built:** retries, and per-channel opt-out preferences.
+
+**Done when:** every channel has a real provider, retries are exercised, and a
+recipient can opt out per channel. ⬜
 
 ---
 
@@ -226,11 +319,16 @@ utilisation, and hotspot detection on **coarsened** coordinates.
 
 ---
 
-## Phase 15 — Prediction ⬜ NOT STARTED
+## Phase 15 — Prediction ⬜ NOT STARTED — and deliberately so
 
 Risk estimation from historical patterns, weather and geography. Presented as
 an estimate with an uncertainty band, never as a forecast of a specific event.
 Not started before a real historical dataset exists.
+
+**Decision: skip until the precondition is met.** No real historical dataset
+exists, so anything built here would be a model trained on synthetic seed data
+presented as risk estimation for actual emergencies. This phase stays unbuilt
+on purpose, not for lack of time.
 
 ---
 

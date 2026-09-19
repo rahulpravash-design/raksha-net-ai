@@ -19,10 +19,11 @@ live map and queue to triage from.
 | Version | Phases | State |
 |---|---|---|
 | **V1 — Foundation** | 0–5 | **Implemented.** Report → triage → map → status, end to end |
-| V2 — AI analysis | 6–7 | Phase 6 **implemented** (a rule-based text analyzer and its review workflow). Phase 7 (priority-engine hardening) not implemented |
-| V3 — Multimodal | 8–9 | Specified, not implemented |
-| V4 — Resources & dispatch | 10–11 | Specified, not implemented |
-| V5–V7 | 12–18 | Specified, not implemented |
+| V2 — AI analysis | 6–7 | **Implemented.** Rule-based text analyzer with a dispatcher review workflow; versioned priority-engine configuration |
+| V3 — Multimodal | 8–9 | Specified, not implemented. Vision and voice both need an input this deployment does not have — see `docs/ROADMAP.md` |
+| V4 — Resources & dispatch | 10–11 | **Implemented.** Resource inventory with ranked recommendations, human-approved dispatch, and the responder application |
+| V5 — Hospitals & notifications | 12–13 | Phase 12 **implemented**. Phase 13 in-app only; SMS/email/push are stubbed |
+| V6–V7 | 14–18 | Specified, not implemented |
 
 `docs/ROADMAP.md` holds the phase definitions and completion criteria.
 
@@ -63,7 +64,7 @@ risk. See `docs/SECURITY.md` §12.
 ## Architecture
 
 ```
-  Citizen web            Control centre            Responder web (Phase 11)
+  Citizen web            Control centre            Responder web
   (Next.js)              (Next.js + Leaflet)
        │                        │                          │
        └────────────────────────┴──────────────┬───────────┘
@@ -105,9 +106,10 @@ raksha-net-ai/
 ├── CLAUDE.md                 Development constitution — read before changing anything
 ├── apps/
 │   ├── citizen-web/          Reporting and status tracking
-│   └── control-center/       Operator triage, map and incident console
+│   ├── control-center/       Operator triage, map and incident console
+│   └── responder-web/        Crew assignments, scene brief and progress
 ├── packages/
-│   └── api-client/           Typed API client shared by both front ends
+│   └── api-client/           Typed API client shared by all three front ends
 ├── backend/
 │   ├── app/
 │   │   ├── api/              HTTP layer: routing, auth wiring, schema translation
@@ -119,7 +121,8 @@ raksha-net-ai/
 │   │   └── utils/            Geo validation, reference codes, time
 │   ├── migrations/           Alembic revisions
 │   └── tests/                unit/ (no database) and integration/ (real PostGIS)
-├── ai/                       The AI boundary. V1 ships a NullAnalyzer.
+├── ai/                       The AI boundary. NullAnalyzer, plus a rule-based
+│                             text analyzer (Phase 6).
 ├── database/                 Seeds and schema notes
 ├── docs/                     The eleven specification documents
 ├── infrastructure/           Deployment notes and runbooks
@@ -139,6 +142,7 @@ docker compose up
 |---|---|
 | Citizen app | http://localhost:3000 |
 | Control centre | http://localhost:3001 |
+| Responder app | http://localhost:3002 |
 | API | http://localhost:8000 |
 | API documentation | http://localhost:8000/docs |
 
@@ -154,6 +158,7 @@ Requires Python 3.11+, Node 20+, and PostgreSQL 16 with PostGIS.
 ./scripts/dev_backend.sh      # API on :8000
 npm run dev:citizen           # citizen app on :3000
 npm run dev:control           # control centre on :3001
+npm run dev --workspace @raksha/responder-web   # responder app on :3002
 ```
 
 ### Seeded accounts
