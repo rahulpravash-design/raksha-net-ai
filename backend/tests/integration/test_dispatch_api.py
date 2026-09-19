@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.security import create_access_token
@@ -101,7 +102,7 @@ def test_the_database_refuses_a_dispatch_with_no_approver(
 ) -> None:
     """Belt and braces: the NOT NULL constraint is the last line of defence."""
     dispatch = dispatch_unit(scene)
-    with pytest.raises(Exception):
+    with pytest.raises(IntegrityError):
         db_session.execute(
             text("UPDATE dispatches SET approved_by_id = NULL WHERE id = :id"),
             {"id": dispatch["id"]},

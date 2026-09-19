@@ -13,11 +13,14 @@ from app.models.enums import (
     OPERATIONAL_ROLES,
     TERMINAL_STATUSES,
     AnalysisReviewDecision,
+    DeliveryStatus,
     DispatchStatus,
     HospitalNoticeStatus,
     IncidentCategory,
     IncidentStatus,
     MediaType,
+    NotificationChannel,
+    NotificationKind,
     PriorityBand,
     ResourceStatus,
     ResourceType,
@@ -31,6 +34,7 @@ from app.models.incident import (
     IncidentMedia,
     IncidentStatusHistory,
 )
+from app.models.notification import Notification, NotificationDelivery
 from app.models.resource import Resource
 from app.models.user import RefreshToken, User
 
@@ -42,6 +46,7 @@ __all__ = [
     "TERMINAL_STATUSES",
     "AnalysisReviewDecision",
     "AuditLog",
+    "DeliveryStatus",
     "Dispatch",
     "DispatchStatus",
     "Hospital",
@@ -54,6 +59,10 @@ __all__ = [
     "IncidentStatus",
     "IncidentStatusHistory",
     "MediaType",
+    "Notification",
+    "NotificationChannel",
+    "NotificationDelivery",
+    "NotificationKind",
     "PriorityBand",
     "RefreshToken",
     "Resource",

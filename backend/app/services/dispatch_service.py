@@ -30,6 +30,7 @@ from app.models.enums import (
     OPERATIONAL_ROLES,
     TERMINAL_STATUSES,
     DispatchStatus,
+    NotificationKind,
     ResourceStatus,
 )
 from app.models.user import User
@@ -39,6 +40,7 @@ from app.repositories.resource_repository import ResourceRepository
 from app.schemas.dispatch import DispatchCreate, DispatchStatusChange
 from app.services.audit_service import AuditAction, AuditService
 from app.services.auth_service import RequestContext
+from app.services.notification_service import NotificationService
 from app.services.resource_service import estimate_minutes
 from app.utils.geo import haversine_km
 from app.utils.time import utcnow
@@ -135,6 +137,17 @@ class DispatchService:
                 "estimated_minutes": dispatch.estimated_minutes,
             },
         )
+        self._notify_crew(
+            resource.operator,
+            dispatch,
+            kind=NotificationKind.DISPATCH_ASSIGNED,
+            title=f"{resource.call_sign} dispatched to {incident.reference_code}",
+            body=(
+                f"{incident.category.value.replace('_', ' ').title()} at "
+                f"{incident.address_text or 'the reported location'}. "
+                f"About {dispatch.estimated_minutes} minutes away."
+            ),
+        )
         self.session.commit()
         self.session.refresh(dispatch)
 
@@ -203,9 +216,43 @@ class DispatchService:
             user_agent=context.user_agent,
             metadata={"from": previous.value, "to": payload.status.value},
         )
+        if (
+            payload.status is DispatchStatus.CANCELLED
+            and resource is not None
+            and resource.operator is not None
+            and resource.operator.id != actor.id
+        ):
+            self._notify_crew(
+                resource.operator,
+                dispatch,
+                kind=NotificationKind.DISPATCH_CANCELLED,
+                title=f"{resource.call_sign} stood down",
+                body=dispatch.cancel_reason or "The control centre stood this down.",
+            )
         self.session.commit()
         self.session.refresh(dispatch)
         return dispatch
+
+    def _notify_crew(
+        self,
+        operator: User | None,
+        dispatch: Dispatch,
+        *,
+        kind: NotificationKind,
+        title: str,
+        body: str,
+    ) -> None:
+        """Tell the crew. Never allowed to fail the dispatch it reports."""
+        if operator is None:
+            return
+        NotificationService(self.session, self.settings).notify(
+            operator,
+            kind=kind,
+            title=title,
+            body=body,
+            incident_id=dispatch.incident_id,
+            dispatch_id=dispatch.id,
+        )
 
     # -- reads --------------------------------------------------------------
     def get_for_user(self, dispatch_id: uuid.UUID, actor: User) -> Dispatch:

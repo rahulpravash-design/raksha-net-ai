@@ -263,6 +263,32 @@ ALLOWED_NOTICE_TRANSITIONS: dict[
 }
 
 
+class NotificationKind(StrEnum):
+    INCIDENT_STATUS_CHANGED = "INCIDENT_STATUS_CHANGED"
+    INCIDENT_RECEIVED = "INCIDENT_RECEIVED"
+    DISPATCH_ASSIGNED = "DISPATCH_ASSIGNED"
+    DISPATCH_CANCELLED = "DISPATCH_CANCELLED"
+    HOSPITAL_NOTICE = "HOSPITAL_NOTICE"
+    SYSTEM = "SYSTEM"
+
+
+class NotificationChannel(StrEnum):
+    IN_APP = "IN_APP"
+    SMS = "SMS"
+    EMAIL = "EMAIL"
+    PUSH = "PUSH"
+
+
+class DeliveryStatus(StrEnum):
+    PENDING = "PENDING"
+    DELIVERED = "DELIVERED"
+    FAILED = "FAILED"
+    #: No provider is configured for this channel. Recorded rather than
+    #: silently dropped: an emergency-critical channel that quietly went
+    #: nowhere is worse than one that says so (docs/ROADMAP.md, Phase 13).
+    UNAVAILABLE = "UNAVAILABLE"
+
+
 class AnalysisReviewDecision(StrEnum):
     """A dispatcher's disposition of one AI proposal.
 

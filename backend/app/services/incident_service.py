@@ -16,6 +16,7 @@ from app.models.enums import (
     OPERATIONAL_ROLES,
     IncidentCategory,
     IncidentStatus,
+    NotificationKind,
     PriorityBand,
     UserRole,
 )
@@ -35,6 +36,7 @@ from app.schemas.incident import (
 )
 from app.services.audit_service import AuditAction, AuditService
 from app.services.auth_service import RequestContext
+from app.services.notification_service import NotificationService
 from app.services.priority import (
     PriorityInput,
     PriorityResult,
@@ -49,6 +51,7 @@ from app.services.status_machine import (
 )
 from app.utils.codes import generate_reference_code
 from app.utils.geo import validate_coordinates
+from app.utils.messages import citizen_status_message
 from app.utils.time import utcnow
 
 logger = get_logger(__name__)
@@ -353,6 +356,7 @@ class IncidentService:
             user_agent=context.user_agent,
             metadata={"from": previous.value, "to": payload.status.value},
         )
+        self._notify_reporter(incident, previous, actor)
         self.session.commit()
         self.session.refresh(incident)
 
@@ -365,6 +369,31 @@ class IncidentService:
             },
         )
         return incident
+
+    def _notify_reporter(
+        self, incident: Incident, previous: IncidentStatus, actor: User
+    ) -> None:
+        """Tell the person who filed the report that something moved.
+
+        Skipped when they moved it themselves — nobody needs telling what they
+        just did — and never allowed to fail the transition it reports.
+        """
+        reporter = incident.reported_by
+        if reporter is None or reporter.id == actor.id:
+            return
+
+        NotificationService(self.session, self.settings).notify(
+            reporter,
+            kind=NotificationKind.INCIDENT_STATUS_CHANGED,
+            title=f"Your report {incident.reference_code} is now {incident.status.value.replace('_', ' ').lower()}",
+            body=citizen_status_message(incident.status),
+            incident_id=incident.id,
+            context={
+                "reference_code": incident.reference_code,
+                "from": previous.value,
+                "to": incident.status.value,
+            },
+        )
 
     def update_priority(
         self,

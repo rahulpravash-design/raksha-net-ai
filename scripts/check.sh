@@ -30,7 +30,7 @@ run "backend: mypy"       bash -c "cd backend && .venv/bin/mypy app"
 run "backend: pytest"     bash -c "cd backend && .venv/bin/pytest -q"
 run "ai: pytest"          bash -c "PYTHONPATH=. backend/.venv/bin/pytest ai/tests -q"
 
-for app in citizen-web control-center; do
+for app in citizen-web control-center responder-web; do
   run "$app: eslint"    npm run lint --silent --workspace "@raksha/$app"
   run "$app: tsc"       npm run typecheck --silent --workspace "@raksha/$app"
   run "$app: vitest"    npm run test --silent --workspace "@raksha/$app"
