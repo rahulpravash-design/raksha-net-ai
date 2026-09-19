@@ -92,6 +92,10 @@ class Incident(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     priority_overridden: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False
     )
+    #: Which priority-engine configuration produced the score above. Phase 7
+    #: requires every score to carry its configuration version so a historical
+    #: decision stays reproducible after the weights are tuned.
+    priority_engine_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
     priority_override_reason: Mapped[str | None] = mapped_column(
         String(500), nullable=True
     )

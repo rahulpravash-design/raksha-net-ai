@@ -294,6 +294,23 @@ class IncidentRepository:
         )
         return int(self.session.scalar(stmt) or 0)
 
+    def count_all(self) -> int:
+        return int(self.session.scalar(select(func.count()).select_from(Incident)) or 0)
+
+    def overridden_rows(self) -> list[tuple[int | None, Any, str | None]]:
+        """Score, override band and engine version for every overridden incident.
+
+        Returned raw rather than aggregated in SQL: deriving what the engine
+        *would* have said needs the band thresholds of the configuration that
+        scored it, which lives in the engine, not the database.
+        """
+        stmt = select(
+            Incident.priority_score,
+            Incident.priority_band,
+            Incident.priority_engine_version,
+        ).where(Incident.priority_overridden.is_(True))
+        return [tuple(row) for row in self.session.execute(stmt).all()]  # type: ignore[misc]
+
     def count_unassigned_open(self) -> int:
         stmt = (
             select(func.count())

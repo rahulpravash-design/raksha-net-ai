@@ -111,6 +111,15 @@ class Settings(BaseSettings):
     ai_model: str | None = None
     ai_timeout_seconds: int = 20
 
+    # --- Priority engine (Phase 7) ------------------------------------------
+    #: Which registered configuration is active. Rolling back to an earlier
+    #: configuration, or pinning to one, needs only this value, not a deploy.
+    priority_weights_version: str | None = None
+    #: Optional JSON file defining a *new* configuration to register at
+    #: startup (see `app/services/priority/config_loader.py`). Absent by
+    #: default: the engine runs on its shipped V1 configuration.
+    priority_weights_path: Path | None = None
+
     # ----------------------------------------------------------------------
     # Validators
     # ----------------------------------------------------------------------

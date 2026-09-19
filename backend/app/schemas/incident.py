@@ -172,6 +172,31 @@ class IncidentStatusHistoryRead(ORMModel):
     changed_by: UserSummary | None = None
 
 
+class PriorityAgreementCell(BaseModel):
+    """One (engine said, human said) pair and how often it happened."""
+
+    engine_band: PriorityBand
+    override_band: PriorityBand
+    count: int
+
+
+class PriorityAgreementSummary(BaseModel):
+    """How often dispatchers overrule the engine, and in which direction.
+
+    Phase 7 (``docs/ROADMAP.md``): override rates are the feedback signal for
+    tuning the weights. A band the engine consistently gets wrong shows up
+    here as a hot cell, not as anecdote.
+    """
+
+    total_incidents: int
+    overridden_count: int
+    override_rate: float
+    agreement_count: int
+    disagreement_count: int
+    engine_version: str
+    cells: list[PriorityAgreementCell] = Field(default_factory=list)
+
+
 class IncidentStatsSummary(BaseModel):
     """Control-centre header counts."""
 

@@ -30,6 +30,7 @@ from app.schemas.incident import (
     IncidentStatusHistoryRead,
     IncidentSummary,
     IncidentUpdate,
+    PriorityAgreementSummary,
 )
 from app.services.incident_service import IncidentService
 
@@ -136,6 +137,22 @@ def list_incidents(
 )
 def incident_stats(_: OperationalUser, session: DbSession) -> IncidentStatsSummary:
     return IncidentService(session).stats_summary()
+
+
+@router.get(
+    "/stats/priority-agreement",
+    response_model=PriorityAgreementSummary,
+    summary="How often dispatchers overrule the priority engine",
+)
+def priority_agreement(
+    _: OperationalUser, session: DbSession
+) -> PriorityAgreementSummary:
+    """The engine's agreement with the humans who can overrule it.
+
+    A rising override rate in one band is the signal that the weights need
+    tuning — not a reason for the engine to start tuning itself.
+    """
+    return IncidentService(session).priority_agreement()
 
 
 @router.get("/{incident_id}", response_model=IncidentRead, summary="Incident detail")

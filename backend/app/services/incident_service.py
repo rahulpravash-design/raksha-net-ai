@@ -30,10 +30,19 @@ from app.schemas.incident import (
     IncidentStatsSummary,
     IncidentStatusChange,
     IncidentUpdate,
+    PriorityAgreementCell,
+    PriorityAgreementSummary,
 )
 from app.services.audit_service import AuditAction, AuditService
 from app.services.auth_service import RequestContext
-from app.services.priority import PriorityInput, PriorityResult, calculate_priority
+from app.services.priority import (
+    PriorityInput,
+    PriorityResult,
+    band_for_score,
+    calculate_priority,
+    load_active_weights,
+    resolve_weights,
+)
 from app.services.status_machine import (
     assert_role_may_transition,
     assert_transition_allowed,
@@ -55,6 +64,9 @@ class IncidentService:
         self.repo = IncidentRepository(session)
         self.users = UserRepository(session)
         self.audit = AuditService(session)
+        #: Resolved once per service instance: which configuration this
+        #: deployment currently scores with (Phase 7, docs/ROADMAP.md).
+        self.weights = load_active_weights(self.settings)
 
     # -- creation -----------------------------------------------------------
     def create(
@@ -85,7 +97,10 @@ class IncidentService:
         self.repo.set_location(incident, coords)
         self.repo.add(incident)
 
-        self._apply_priority(incident, calculate_priority(self._priority_input(incident)))
+        self._apply_priority(
+            incident,
+            calculate_priority(self._priority_input(incident), weights=self.weights),
+        )
 
         self.repo.add_status_history(
             incident_id=incident.id,
@@ -197,6 +212,51 @@ class IncidentService:
             unassigned_open=self.repo.count_unassigned_open(),
         )
 
+    def priority_agreement(self) -> PriorityAgreementSummary:
+        """Compare what the engine scored against what dispatchers overrode to.
+
+        The engine's own band is recomputed from the stored score using the
+        thresholds of the configuration that produced it, so a deployment that
+        has since re-tuned its weights still reads its history correctly.
+        """
+        total = self.repo.count_all()
+        rows = self.repo.overridden_rows()
+
+        tally: dict[tuple[PriorityBand, PriorityBand], int] = {}
+        agreement = 0
+        for score, override_band, version in rows:
+            if score is None or override_band is None:
+                continue
+            try:
+                weights = resolve_weights(version)
+            except ValueError:
+                # An incident scored under a configuration this deployment no
+                # longer carries: count it, but do not guess its bands.
+                continue
+            engine_band = band_for_score(score, weights=weights)
+            if engine_band is override_band:
+                agreement += 1
+            key = (engine_band, override_band)
+            tally[key] = tally.get(key, 0) + 1
+
+        overridden = len(rows)
+        return PriorityAgreementSummary(
+            total_incidents=total,
+            overridden_count=overridden,
+            override_rate=round(overridden / total, 4) if total else 0.0,
+            agreement_count=agreement,
+            disagreement_count=sum(tally.values()) - agreement,
+            engine_version=self.weights.version,
+            cells=[
+                PriorityAgreementCell(
+                    engine_band=engine, override_band=override, count=count
+                )
+                for (engine, override), count in sorted(
+                    tally.items(), key=lambda item: -item[1]
+                )
+            ],
+        )
+
     # -- updates ------------------------------------------------------------
     def update_facts(
         self,
@@ -224,7 +284,10 @@ class IncidentService:
 
         if not incident.priority_overridden:
             self._apply_priority(
-                incident, calculate_priority(self._priority_input(incident), now=utcnow())
+                incident,
+                calculate_priority(
+                    self._priority_input(incident), now=utcnow(), weights=self.weights
+                ),
             )
 
         self.audit.record(
@@ -320,7 +383,9 @@ class IncidentService:
         incident = self._get_or_404(incident_id)
         self._assert_dispatch_role(actor)
 
-        result = calculate_priority(self._priority_input(incident), now=utcnow())
+        result = calculate_priority(
+            self._priority_input(incident), now=utcnow(), weights=self.weights
+        )
 
         if payload.override_band is None:
             self._apply_priority(incident, result)
@@ -413,6 +478,7 @@ class IncidentService:
         incident.priority_score = result.score
         incident.priority_band = result.band
         incident.priority_factors = result.factors_as_json()
+        incident.priority_engine_version = result.engine_version
 
     def _get_or_404(self, incident_id: uuid.UUID) -> Incident:
         incident = self.repo.get(incident_id)

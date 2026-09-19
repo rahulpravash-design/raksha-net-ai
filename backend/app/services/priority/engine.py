@@ -74,6 +74,88 @@ PEOPLE_AFFECTED_SANITY_LIMIT = 10_000
 
 
 @dataclass(frozen=True, slots=True)
+class PriorityWeights:
+    """One versioned configuration for the engine.
+
+    Phase 7 (``docs/ROADMAP.md``): the engine's weights become operational
+    configuration rather than only code constants, so they can be tuned and
+    rolled back without a code deploy, and every score records exactly which
+    configuration produced it (``priority_engine_version`` on the incident).
+    The engine itself stays pure: this is a plain, immutable value passed in,
+    never read from I/O inside :func:`calculate_priority`.
+    """
+
+    version: str
+    band_thresholds: tuple[tuple[int, PriorityBand], ...]
+    category_base_score: dict[IncidentCategory, int]
+    default_category_score: int
+    severity_score: dict[SeverityLevel, int]
+    people_trapped_score: int
+    immediate_danger_score: int
+    medical_required_score: int
+    people_affected_per_person: float
+    people_affected_cap: int
+    people_affected_sanity_limit: int
+    age_score_per_15_min: int
+    age_score_cap: int
+
+
+#: The configuration V1 shipped with: exactly the constants above, bundled.
+#: Kept byte-for-byte identical to V1 Foundation's behaviour so existing scores
+#: do not shift when this dataclass was introduced.
+WEIGHTS_V1 = PriorityWeights(
+    version=ENGINE_VERSION,
+    band_thresholds=BAND_THRESHOLDS,
+    category_base_score=CATEGORY_BASE_SCORE,
+    default_category_score=DEFAULT_CATEGORY_SCORE,
+    severity_score=SEVERITY_SCORE,
+    people_trapped_score=PEOPLE_TRAPPED_SCORE,
+    immediate_danger_score=IMMEDIATE_DANGER_SCORE,
+    medical_required_score=MEDICAL_REQUIRED_SCORE,
+    people_affected_per_person=PEOPLE_AFFECTED_PER_PERSON,
+    people_affected_cap=PEOPLE_AFFECTED_CAP,
+    people_affected_sanity_limit=PEOPLE_AFFECTED_SANITY_LIMIT,
+    age_score_per_15_min=AGE_SCORE_PER_15_MIN,
+    age_score_cap=AGE_SCORE_CAP,
+)
+
+#: Every configuration this deployment knows how to reproduce a historical
+#: score under. A version is only ever added to, never rewritten in place —
+#: that is what makes a past score reproducible.
+WEIGHT_VERSIONS: dict[str, PriorityWeights] = {WEIGHTS_V1.version: WEIGHTS_V1}
+
+
+def register_weights(weights: PriorityWeights) -> None:
+    """Add a configuration an operator supplied (see ``config_loader.py``).
+
+    A no-op re-registration of an unchanged version is fine; anything else
+    re-registering an existing version is almost certainly a mistake, since it
+    would silently change how already-scored incidents are reproduced.
+    """
+    existing = WEIGHT_VERSIONS.get(weights.version)
+    if existing is not None and existing != weights:
+        raise ValueError(
+            f"Priority weights version {weights.version!r} is already "
+            "registered with different values. Give the new configuration "
+            "its own version string."
+        )
+    WEIGHT_VERSIONS[weights.version] = weights
+
+
+def resolve_weights(version: str | None) -> PriorityWeights:
+    """The configuration for ``version``, or the shipped default (V1) if unset.
+
+    There is no "latest wins" rule: which version is *active* is an explicit
+    operational choice (``RAKSHA_PRIORITY_WEIGHTS_VERSION``), not whichever was
+    registered most recently.
+    """
+    try:
+        return WEIGHT_VERSIONS[version or WEIGHTS_V1.version]
+    except KeyError as exc:
+        raise ValueError(f"Unknown priority engine version: {version!r}") from exc
+
+
+@dataclass(frozen=True, slots=True)
 class PriorityFactor:
     """One contribution to the score, kept so the result can be explained."""
 
@@ -117,24 +199,30 @@ class PriorityResult:
         return "; ".join(parts) if parts else "No aggravating factors recorded."
 
 
-def band_for_score(score: int) -> PriorityBand:
-    for threshold, band in BAND_THRESHOLDS:
+def band_for_score(score: int, *, weights: PriorityWeights = WEIGHTS_V1) -> PriorityBand:
+    for threshold, band in weights.band_thresholds:
         if score >= threshold:
             return band
     return PriorityBand.LOW  # pragma: no cover - unreachable, the last threshold is 0
 
 
 def calculate_priority(
-    data: PriorityInput, *, now: datetime | None = None
+    data: PriorityInput,
+    *,
+    now: datetime | None = None,
+    weights: PriorityWeights = WEIGHTS_V1,
 ) -> PriorityResult:
     """Score an incident from 0 to 100 and explain the result.
 
     ``now`` is a parameter rather than a call to the clock so the function stays
-    pure and the age factor is testable.
+    pure and the age factor is testable. ``weights`` defaults to the shipped V1
+    configuration; the service layer resolves the deployment's active
+    configuration and passes it in (``config_loader.py``) — this function never
+    reads one for itself.
     """
     factors: list[PriorityFactor] = []
 
-    base = CATEGORY_BASE_SCORE.get(data.category, DEFAULT_CATEGORY_SCORE)
+    base = weights.category_base_score.get(data.category, weights.default_category_score)
     factors.append(
         PriorityFactor(
             key="category",
@@ -144,7 +232,7 @@ def calculate_priority(
     )
 
     if data.severity is not None:
-        points = SEVERITY_SCORE.get(data.severity, 0)
+        points = weights.severity_score.get(data.severity, 0)
         if points:
             factors.append(
                 PriorityFactor(
@@ -159,7 +247,7 @@ def calculate_priority(
             PriorityFactor(
                 key="people_trapped",
                 label="People are reported trapped",
-                points=PEOPLE_TRAPPED_SCORE,
+                points=weights.people_trapped_score,
             )
         )
 
@@ -168,7 +256,7 @@ def calculate_priority(
             PriorityFactor(
                 key="immediate_danger",
                 label="Immediate danger to life reported",
-                points=IMMEDIATE_DANGER_SCORE,
+                points=weights.immediate_danger_score,
             )
         )
 
@@ -177,11 +265,11 @@ def calculate_priority(
             PriorityFactor(
                 key="medical_required",
                 label="Medical support required",
-                points=MEDICAL_REQUIRED_SCORE,
+                points=weights.medical_required_score,
             )
         )
 
-    people_points = _people_affected_points(data.people_affected)
+    people_points = _people_affected_points(data.people_affected, weights)
     if people_points:
         factors.append(
             PriorityFactor(
@@ -191,7 +279,7 @@ def calculate_priority(
             )
         )
 
-    age_points = _age_points(data.reported_at, now)
+    age_points = _age_points(data.reported_at, now, weights)
     if age_points:
         factors.append(
             PriorityFactor(
@@ -204,23 +292,33 @@ def calculate_priority(
     total = sum(factor.points for factor in factors)
     score = max(MIN_SCORE, min(MAX_SCORE, total))
 
-    return PriorityResult(score=score, band=band_for_score(score), factors=factors)
+    return PriorityResult(
+        score=score,
+        band=band_for_score(score, weights=weights),
+        factors=factors,
+        engine_version=weights.version,
+    )
 
 
-def _people_affected_points(people_affected: int | None) -> int:
+def _people_affected_points(people_affected: int | None, weights: PriorityWeights) -> int:
     if people_affected is None or people_affected <= 0:
         return 0
-    if people_affected > PEOPLE_AFFECTED_SANITY_LIMIT:
+    if people_affected > weights.people_affected_sanity_limit:
         # Implausible input contributes the cap rather than distorting the score.
-        return PEOPLE_AFFECTED_CAP
-    return min(PEOPLE_AFFECTED_CAP, int(people_affected * PEOPLE_AFFECTED_PER_PERSON))
+        return weights.people_affected_cap
+    return min(
+        weights.people_affected_cap,
+        int(people_affected * weights.people_affected_per_person),
+    )
 
 
-def _age_points(reported_at: datetime | None, now: datetime | None) -> int:
+def _age_points(
+    reported_at: datetime | None, now: datetime | None, weights: PriorityWeights
+) -> int:
     if reported_at is None or now is None:
         return 0
     elapsed = now - reported_at
     if elapsed <= timedelta(0):
         return 0
     quarter_hours = int(elapsed.total_seconds() // 900)
-    return min(AGE_SCORE_CAP, quarter_hours * AGE_SCORE_PER_15_MIN)
+    return min(weights.age_score_cap, quarter_hours * weights.age_score_per_15_min)

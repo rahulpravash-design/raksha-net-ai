@@ -483,3 +483,46 @@ def test_the_history_names_who_made_each_change(
     assert history[0]["changed_by"]["full_name"] == "Asha Reporter"
     assert history[1]["changed_by"]["full_name"] == "Karthik Dispatcher"
     assert history[1]["changed_by"]["role"] == "DISPATCHER"
+
+
+# --- priority engine configuration (Phase 7) ---------------------------------
+def test_the_engine_version_is_recorded_on_every_score(
+    as_role, incident_payload, db_session: Session
+) -> None:
+    """A score without its configuration version cannot be reproduced later."""
+    client, _ = as_role(UserRole.CITIZEN)
+    created = report(client, incident_payload)
+
+    incident = db_session.scalars(
+        select(Incident).where(Incident.id == created["id"])
+    ).one()
+    assert incident.priority_engine_version == "1.0.0"
+
+
+def test_priority_agreement_reports_overrides_against_the_engine(
+    as_role, incident_payload
+) -> None:
+    citizen, _ = as_role(UserRole.CITIZEN)
+    incident = report(citizen, incident_payload)
+
+    dispatcher, _ = as_role(UserRole.DISPATCHER)
+    dispatcher.post(
+        f"/api/v1/incidents/{incident['id']}/priority",
+        json={"override_band": "LOW", "reason": "Reporter stood the callout down."},
+    )
+
+    summary = dispatcher.get("/api/v1/incidents/stats/priority-agreement").json()
+    assert summary["overridden_count"] == 1
+    assert summary["disagreement_count"] == 1  # engine said CRITICAL, human said LOW
+    assert summary["override_rate"] > 0
+    assert summary["cells"][0]["engine_band"] == "CRITICAL"
+    assert summary["cells"][0]["override_band"] == "LOW"
+
+
+def test_priority_agreement_is_not_public(client: TestClient) -> None:
+    assert client.get("/api/v1/incidents/stats/priority-agreement").status_code == 401
+
+
+def test_a_citizen_cannot_read_priority_agreement(as_role) -> None:
+    client, _ = as_role(UserRole.CITIZEN)
+    assert client.get("/api/v1/incidents/stats/priority-agreement").status_code == 403
