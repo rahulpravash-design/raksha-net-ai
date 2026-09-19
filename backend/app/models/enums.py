@@ -111,6 +111,78 @@ class MediaType(StrEnum):
     VIDEO = "VIDEO"
 
 
+class ResourceType(StrEnum):
+    AMBULANCE = "AMBULANCE"
+    FIRE_ENGINE = "FIRE_ENGINE"
+    RESCUE_TEAM = "RESCUE_TEAM"
+    POLICE_UNIT = "POLICE_UNIT"
+    RESCUE_BOAT = "RESCUE_BOAT"
+    SHELTER = "SHELTER"
+    OTHER_RESOURCE = "OTHER_RESOURCE"
+
+
+class ResourceStatus(StrEnum):
+    AVAILABLE = "AVAILABLE"
+    DISPATCHED = "DISPATCHED"
+    EN_ROUTE = "EN_ROUTE"
+    ON_SCENE = "ON_SCENE"
+    OUT_OF_SERVICE = "OUT_OF_SERVICE"
+
+
+#: A resource in one of these states cannot be recommended or dispatched.
+UNAVAILABLE_RESOURCE_STATUSES: frozenset[ResourceStatus] = frozenset(
+    {
+        ResourceStatus.DISPATCHED,
+        ResourceStatus.EN_ROUTE,
+        ResourceStatus.ON_SCENE,
+        ResourceStatus.OUT_OF_SERVICE,
+    }
+)
+
+#: Which kinds of unit a category usually needs, best match first. Used only to
+#: rank recommendations for a human to choose from — never to dispatch
+#: (``CLAUDE.md`` section 2, rule 1).
+CATEGORY_RESOURCE_PREFERENCE: dict[IncidentCategory, tuple[ResourceType, ...]] = {
+    IncidentCategory.MEDICAL: (ResourceType.AMBULANCE, ResourceType.RESCUE_TEAM),
+    IncidentCategory.FIRE: (
+        ResourceType.FIRE_ENGINE,
+        ResourceType.AMBULANCE,
+        ResourceType.RESCUE_TEAM,
+    ),
+    IncidentCategory.FLOOD: (
+        ResourceType.RESCUE_BOAT,
+        ResourceType.RESCUE_TEAM,
+        ResourceType.AMBULANCE,
+    ),
+    IncidentCategory.ROAD_ACCIDENT: (
+        ResourceType.AMBULANCE,
+        ResourceType.POLICE_UNIT,
+        ResourceType.FIRE_ENGINE,
+    ),
+    IncidentCategory.BUILDING_COLLAPSE: (
+        ResourceType.RESCUE_TEAM,
+        ResourceType.AMBULANCE,
+        ResourceType.FIRE_ENGINE,
+    ),
+    IncidentCategory.LANDSLIDE: (ResourceType.RESCUE_TEAM, ResourceType.AMBULANCE),
+    IncidentCategory.GAS_LEAK: (ResourceType.FIRE_ENGINE, ResourceType.RESCUE_TEAM),
+    IncidentCategory.INDUSTRIAL_ACCIDENT: (
+        ResourceType.FIRE_ENGINE,
+        ResourceType.AMBULANCE,
+        ResourceType.RESCUE_TEAM,
+    ),
+    IncidentCategory.ELECTRICAL_HAZARD: (
+        ResourceType.FIRE_ENGINE,
+        ResourceType.RESCUE_TEAM,
+    ),
+    IncidentCategory.MISSING_PERSON: (
+        ResourceType.POLICE_UNIT,
+        ResourceType.RESCUE_TEAM,
+    ),
+    IncidentCategory.OTHER: (),
+}
+
+
 class AnalysisReviewDecision(StrEnum):
     """A dispatcher's disposition of one AI proposal.
 

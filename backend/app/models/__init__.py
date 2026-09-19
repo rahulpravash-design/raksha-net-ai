@@ -16,6 +16,8 @@ from app.models.enums import (
     IncidentStatus,
     MediaType,
     PriorityBand,
+    ResourceStatus,
+    ResourceType,
     SeverityLevel,
     UserRole,
 )
@@ -25,6 +27,7 @@ from app.models.incident import (
     IncidentMedia,
     IncidentStatusHistory,
 )
+from app.models.resource import Resource
 from app.models.user import RefreshToken, User
 
 __all__ = [
@@ -44,6 +47,9 @@ __all__ = [
     "MediaType",
     "PriorityBand",
     "RefreshToken",
+    "Resource",
+    "ResourceStatus",
+    "ResourceType",
     "SeverityLevel",
     "User",
     "UserRole",
