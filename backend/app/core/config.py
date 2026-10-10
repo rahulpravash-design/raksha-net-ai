@@ -65,6 +65,10 @@ class Settings(BaseSettings):
     test_database_url: str | None = None
     db_pool_size: int = 10
     db_max_overflow: int = 20
+    #: Seconds a request waits for a free connection before giving up with a
+    #: 503. SQLAlchemy's default is 30, which turns overload into a half-minute
+    #: hang that ends as a 500.
+    db_pool_timeout: float = 5.0
     db_echo: bool = False
 
     # --- Redis -------------------------------------------------------------
@@ -89,6 +93,14 @@ class Settings(BaseSettings):
     cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:3000", "http://localhost:3001"]
     )
+
+    #: How many requests the API works on at once (per process). Held below the
+    #: database pool *and* the worker-thread pool on purpose: a request can hold
+    #: a connection while it waits for a thread, so admitting more than either
+    #: lets connection-holders and thread-waiters block each other until the
+    #: pool times out. Excess requests queue briefly, then get a 503. 0 disables.
+    max_concurrent_requests: int = 24
+    max_concurrent_wait_seconds: float = 3.0
 
     rate_limit_enabled: bool = True
     rate_limit_default_per_minute: int = 120

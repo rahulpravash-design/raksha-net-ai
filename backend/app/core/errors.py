@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.logging import get_logger, request_id_var
@@ -185,6 +186,20 @@ class MediaScanUnavailableError(AppError):
     message = "Uploads cannot be accepted right now because they cannot be scanned."
 
 
+class ServiceBusyError(AppError):
+    """Shed load honestly: tell the client to retry rather than hang it."""
+
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    code = "SERVICE_BUSY"
+    message = "The system is very busy. Please try again in a moment."
+
+    def __init__(
+        self, message: str | None = None, *, retry_after: int = 1, **kwargs: Any
+    ) -> None:
+        super().__init__(message, **kwargs)
+        self.retry_after = retry_after
+
+
 class AnalysisUnavailableError(AppError):
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     code = "ANALYSIS_UNAVAILABLE"
@@ -216,7 +231,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error(_: Request, exc: AppError) -> JSONResponse:
         headers = {}
-        if isinstance(exc, RateLimitedError):
+        if isinstance(exc, RateLimitedError | ServiceBusyError):
             headers["Retry-After"] = str(exc.retry_after)
         logger.info(
             "request_rejected",
@@ -249,6 +264,18 @@ def register_exception_handlers(app: FastAPI) -> None:
             status_code=exc.status_code,
             content=mapped.to_payload(),
             headers=getattr(exc, "headers", None),
+        )
+
+    @app.exception_handler(SQLAlchemyTimeoutError)
+    async def _pool_exhausted(_: Request, exc: SQLAlchemyTimeoutError) -> JSONResponse:
+        # Every connection stayed busy for the whole pool timeout. That is
+        # overload, not a bug in the request: say so, and say when to retry.
+        logger.error("database_pool_exhausted", extra={"detail": str(exc)[:200]})
+        busy = ServiceBusyError(retry_after=2)
+        return JSONResponse(
+            status_code=busy.status_code,
+            content=busy.to_payload(),
+            headers={"Retry-After": str(busy.retry_after)},
         )
 
     @app.exception_handler(Exception)

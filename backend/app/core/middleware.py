@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -11,7 +12,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from app.core.config import Settings
-from app.core.errors import RateLimitedError
+from app.core.errors import RateLimitedError, ServiceBusyError
 from app.core.logging import get_logger, request_id_var
 from app.core.rate_limit import get_rate_limiter
 
@@ -104,6 +105,41 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "Strict-Transport-Security", "max-age=63072000; includeSubDomains"
             )
         return response
+
+
+class ConcurrencyLimitMiddleware(BaseHTTPMiddleware):
+    """Admit only as many requests as the API can actually serve at once.
+
+    Without this, overload deadlocks rather than slowing down: a request holds a
+    database connection while it waits for a worker thread, and the worker
+    threads are all blocked waiting for connections. Measured, not assumed — see
+    ``docs/PERFORMANCE.md``. A request over the limit waits briefly (a surge
+    clears in moments) and is then refused with ``503`` and ``Retry-After``,
+    which a client can act on, instead of hanging for the pool timeout.
+    """
+
+    def __init__(self, app: object, settings: Settings) -> None:
+        super().__init__(app)  # type: ignore[arg-type]
+        limit = settings.max_concurrent_requests
+        self._wait = settings.max_concurrent_wait_seconds
+        self._semaphore = asyncio.Semaphore(limit) if limit > 0 else None
+
+    async def dispatch(self, request: Request, call_next: RequestHandler) -> Response:
+        if self._semaphore is None or request.url.path in PROBE_PATHS:
+            return await call_next(request)
+        try:
+            await asyncio.wait_for(self._semaphore.acquire(), timeout=self._wait)
+        except TimeoutError:
+            error = ServiceBusyError(retry_after=1)
+            return JSONResponse(
+                status_code=error.status_code,
+                content=error.to_payload(),
+                headers={"Retry-After": str(error.retry_after)},
+            )
+        try:
+            return await call_next(request)
+        finally:
+            self._semaphore.release()
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

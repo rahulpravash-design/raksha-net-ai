@@ -19,6 +19,7 @@ from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import (
     AccessLogMiddleware,
+    ConcurrencyLimitMiddleware,
     CorrelationIdMiddleware,
     RateLimitMiddleware,
     SecurityHeadersMiddleware,
@@ -78,6 +79,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Middleware runs in reverse registration order, so the correlation id is
     # registered last and therefore wraps everything else.
     app.add_middleware(RateLimitMiddleware, settings=settings)
+    app.add_middleware(ConcurrencyLimitMiddleware, settings=settings)
     app.add_middleware(SecurityHeadersMiddleware, settings=settings)
     app.add_middleware(AccessLogMiddleware)
     app.add_middleware(CorrelationIdMiddleware)
