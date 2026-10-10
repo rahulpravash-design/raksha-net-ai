@@ -35,7 +35,7 @@ measured and fixed in a development environment only.**
 | 10 Resource coordination | ✅ complete |
 | 11 Dispatch & responder app | ✅ complete |
 | 12 Hospital coordination | ✅ complete |
-| 13 Notifications | ⚠️ partial — in-app complete, SMS/email/push stubbed |
+| 13 Notifications | ⚠️ partial — in-app complete; SMS/push stubbed; email real (SMTP) but used for account recovery only, never incidents |
 | 14 Analytics | ✅ complete |
 | 15 Prediction | ⬜ deliberately skipped — no historical dataset exists |
 | 16 Security hardening | ⚠️ **code-complete; pen test + authority acceptance NOT done** |
@@ -47,9 +47,9 @@ measured and fixed in a development environment only.**
 - `./scripts/check.sh` — **20/20 steps green** (ruff, black, mypy, pytest, migration
   chain + drift check, AI pytest, pip-audit, npm audit, then eslint + tsc + vitest +
   build for all three front ends). Read from its actual final line.
-- **499 backend tests** (none skipped, including those that start a real
-  `redis-server`), **31 AI tests**, **263 frontend tests** (45 citizen, 213 control centre, 5 responder). 793 total, all passing.
-- Migrations `0001 → 0014`; the gate upgrades to head, fails on model/migration
+- **532 backend tests** (none skipped, including those that start a real
+  `redis-server`), **31 AI tests**, **273 frontend tests** (45 citizen, 223 control centre, 5 responder). 836 total, all passing.
+- Migrations `0001 → 0015`; the gate upgrades to head, fails on model/migration
   drift and downgrades to base on every run (and cleans up even if it fails).
 - Backup → restore → compare, on a 100k-incident database: all checks pass; each
   refusal path (corrupt file, wrong age key, wrong encryption key, existing target)
@@ -159,9 +159,8 @@ of it is the responder app's assignments list (`api.myAssignments`).
 
 Every Phase 10–14 capability now has a screen in the control centre (dispatch, resources,
 hospitals, notifications, analytics, MFA enrolment, administration). The next
-engineering priorities are, in order: **an email channel** (so a user can recover their own
-password — today a forgotten one needs an administrator; the change/forced-change/reset
-lifecycle is built), MFA enrolment in the citizen and responder
+engineering priorities are, in order: **trying a real mail provider** (recovery email is built
+and verified only against a local test mailbox), MFA enrolment in the citizen and responder
 apps, hospital editing, and the responder-visibility question in `docs/SECURITY.md` §3.
 Verify each in a real browser, as the sign-in, dispatch and admin runs were — type
 checks and unit tests do not show that a flow actually works.
@@ -333,9 +332,11 @@ Everything below is committed. Nothing is staged or modified.
 2. **ETA is straight-line, not routing.** `estimate_minutes()` assumes 30 km/h
    over a direct line. It ignores roads, traffic and terrain, and every figure
    the API returns is labelled an estimate. Real routing (OSRM) is unbuilt.
-3. **SMS/email/push transmit nothing.** `NullNotifier` records `UNAVAILABLE`
-   with a reason. The requirement "never silently dropped" is met; actual
-   delivery is not.
+3. **SMS and push transmit nothing; email transmits account mail only.** `NullNotifier`
+   records `UNAVAILABLE` with a reason for SMS/push (and for email when no SMTP host
+   is set). The requirement "never silently dropped" is met. `SmtpNotifier` sends
+   password-recovery and security-notice email when `RAKSHA_SMTP_HOST` is set; it was
+   verified against a local test mailbox, not a real provider.
 4. **Phase 15 (prediction) is skipped on purpose.** The roadmap itself says not
    to start without a real historical dataset. Do not build it on seed data.
 5. **Analytics hotspot grid size (0.01°, ~1.1 km) is a fixed constant**
@@ -447,7 +448,7 @@ npm run dev --workspace @raksha/responder-web      # :3002
 
 ```bash
 ./scripts/check.sh            # the full gate — read the LAST line
-cd backend && .venv/bin/pytest -q          # 499 backend tests
+cd backend && .venv/bin/pytest -q          # 532 backend tests
 cd .. && PYTHONPATH=. backend/.venv/bin/pytest ai/tests -q   # 31 AI tests
 ```
 

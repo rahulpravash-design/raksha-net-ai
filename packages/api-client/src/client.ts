@@ -228,6 +228,32 @@ export class ApiClient {
     return this.request<Hotspots>("/api/v1/analytics/hotspots", { query: { ...query } });
   }
 
+  // --- password recovery (no session needed) ---------------------------------
+  /** Whether this deployment can send recovery email at all. */
+  async recoveryStatus(): Promise<{ email_available: boolean }> {
+    return this.request<{ email_available: boolean }>("/api/v1/auth/recovery-status", {
+      anonymous: true,
+    });
+  }
+
+  /** Always resolves the same way for any address; the answer reveals nothing about accounts. */
+  async requestPasswordReset(email: string): Promise<void> {
+    await this.request<{ message: string }>("/api/v1/auth/forgot-password", {
+      method: "POST",
+      body: { email },
+      anonymous: true,
+    });
+  }
+
+  /** Spend a recovery link. Does not sign anyone in. */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    await this.request<{ message: string }>("/api/v1/auth/reset-password", {
+      method: "POST",
+      body: { token, new_password: newPassword },
+      anonymous: true,
+    });
+  }
+
   // --- password ---------------------------------------------------------------
   /**
    * Replace your own password. Every other session is ended; the response carries

@@ -313,8 +313,10 @@ incident status change and on dispatch assignment/stand-down, scoped strictly
 to their recipient, with unread counts and read marking. Delivery is recorded
 per channel.
 
-**What is stubbed.** SMS, email and push go through a `Notifier` protocol
-whose only implementation is `NullNotifier`. An attempted SMS is stored as
+**What is stubbed.** SMS and push go through a `Notifier` protocol
+whose only implementation is `NullNotifier`; email has a real `SmtpNotifier` (stdlib
+`smtplib`) when `RAKSHA_SMTP_HOST` is set, used for account recovery and security
+notices only — incident notifications are deliberately never emailed. An attempted SMS is stored as
 `UNAVAILABLE` with the reason — the "never silently dropped" requirement is
 met — but nothing is actually transmitted. Wiring a real provider means
 returning it from `get_notifier()`; nothing else changes.

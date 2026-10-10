@@ -60,8 +60,29 @@ location. Security is a functional requirement, not a hardening phase.
   could otherwise set one it knows without being asked for the old one) and only a
   super administrator manages a super administrator. Reset and change are audited
   (`auth.password_reset_by_admin`, `auth.password_changed`) without any password.
-* Not built: an email-based "I forgot my password" flow (no email channel exists), and
-  password history or expiry.
+* **Recovery by email** (only when `RAKSHA_SMTP_HOST` is set):
+  * `POST /auth/forgot-password` answers `202` with identical text for every address, and
+    the email is sent *after* the response (so a slow mail server cannot be timed). The one
+    residual difference is a single database insert for a real account; it is not masked.
+  * The link is `secrets.token_urlsafe` (256-bit), stored only as a SHA-256 hash, single-use,
+    valid 30 minutes (configurable), and a newer request or a completed reset spends older
+    ones. Per account, at most 3 requests per hour send anything (the rest still answer `202`),
+    so the form cannot flood an inbox; the per-IP auth rate limit also applies.
+  * The link's base URL comes from configuration (`RAKSHA_*_APP_URL`, https required in
+    staging/production), **never** from the request — a link built from a forged `Host` or
+    `Origin` is how a token reaches an attacker. A test sends exactly that and checks.
+  * A completed reset clears a lockout and the administrator-set flag (it proves control of
+    the inbox), ends every session, and emails the owner a notice with no secret in it. It
+    does **not** sign anyone in, and a second factor is still required at the next sign-in:
+    email alone never gets past MFA.
+  * An unusable mail server never changes a response: failures are logged (error type only,
+    never credentials or message text) and the request still answers `202`.
+  * Email is not a secure channel, so these messages contain a link or a notice and nothing
+    about any incident. Incident notifications are never emailed.
+  * Residual risk: whoever controls the inbox controls the account (minus any second factor).
+    A deployment that cannot trust its users' mailboxes should leave `RAKSHA_SMTP_HOST` unset
+    and keep recovery administrator-only.
+* Not built: password history or expiry, and per-user notification preferences.
 
 ### Account lockout
 

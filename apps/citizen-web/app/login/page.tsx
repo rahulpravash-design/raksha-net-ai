@@ -90,6 +90,11 @@ export default function LoginPage() {
             />
           </Field>
         )}
+        <p className="text-sm">
+          <Link href="/forgot-password" className="font-medium underline">
+            Forgot your password?
+          </Link>
+        </p>
 
         <Button type="submit" loading={submitting} className="w-full">
           Sign in

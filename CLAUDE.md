@@ -204,7 +204,7 @@ operating authority's acceptance; do not describe it as finished.
 
 Three things are stubbed behind an interface rather than missing, and each
 reports its own absence rather than pretending: `NullAnalyzer` (AI, when
-`RAKSHA_AI_ENABLED` is false), `NullNotifier` (SMS/email/push) and
+`RAKSHA_AI_ENABLED` is false), `NullNotifier` (SMS and push always; email unless `RAKSHA_SMTP_HOST` is set, when `SmtpNotifier` takes over) and
 `NullScanner` (uploads recorded as `UNSCANNED`). When you
 add a real implementation, it goes behind the same interface and nothing
 outside that module changes.

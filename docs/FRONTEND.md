@@ -24,6 +24,7 @@ apps keep their existing look; they share only the notification bell
 | Crew picker | `components/resources/ResourceForm.tsx` | Dispatchers link a responder to a unit via `/users/directory` (no email, phone or other roles). |
 | Account security | `app/(console)/account/security`, `components/PasswordSettings.tsx`, `MfaSettings.tsx`, `QrCode.tsx` | Change your own password (current + new + repeat, plus an authenticator code when 2FA is on; the server's message is shown for weak passwords; other sessions are signed out). An account whose password an administrator set is sent here at sign-in and by the API client's `onPasswordChangeRequired` hook, with a banner, until it is replaced. Two-factor enrolment for the signed-in user: QR code (drawn as an SVG path from the `qrcode` module matrix — no HTML injection) plus a typeable setup key, confirm with a code, turn off with password + code. Under `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL` the API client's `onMfaEnrolmentRequired` hook sends an unenrolled user here instead of showing failed requests. |
 | Analytics | `app/(console)/analytics`, `components/analytics/`, `lib/analytics.ts` | Dispatch roles only. Period presets (24 h / 7 d / 30 d / all time) and a category filter; median-led time-to-dispatch and time-to-resolution cards that always show the sample size, flag fewer than 5 cases as anecdotal and say "nothing to measure" instead of 0; category and resource-use bars (one hue, values printed on every row, so the list reads as a table); hotspots as ranked grid cells showing coarsened centres only. Plain CSS bars — no chart library, no categorical palette, so the palette validator had nothing to validate. |
+| Password recovery | `packages/ui/src/RecoveryForms.tsx`; `forgot-password` and `reset-password` pages in all three apps; "Forgot your password?" on each sign-in | Asks the API whether email recovery exists and, if not, says to ask an administrator instead of promising a message. After a request it gives one non-committal answer for every address. The reset page reads the token from the link and removes it from the address bar, offers mismatch/weak-password feedback without spending the link, and shows "Link not valid" with a way to request a new one. |
 | Resource inventory | `app/(console)/resources`, `components/resources/` | Stats from `/resources/stats/summary`, search + type/status filters + pagination, cards, detail panel, register/edit forms, availability and deactivate controls. |
 
 ## 2. Rules the visuals follow
@@ -69,9 +70,11 @@ Stated plainly, so this is not mistaken for a finished redesign:
   follow the dispatch. The backend itself would accept any status on that
   endpoint; the UI deliberately does not offer it.
 * **Passwords:** changing your own password, the forced change for administrator-set
-  passwords and the administrator's temporary-password reset all exist. There is no
-  self-service "forgot my password" (no email channel), so a forgotten password needs an
-  administrator, and an administrator who forgets theirs needs another administrator.
+  passwords, the administrator's temporary-password reset and (when an SMTP host is
+  configured) recovery by email all exist. Without an SMTP host a forgotten password needs
+  an administrator, and an administrator who forgets theirs needs another administrator.
+  The responder app's recovery pages share the same components but were not driven in a
+  browser; the control centre and citizen app were.
 * **MFA has no recovery codes** (the backend has none). A user who loses the device
   needs an administrator to reset it, and an administrator cannot reset their own.
   The enrolment screen says this before the user relies on it. A user can also turn
@@ -125,6 +128,7 @@ Stated plainly, so this is not mistaken for a finished redesign:
   /dashboard bounces back, their notices show ETA and clinical notes but never the
   report text or reporter, divert needs a reason, API refuses them incident reads,
   dispatcher sees the acknowledgement and withdraws; mobile overflow.
+* `recovery.mjs` — two modes. `unavailable`: the page says recovery by email is not set up and offers no form. `mailbox`: against a real SMTP conversation with `scripts/dev_mailbox.py`, an unknown and a known address get the identical answer and only the known one gets mail; the link points at the configured app (control centre for a dispatcher, citizen app for a citizen); the token leaves the address bar; mismatch and weak passwords are refused without spending the link; a really locked account recovers; the old password stops working; a "password was changed" notice arrives with no secret in it; the link cannot be used twice; mobile overflow.
 * `password.mjs` — an admin-created account is refused everything but the password change and lands on the security screen (even typing `/dashboard` bounces back); client and server refusals (mismatch, weak, wrong current password) leave the session intact; the forced change sends the user home and the console works; a voluntary change ends the other device's refresh token while this browser stays signed in; an administrator really locks an account, sets a generated temporary password (shown once, nothing changes before confirmation), and the user can then sign in with it, flagged to change it; no temporary password is offered for oneself; mobile overflow.
 * `admin.mjs` — non-admins cannot reach Accounts (UI and API); a really-locked
   account is shown Locked and Unlock lets it sign in; MFA reset (needs confirmation,

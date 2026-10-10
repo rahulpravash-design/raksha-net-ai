@@ -22,7 +22,7 @@ live map and queue to triage from.
 | V2 — AI analysis | 6–7 | **Implemented.** Rule-based text analyzer with a dispatcher review workflow; versioned priority-engine configuration |
 | V3 — Multimodal | 8–9 | Specified, not implemented. Vision and voice both need an input this deployment does not have — see `docs/ROADMAP.md` |
 | V4 — Resources & dispatch | 10–11 | **Implemented.** Resource inventory with ranked recommendations, human-approved dispatch, and the responder application |
-| V5 — Hospitals & notifications | 12–13 | Phase 12 **implemented**. Phase 13 in-app only; SMS/email/push are stubbed |
+| V5 — Hospitals & notifications | 12–13 | Phase 12 **implemented**. Phase 13 in-app only for incidents; SMS and push are stubbed. Email is real when an SMTP host is configured, and carries account recovery only |
 | V6 — Analytics | 14 | **Implemented.** Response/resolution time, category and resource breakdowns, hotspots on coarsened coordinates |
 | V7 | 15–18 | Phase 15 skipped deliberately. **16 code-complete** (lockout, MFA, encryption, CSP, scanning, audit gating) — its penetration test and risk acceptance are **not** done. **17 measured and fixed in a dev environment only** (targets met with margin; an overload deadlock found and fixed; no production capacity evidence). **18 artifacts built, nothing deployed**: `/metrics`, verified backup/restore, schema-aware readiness, release procedure |
 

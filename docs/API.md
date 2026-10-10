@@ -70,6 +70,9 @@ Returns **503** with `"status": "degraded"` if the database is unreachable.
 | POST | `/auth/refresh` | refresh token | Rotate tokens |
 | POST | `/auth/logout` | refresh token | Revoke a refresh token |
 | GET | `/auth/me` | access token | Current user profile (exempt from the MFA policy) |
+| GET | `/auth/recovery-status` | none | `{"email_available": bool}` — whether this deployment can send recovery email, so a screen can say "ask an administrator" instead of promising a message |
+| POST | `/auth/forgot-password` | none | Ask for a recovery link. **Always `202` with the same body** for any address; an email is sent after the response, only for an active account with allowance left this hour |
+| POST | `/auth/reset-password` | none | `{token, new_password}`: spend a recovery link. Does not sign anyone in. One `400 INVALID_RESET_TOKEN` for unknown, expired, used and replaced links; a weak password (`400 WEAK_PASSWORD`) does not spend the link |
 | POST | `/auth/password` | access token | Change your own password. Needs `current_password` (and `mfa_code` when MFA is on). Ends every other session and returns a fresh token pair. Exempt from the account policies, so a user who must change an administrator-set password can reach it |
 | POST | `/auth/mfa/enroll` | access token | Begin TOTP enrolment; returns the shared secret and an `otpauth://` URI |
 | POST | `/auth/mfa/enable` | access token | Confirm enrolment with a code; MFA is on from here |

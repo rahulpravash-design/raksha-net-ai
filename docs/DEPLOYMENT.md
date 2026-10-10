@@ -187,3 +187,21 @@ deployment (or a person) can supply. Nothing here has been deployed.
 
 The last row is not ceremonial. This platform must not carry real emergency traffic
 until a responsible authority has accepted it.
+
+---
+
+## 12. Email (password recovery)
+
+Optional. Set `RAKSHA_SMTP_HOST` (+ port, credentials, `RAKSHA_SMTP_SECURITY=starttls|ssl`)
+and the three `RAKSHA_*_APP_URL` values (https). Staging/production refuse to start with
+unencrypted SMTP or http links while email is on. Leave it unset and the platform runs
+without recovery email: the sign-in screens say so and point to an administrator.
+
+* Use a sending domain with SPF/DKIM so recovery mail is not filed as spam — the most
+  common reason recovery "does not work", and nothing in the application can detect it.
+* To try it locally: `python scripts/dev_mailbox.py --port 1025 --dir /tmp/mailbox`, then
+  start the API with `RAKSHA_SMTP_HOST=127.0.0.1 RAKSHA_SMTP_PORT=1025
+  RAKSHA_SMTP_SECURITY=none`. The mailbox accepts everything and never relays; each message
+  lands in the directory as JSON.
+* Verified against that mailbox only. **No real mail provider has been tried**, and the
+  STARTTLS/SSL paths are covered by selection logic, not against a live TLS server.

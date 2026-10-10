@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -89,6 +90,11 @@ export default function LoginPage() {
             />
           </Field>
         )}
+        <p className="text-sm">
+          <Link href="/forgot-password" className="font-medium underline">
+            Forgot your password?
+          </Link>
+        </p>
 
         <Button type="submit" loading={submitting} className="w-full">
           Sign in

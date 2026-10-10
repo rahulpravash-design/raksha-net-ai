@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -20,7 +21,8 @@ export default function ConsoleLoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) router.replace(homeFor(user.role, user.must_change_password));
+    if (!loading && user)
+      router.replace(homeFor(user.role, user.must_change_password));
   }, [loading, user, router]);
 
   async function handleSubmit(event: FormEvent) {
@@ -96,6 +98,11 @@ export default function ConsoleLoginPage() {
             />
           </Field>
         )}
+        <p className="text-sm">
+          <Link href="/forgot-password" className="font-medium underline">
+            Forgot your password?
+          </Link>
+        </p>
 
         <Button type="submit" loading={submitting} className="w-full">
           Sign in
