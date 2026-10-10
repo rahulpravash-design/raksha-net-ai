@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 
 import { AuthProvider } from "@/components/AuthProvider";
-import { ConsoleHeader } from "@/components/ConsoleHeader";
+import { MotionProvider } from "@/components/animations/MotionProvider";
 
 import "./globals.css";
 
@@ -14,20 +14,18 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#050914",
 };
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body className="min-h-screen">
-        <AuthProvider>
-          <ConsoleHeader />
-          <main id="main" className="mx-auto w-full max-w-[110rem] px-4 py-6">
-            {children}
-          </main>
-        </AuthProvider>
+        <MotionProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </MotionProvider>
       </body>
     </html>
   );

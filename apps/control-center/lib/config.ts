@@ -24,3 +24,10 @@ export const MAP_TILES = {
     process.env.NEXT_PUBLIC_MAP_ATTRIBUTION ??
     '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 };
+
+/**
+ * Where "Report an emergency" leads. The citizen application is a separate
+ * deployable, so this is its public address, not a route in this app.
+ */
+export const CITIZEN_APP_URL =
+  process.env.NEXT_PUBLIC_CITIZEN_APP_URL ?? "http://localhost:3000";

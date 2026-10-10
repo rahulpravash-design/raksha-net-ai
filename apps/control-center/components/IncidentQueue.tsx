@@ -1,5 +1,7 @@
 "use client";
 
+import { AnimatePresence, motion } from "motion/react";
+
 import {
   bandStyle,
   categoryLabel,
@@ -35,20 +37,27 @@ export function IncidentQueue({
 
   return (
     <ul className="divide-y divide-[var(--border)]">
+      <AnimatePresence initial={false}>
       {incidents.map((incident) => {
         const style = bandStyle(incident.priority_band);
         const isSelected = incident.id === selectedId;
 
         return (
-          <li key={incident.id}>
+          <motion.li
+            key={incident.id}
+            layout="position"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
             <button
               type="button"
               onClick={() => onSelect(incident.id)}
               aria-current={isSelected ? "true" : undefined}
               className={`w-full border-l-4 px-4 py-3 text-left transition ${style.accent} ${
                 isSelected
-                  ? "bg-brand-50 dark:bg-brand-900/30"
-                  : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                  ? "bg-[var(--accent)]/10"
+                  : "hover:bg-white/5"
               }`}
             >
               <div className="flex items-center justify-between gap-2">
@@ -89,9 +98,10 @@ export function IncidentQueue({
                 )}
               </div>
             </button>
-          </li>
+          </motion.li>
         );
       })}
+      </AnimatePresence>
     </ul>
   );
 }

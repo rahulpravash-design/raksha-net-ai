@@ -2,35 +2,46 @@
 /* Class names used by components in the shared UI package. */
 @source "../../../packages/ui/src";
 
+/* The control centre is a dark, mission-control environment. `dark:` variants
+   are keyed to the `dark` class on <html> (always set), not to the OS setting,
+   so every existing component picks up its dark styling consistently. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-brand-50: #eef6ff;
   --color-brand-100: #d9ebff;
-  --color-brand-500: #2563eb;
-  --color-brand-600: #1d4ed8;
-  --color-brand-700: #1e40af;
+  --color-brand-500: #3285ff;
+  --color-brand-600: #2563eb;
+  --color-brand-700: #1d4ed8;
   --color-brand-900: #172554;
+
+  /* Design tokens (initial palette, adjusted for contrast on #050914). */
+  --color-void: #050914;
+  --color-deep: #0a1220;
+  --color-panel: #0e192a;
+  --color-cyan: #00e5ff;
+  --color-signal-critical: #ff354d;
+  --color-signal-high: #ff8a3d;
+  --color-signal-medium: #ffd166;
+  --color-signal-low: #38d996;
 }
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --surface: #ffffff;
-  --border: #e2e8f0;
-  --muted: #64748b;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0b1220;
-    --foreground: #e2e8f0;
-    --surface: #111c32;
-    --border: #1e293b;
-    --muted: #94a3b8;
-  }
+  color-scheme: dark;
+  --background: #050914;
+  --background-2: #0a1220;
+  --foreground: #f2f7ff;
+  --surface: #0e192a;
+  --border: #1d2e47;
+  --muted: #91a4bd;
+  --accent: #00e5ff;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(50, 133, 255, 0.12), transparent 60%),
+    var(--background);
   color: var(--foreground);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -41,13 +52,98 @@ body {
   border: 1px solid var(--border);
 }
 
+/* A raised, translucent panel: depth by layering and a faint cyan edge, not by
+   blur — backdrop filters are expensive and hurt legibility. */
+.panel-3d {
+  background: linear-gradient(180deg, rgba(14, 25, 42, 0.96), rgba(10, 18, 32, 0.96));
+  border: 1px solid var(--border);
+  box-shadow:
+    0 1px 0 rgba(0, 229, 255, 0.08) inset,
+    0 12px 32px -12px rgba(0, 0, 0, 0.7);
+  transition:
+    transform 180ms var(--ease-out),
+    border-color 180ms var(--ease-out);
+}
+.panel-3d:hover {
+  border-color: rgba(0, 229, 255, 0.35);
+}
+
 .muted {
   color: var(--muted);
+}
+
+/* Faint, static grid. Animated only when motion is welcome. */
+.grid-backdrop {
+  background-image:
+    linear-gradient(rgba(0, 229, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 229, 255, 0.05) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .grid-backdrop {
+    animation: grid-drift 40s linear infinite;
+  }
+}
+@keyframes grid-drift {
+  to {
+    background-position: 48px 48px;
+  }
+}
+
+/* Map markers: one gentle ring, never a flash. */
+.raksha-marker {
+  background: transparent;
+  border: 0;
+}
+.raksha-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  border: 2px solid currentColor;
+  opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .raksha-pulse::after {
+    animation: raksha-ring 2.4s ease-out infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .raksha-pulse::after {
+    opacity: 0.45;
+  }
+}
+@keyframes raksha-ring {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.7);
+    opacity: 0;
+  }
 }
 
 /* A visible focus ring is a safety feature: an operator working the keyboard
    under pressure must always know where they are. */
 :focus-visible {
-  outline: 2px solid var(--color-brand-500);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* Leaflet chrome in the dark theme. */
+.leaflet-container {
+  background: #0a1220;
+  font-family: inherit;
+}
+.leaflet-container .leaflet-popup-content-wrapper,
+.leaflet-container .leaflet-popup-tip {
+  background: #0e192a;
+  color: #f2f7ff;
+  border: 1px solid #1d2e47;
+}
+.leaflet-container .leaflet-control-zoom a {
+  background: #0e192a;
+  color: #f2f7ff;
+  border-color: #1d2e47;
 }
