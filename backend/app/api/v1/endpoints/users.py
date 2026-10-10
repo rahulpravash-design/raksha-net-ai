@@ -168,3 +168,39 @@ def update_user(
     session.commit()
     session.refresh(target)
     return UserRead.model_validate(target)
+
+
+@router.post("/{user_id}/unlock", response_model=UserRead, summary="Clear a lockout")
+def unlock_user(
+    user_id: uuid.UUID,
+    admin: AdminUser,
+    session: DbSession,
+    settings: AppSettings,
+    context: Context,
+) -> UserRead:
+    target = UserRepository(session).get(user_id)
+    if target is None:
+        raise NotFoundError("User not found.")
+    unlocked = AuthService(session, settings).unlock_account(
+        target, actor=admin, context=context
+    )
+    return UserRead.model_validate(unlocked)
+
+
+@router.post(
+    "/{user_id}/reset-mfa",
+    response_model=UserRead,
+    summary="Remove a user's second factor and end their sessions",
+)
+def reset_user_mfa(
+    user_id: uuid.UUID,
+    admin: AdminUser,
+    session: DbSession,
+    settings: AppSettings,
+    context: Context,
+) -> UserRead:
+    target = UserRepository(session).get(user_id)
+    if target is None:
+        raise NotFoundError("User not found.")
+    reset = AuthService(session, settings).reset_mfa(target, actor=admin, context=context)
+    return UserRead.model_validate(reset)

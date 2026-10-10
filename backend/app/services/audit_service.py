@@ -22,6 +22,8 @@ class AuditAction:
     MFA_ENROLLMENT_STARTED = "auth.mfa_enrollment_started"
     MFA_ENABLED = "auth.mfa_enabled"
     MFA_DISABLED = "auth.mfa_disabled"
+    MFA_RESET = "auth.mfa_reset"
+    ACCOUNT_UNLOCKED = "auth.account_unlocked"
     LOGOUT = "auth.logout"
     TOKEN_REFRESHED = "auth.token_refreshed"  # noqa: S105 - an action name
     TOKEN_REUSE_DETECTED = "auth.token_reuse_detected"  # noqa: S105 - an action name

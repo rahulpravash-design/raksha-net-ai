@@ -33,6 +33,10 @@ SENSITIVE_KEYS = frozenset(
         "latitude",
         "longitude",
         "contact_phone",
+        "mfa_code",
+        "mfa_secret",
+        "provisioning_uri",
+        "encryption_key",
     }
 )
 

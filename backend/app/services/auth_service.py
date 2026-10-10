@@ -14,6 +14,7 @@ from app.core.errors import (
     AccountLockedError,
     ConflictError,
     EmailAlreadyRegisteredError,
+    ForbiddenError,
     InactiveAccountError,
     InvalidCredentialsError,
     InvalidMfaCodeError,
@@ -278,6 +279,60 @@ class AuthService:
         self._audit_mfa(AuditAction.MFA_DISABLED, user, context)
         self.session.commit()
         return user
+
+    # -- administrative recovery -------------------------------------------
+    def unlock_account(
+        self, target: User, *, actor: User, context: RequestContext | None = None
+    ) -> User:
+        """Clear a lockout. Without this, an attacker who guesses wrong on
+        purpose can keep a dispatcher out for up to a day."""
+        context = context or RequestContext()
+        self._assert_may_manage(target, actor)
+        target.failed_login_attempts = 0
+        target.locked_until = None
+        self._audit_admin(AuditAction.ACCOUNT_UNLOCKED, target, actor, context)
+        self.session.commit()
+        return target
+
+    def reset_mfa(
+        self, target: User, *, actor: User, context: RequestContext | None = None
+    ) -> User:
+        """Remove a user's second factor (a lost or stolen phone).
+
+        Their sessions are revoked as well: if the device was stolen, the
+        sessions it opened are not to be trusted. An administrator cannot do
+        this to themselves — that would let a hijacked admin session strip its
+        own second factor without the password-and-code that disabling needs.
+        """
+        context = context or RequestContext()
+        if target.id == actor.id:
+            raise ForbiddenError("Disable your own MFA from your account settings.")
+        self._assert_may_manage(target, actor)
+        target.mfa_enabled = False
+        target.mfa_secret = None
+        target.mfa_last_step = None
+        self.tokens.revoke_all_for_user(target.id, utcnow())
+        self._audit_admin(AuditAction.MFA_RESET, target, actor, context)
+        self.session.commit()
+        return target
+
+    @staticmethod
+    def _assert_may_manage(target: User, actor: User) -> None:
+        if target.role is UserRole.SUPER_ADMIN and actor.role is not UserRole.SUPER_ADMIN:
+            raise ForbiddenError("Only a super administrator may manage one.")
+
+    def _audit_admin(
+        self, action: str, target: User, actor: User, context: RequestContext
+    ) -> None:
+        self.audit.record(
+            action,
+            actor_id=actor.id,
+            actor_role=actor.role,
+            entity_type="user",
+            entity_id=target.id,
+            ip_address=context.ip_address,
+            user_agent=context.user_agent,
+        )
 
     def _audit_mfa(self, action: str, user: User, context: RequestContext) -> None:
         self.audit.record(
