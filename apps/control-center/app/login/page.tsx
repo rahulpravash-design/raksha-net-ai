@@ -13,6 +13,8 @@ export default function ConsoleLoginPage() {
   const { signIn, user, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [needsCode, setNeedsCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -25,14 +27,19 @@ export default function ConsoleLoginPage() {
     setError(null);
     setSubmitting(true);
     try {
-      await signIn(email, password);
+      await signIn(email, password, needsCode ? code : undefined);
       router.push("/dashboard");
     } catch (caught) {
-      setError(
-        caught instanceof ApiError
-          ? caught.message
-          : "Could not reach the server. Please check your connection.",
-      );
+      if (caught instanceof ApiError && caught.code === "MFA_REQUIRED") {
+        setNeedsCode(true);
+        setError("Enter the 6-digit code from your authenticator app.");
+      } else {
+        setError(
+          caught instanceof ApiError
+            ? caught.message
+            : "Could not reach the server. Please check your connection.",
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -72,6 +79,22 @@ export default function ConsoleLoginPage() {
             onChange={(event) => setPassword(event.target.value)}
           />
         </Field>
+
+        {needsCode && (
+          <Field label="Verification code" required>
+            <TextInput
+              type="text"
+              name="mfa_code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              required
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+            />
+          </Field>
+        )}
 
         <Button type="submit" loading={submitting} className="w-full">
           Sign in

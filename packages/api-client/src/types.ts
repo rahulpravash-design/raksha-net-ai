@@ -83,6 +83,7 @@ export interface User {
   role: UserRole;
   is_active: boolean;
   is_verified: boolean;
+  mfa_enabled: boolean;
   created_at: string;
   last_login_at: string | null;
 }

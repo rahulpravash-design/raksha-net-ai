@@ -127,10 +127,16 @@ export class ApiClient {
     });
   }
 
-  async login(email: string, password: string): Promise<TokenResponse> {
+  async login(
+    email: string,
+    password: string,
+    mfaCode?: string,
+  ): Promise<TokenResponse> {
     const tokens = await this.request<TokenResponse>("/api/v1/auth/login", {
       method: "POST",
-      body: { email, password },
+      body: mfaCode
+        ? { email, password, mfa_code: mfaCode }
+        : { email, password },
       anonymous: true,
     });
     this.tokens?.setTokens({
@@ -174,7 +180,9 @@ export class ApiClient {
     });
   }
 
-  async incidentQueue(query: IncidentQuery = {}): Promise<Page<IncidentSummary>> {
+  async incidentQueue(
+    query: IncidentQuery = {},
+  ): Promise<Page<IncidentSummary>> {
     return this.request<Page<IncidentSummary>>("/api/v1/incidents", {
       query: { ...query },
     });
@@ -185,7 +193,9 @@ export class ApiClient {
   }
 
   async incidentHistory(id: string): Promise<StatusHistoryEntry[]> {
-    return this.request<StatusHistoryEntry[]>(`/api/v1/incidents/${id}/history`);
+    return this.request<StatusHistoryEntry[]>(
+      `/api/v1/incidents/${id}/history`,
+    );
   }
 
   async incidentStats(): Promise<IncidentStats> {
@@ -240,13 +250,18 @@ export class ApiClient {
    * dispatcher must separately {@link reviewAnalysis} the result.
    */
   async runAnalysis(incidentId: string): Promise<IncidentAnalysis> {
-    return this.request<IncidentAnalysis>(`/api/v1/incidents/${incidentId}/analyses`, {
-      method: "POST",
-    });
+    return this.request<IncidentAnalysis>(
+      `/api/v1/incidents/${incidentId}/analyses`,
+      {
+        method: "POST",
+      },
+    );
   }
 
   async listAnalyses(incidentId: string): Promise<IncidentAnalysis[]> {
-    return this.request<IncidentAnalysis[]>(`/api/v1/incidents/${incidentId}/analyses`);
+    return this.request<IncidentAnalysis[]>(
+      `/api/v1/incidents/${incidentId}/analyses`,
+    );
   }
 
   async reviewAnalysis(
@@ -261,15 +276,19 @@ export class ApiClient {
   }
 
   // --- resources -------------------------------------------------------------
-  async resources(query: {
-    page?: number;
-    page_size?: number;
-    resource_type?: ResourceType[];
-    status?: ResourceStatus[];
-    active_only?: boolean;
-    q?: string;
-  } = {}): Promise<Page<Resource>> {
-    return this.request<Page<Resource>>("/api/v1/resources", { query: { ...query } });
+  async resources(
+    query: {
+      page?: number;
+      page_size?: number;
+      resource_type?: ResourceType[];
+      status?: ResourceStatus[];
+      active_only?: boolean;
+      q?: string;
+    } = {},
+  ): Promise<Page<Resource>> {
+    return this.request<Page<Resource>>("/api/v1/resources", {
+      query: { ...query },
+    });
   }
 
   async resource(id: string): Promise<Resource> {
@@ -321,14 +340,19 @@ export class ApiClient {
     resourceId: string,
     note?: string,
   ): Promise<Dispatch> {
-    return this.request<Dispatch>(`/api/v1/incidents/${incidentId}/dispatches`, {
-      method: "POST",
-      body: { resource_id: resourceId, note: note ?? null },
-    });
+    return this.request<Dispatch>(
+      `/api/v1/incidents/${incidentId}/dispatches`,
+      {
+        method: "POST",
+        body: { resource_id: resourceId, note: note ?? null },
+      },
+    );
   }
 
   async incidentDispatches(incidentId: string): Promise<Dispatch[]> {
-    return this.request<Dispatch[]>(`/api/v1/incidents/${incidentId}/dispatches`);
+    return this.request<Dispatch[]>(
+      `/api/v1/incidents/${incidentId}/dispatches`,
+    );
   }
 
   async myAssignments(openOnly = true): Promise<ResponderAssignment[]> {
@@ -346,10 +370,17 @@ export class ApiClient {
     status: DispatchStatus,
     options: { note?: string; reason?: string } = {},
   ): Promise<ResponderAssignment> {
-    return this.request<ResponderAssignment>(`/api/v1/dispatches/${id}/status`, {
-      method: "POST",
-      body: { status, note: options.note ?? null, reason: options.reason ?? null },
-    });
+    return this.request<ResponderAssignment>(
+      `/api/v1/dispatches/${id}/status`,
+      {
+        method: "POST",
+        body: {
+          status,
+          note: options.note ?? null,
+          reason: options.reason ?? null,
+        },
+      },
+    );
   }
 
   // --- media ---------------------------------------------------------------
@@ -372,7 +403,10 @@ export class ApiClient {
    * The caller is responsible for revoking the returned object URL.
    */
   async mediaObjectUrl(mediaId: string): Promise<string> {
-    const response = await this.authorisedFetch(this.mediaContentUrl(mediaId), {});
+    const response = await this.authorisedFetch(
+      this.mediaContentUrl(mediaId),
+      {},
+    );
     if (!response.ok) throw await this.toError(response);
     return URL.createObjectURL(await response.blob());
   }
@@ -414,7 +448,10 @@ export class ApiClient {
     return url.toString();
   }
 
-  private async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  private async request<T>(
+    path: string,
+    options: RequestOptions = {},
+  ): Promise<T> {
     const init: RequestInit = { method: options.method ?? "GET" };
     if (options.signal) init.signal = options.signal;
     if (options.body !== undefined) {
@@ -439,7 +476,10 @@ export class ApiClient {
   }
 
   /** Send with the access token, refreshing once on a 401. */
-  private async authorisedFetch(url: string, init: RequestInit): Promise<Response> {
+  private async authorisedFetch(
+    url: string,
+    init: RequestInit,
+  ): Promise<Response> {
     const first = await this.fetchImpl(url, this.withAuth(init));
     if (first.status !== 401) return first;
 

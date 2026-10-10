@@ -131,7 +131,9 @@ describe("ApiClient", () => {
   it("refreshes once on a 401 and replays the original request", async () => {
     const fetchImpl = vi
       .fn()
-      .mockResolvedValueOnce(jsonResponse({ error: { code: "TOKEN_EXPIRED" } }, 401))
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { code: "TOKEN_EXPIRED" } }, 401),
+      )
       .mockResolvedValueOnce(
         jsonResponse({
           access_token: "access-2",
@@ -222,6 +224,34 @@ describe("ApiClient", () => {
       ApiError,
     );
     expect(fetchImpl).toHaveBeenCalledOnce();
+  });
+
+  it("sends a verification code with the login only when one is supplied", async () => {
+    const fetchImpl = vi.fn(async (..._args: FetchArgs) =>
+      jsonResponse({ error: { code: "MFA_REQUIRED" } }, 401),
+    );
+    const client = new ApiClient({
+      baseUrl: "http://api.test",
+      tokens,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+
+    await expect(client.login("a@example.org", "pw")).rejects.toMatchObject({
+      code: "MFA_REQUIRED",
+    });
+    await expect(
+      client.login("a@example.org", "pw", "123456"),
+    ).rejects.toBeInstanceOf(ApiError);
+
+    const [without, withCode] = fetchImpl.mock.calls.map(
+      (call) => JSON.parse(String((call[1] as RequestInit).body)) as object,
+    );
+    expect(without).toEqual({ email: "a@example.org", password: "pw" });
+    expect(withCode).toEqual({
+      email: "a@example.org",
+      password: "pw",
+      mfa_code: "123456",
+    });
   });
 
   it("serialises repeatable query parameters for multi-value filters", async () => {

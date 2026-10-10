@@ -252,11 +252,12 @@ export function dispatchStatusLabel(value: DispatchStatus): string {
  * The backend remains the authority; this just avoids showing a button that
  * can only fail.
  */
-export const NEXT_DISPATCH_STATUSES: Record<DispatchStatus, DispatchStatus[]> = {
-  DISPATCHED: ["ACKNOWLEDGED", "EN_ROUTE", "CANCELLED"],
-  ACKNOWLEDGED: ["EN_ROUTE", "CANCELLED"],
-  EN_ROUTE: ["ON_SCENE", "CANCELLED"],
-  ON_SCENE: ["COMPLETED", "CANCELLED"],
-  COMPLETED: [],
-  CANCELLED: [],
-};
+export const NEXT_DISPATCH_STATUSES: Record<DispatchStatus, DispatchStatus[]> =
+  {
+    DISPATCHED: ["ACKNOWLEDGED", "EN_ROUTE", "CANCELLED"],
+    ACKNOWLEDGED: ["EN_ROUTE", "CANCELLED"],
+    EN_ROUTE: ["ON_SCENE", "CANCELLED"],
+    ON_SCENE: ["COMPLETED", "CANCELLED"],
+    COMPLETED: [],
+    CANCELLED: [],
+  };

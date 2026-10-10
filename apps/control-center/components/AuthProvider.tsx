@@ -19,7 +19,7 @@ interface AuthState {
   user: User | null;
   /** True until the stored session has been checked against the backend. */
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string, mfaCode?: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -64,8 +64,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadUser]);
 
   const signIn = useCallback(
-    async (email: string, password: string) => {
-      const tokens = await api.login(email, password);
+    async (email: string, password: string, mfaCode?: string) => {
+      const tokens = await api.login(email, password, mfaCode);
       // A citizen account authenticates successfully but has no business in the
       // control centre. The backend already refuses every operational endpoint;
       // this stops them reaching a console that would only show errors.
