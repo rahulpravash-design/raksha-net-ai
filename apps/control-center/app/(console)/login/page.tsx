@@ -7,6 +7,7 @@ import { ApiError } from "@raksha/api-client";
 
 import { useAuth } from "@/components/AuthProvider";
 import { Button, ErrorBanner, Field, TextInput } from "@/components/ui";
+import { homeFor } from "@/lib/routes";
 
 export default function ConsoleLoginPage() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function ConsoleLoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) router.replace("/dashboard");
+    if (!loading && user) router.replace(homeFor(user.role));
   }, [loading, user, router]);
 
   async function handleSubmit(event: FormEvent) {

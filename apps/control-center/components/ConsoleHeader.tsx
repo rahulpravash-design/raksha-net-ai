@@ -8,6 +8,8 @@ import { NotificationBell } from "@raksha/ui";
 import { getApiClient } from "@/lib/api";
 
 import { useAuth } from "./AuthProvider";
+import { homeFor } from "@/lib/routes";
+
 import { Button } from "./ui";
 
 export function ConsoleHeader() {
@@ -17,7 +19,7 @@ export function ConsoleHeader() {
   return (
     <header className="surface border-x-0 border-t-0">
       <div className="mx-auto flex w-full max-w-[110rem] items-center justify-between gap-4 px-4 py-3">
-        <Link href="/dashboard" className="font-bold tracking-tight">
+        <Link href={user ? homeFor(user.role) : "/dashboard"} className="font-bold tracking-tight">
           RAKSHA<span className="text-brand-600"> CONTROL CENTRE</span>
         </Link>
 

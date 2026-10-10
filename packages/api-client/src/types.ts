@@ -468,6 +468,92 @@ export interface AppNotification {
   deliveries: NotificationDelivery[];
 }
 
+export interface Hospital {
+  id: string;
+  code: string;
+  name: string;
+  latitude: string;
+  longitude: string;
+  address: string | null;
+  contact_phone: string | null;
+  total_beds: number;
+  available_beds: number;
+  icu_total: number;
+  icu_available: number;
+  accepting_emergencies: boolean;
+  specialties: string[];
+  is_active: boolean;
+  managed_by: UserSummary | null;
+  capacity_updated_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NearbyHospital {
+  id: string;
+  code: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  available_beds: number;
+  icu_available: number;
+  accepting_emergencies: boolean;
+  specialties: string[];
+  contact_phone: string | null;
+  distance_km: number;
+}
+
+/** Only supplied fields change. */
+export interface HospitalCapacityInput {
+  available_beds?: number;
+  icu_available?: number;
+  total_beds?: number;
+  icu_total?: number;
+  accepting_emergencies?: boolean;
+  specialties?: string[];
+  note?: string;
+}
+
+export const HOSPITAL_NOTICE_STATUSES = [
+  "NOTIFIED",
+  "ACKNOWLEDGED",
+  "ARRIVED",
+  "DIVERTED",
+  "CANCELLED",
+] as const;
+export type HospitalNoticeStatus = (typeof HOSPITAL_NOTICE_STATUSES)[number];
+
+/**
+ * What a hospital is told about an incoming patient. By design there is no
+ * reporter, contact, report text or coordinates in here.
+ */
+export interface HospitalNotice {
+  id: string;
+  hospital_id: string;
+  incident_id: string;
+  dispatch_id: string | null;
+  status: HospitalNoticeStatus;
+  patient_count: number;
+  category: IncidentCategory;
+  severity: SeverityLevel | null;
+  eta_minutes: number | null;
+  clinical_notes: string | null;
+  response_note: string | null;
+  created_by: UserSummary;
+  acknowledged_at: string | null;
+  closed_at: string | null;
+  created_at: string;
+}
+
+export interface CreateHospitalNoticeInput {
+  hospital_id: string;
+  patient_count?: number;
+  severity?: SeverityLevel | null;
+  eta_minutes?: number | null;
+  clinical_notes?: string | null;
+  dispatch_id?: string | null;
+}
+
 /** The backend's error envelope, as documented in `docs/API.md`. */
 export interface ApiErrorBody {
   error: {

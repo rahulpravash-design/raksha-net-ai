@@ -27,7 +27,13 @@ import type {
   Page,
   PriorityBand,
   Resource,
+  CreateHospitalNoticeInput,
   CreateResourceInput,
+  Hospital,
+  HospitalCapacityInput,
+  HospitalNotice,
+  HospitalNoticeStatus,
+  NearbyHospital,
   ResourceRecommendations,
   ResourceStats,
   UpdateResourceInput,
@@ -372,6 +378,65 @@ export class ApiClient {
     return this.request<Dispatch[]>(
       `/api/v1/incidents/${incidentId}/dispatches`,
     );
+  }
+
+  // --- hospitals -------------------------------------------------------------
+  async hospitals(
+    query: { page?: number; page_size?: number; active_only?: boolean } = {},
+  ): Promise<Page<Hospital>> {
+    return this.request<Page<Hospital>>("/api/v1/hospitals", { query: { ...query } });
+  }
+
+  async hospitalsNearby(params: {
+    latitude: number;
+    longitude: number;
+    radius_km?: number;
+    accepting_only?: boolean;
+    needs_icu?: boolean;
+    limit?: number;
+  }): Promise<{ items: NearbyHospital[]; count: number }> {
+    return this.request<{ items: NearbyHospital[]; count: number }>(
+      "/api/v1/hospitals/nearby",
+      { query: { ...params } },
+    );
+  }
+
+  async updateHospitalCapacity(id: string, input: HospitalCapacityInput): Promise<Hospital> {
+    return this.request<Hospital>(`/api/v1/hospitals/${id}/capacity`, {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  async hospitalNotices(hospitalId: string, openOnly = true): Promise<HospitalNotice[]> {
+    return this.request<HospitalNotice[]>(`/api/v1/hospitals/${hospitalId}/notices`, {
+      query: { open_only: openOnly },
+    });
+  }
+
+  async incidentHospitalNotices(incidentId: string): Promise<HospitalNotice[]> {
+    return this.request<HospitalNotice[]>(`/api/v1/incidents/${incidentId}/hospital-notices`);
+  }
+
+  async createHospitalNotice(
+    incidentId: string,
+    input: CreateHospitalNoticeInput,
+  ): Promise<HospitalNotice> {
+    return this.request<HospitalNotice>(`/api/v1/incidents/${incidentId}/hospital-notices`, {
+      method: "POST",
+      body: input,
+    });
+  }
+
+  async respondToHospitalNotice(
+    id: string,
+    status: HospitalNoticeStatus,
+    responseNote?: string,
+  ): Promise<HospitalNotice> {
+    return this.request<HospitalNotice>(`/api/v1/hospital-notices/${id}/status`, {
+      method: "POST",
+      body: { status, response_note: responseNote ?? null },
+    });
   }
 
   // --- notifications ---------------------------------------------------------

@@ -6,6 +6,7 @@
  */
 
 import type {
+  HospitalNoticeStatus,
   DispatchStatus,
   IncidentCategory,
   IncidentStatus,
@@ -124,6 +125,27 @@ const CITIZEN_STATUS_MESSAGES: Record<IncidentStatus, string> = {
 export function citizenStatusMessage(status: IncidentStatus): string {
   return CITIZEN_STATUS_MESSAGES[status] ?? statusLabel(status);
 }
+
+const NOTICE_STATUS_LABELS: Record<HospitalNoticeStatus, string> = {
+  NOTIFIED: "Notified — awaiting the hospital",
+  ACKNOWLEDGED: "Acknowledged",
+  ARRIVED: "Patient arrived",
+  DIVERTED: "Diverted",
+  CANCELLED: "Cancelled",
+};
+
+export function hospitalNoticeStatusLabel(value: HospitalNoticeStatus): string {
+  return NOTICE_STATUS_LABELS[value] ?? value;
+}
+
+/** Mirrors the backend's notice transition table; the server remains the authority. */
+export const NEXT_NOTICE_STATUSES: Record<HospitalNoticeStatus, HospitalNoticeStatus[]> = {
+  NOTIFIED: ["ACKNOWLEDGED", "DIVERTED", "CANCELLED"],
+  ACKNOWLEDGED: ["ARRIVED", "DIVERTED", "CANCELLED"],
+  ARRIVED: [],
+  DIVERTED: [],
+  CANCELLED: [],
+};
 
 export function isOperationalRole(role: UserRole): boolean {
   return OPERATIONAL_ROLES.includes(role);

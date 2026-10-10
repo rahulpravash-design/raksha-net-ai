@@ -22,10 +22,12 @@ import { IncidentHeader } from "@/components/incident/IncidentHeader";
 import { IncidentSkeleton } from "@/components/incident/IncidentSkeleton";
 import { LocationBody, SituationBody } from "@/components/incident/SituationPanel";
 import { StatusTimeline } from "@/components/incident/StatusTimeline";
+import { HospitalNoticePanel } from "@/components/hospitals/HospitalNoticePanel";
 import { MediaGallery } from "@/components/MediaGallery";
 import { PriorityExplanation } from "@/components/PriorityExplanation";
 import { Button, ErrorBanner } from "@/components/ui";
 import { getApiClient } from "@/lib/api";
+import { homeFor, seesIncidents } from "@/lib/routes";
 
 export default function IncidentConsolePage() {
   const params = useParams<{ id: string }>();
@@ -57,6 +59,11 @@ export default function IncidentConsolePage() {
     if (authLoading) return;
     if (!user) {
       router.replace("/login");
+      return;
+    }
+    if (!seesIncidents(user.role)) {
+      // The API refuses incident records to this role; send them home.
+      router.replace(homeFor(user.role));
       return;
     }
     // The session token lives in browser storage, so this data cannot be
@@ -147,6 +154,12 @@ export default function IncidentConsolePage() {
             incidentOpen={OPEN_STATUSES.includes(incident.status)}
             canDispatch={mayDispatch}
             onChanged={() => void load()}
+          />
+
+          <HospitalNoticePanel
+            incident={incident}
+            incidentOpen={OPEN_STATUSES.includes(incident.status)}
+            canDispatch={mayDispatch}
           />
 
           {mayDispatch ? (

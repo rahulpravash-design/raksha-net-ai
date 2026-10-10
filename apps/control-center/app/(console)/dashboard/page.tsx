@@ -32,6 +32,7 @@ import { MapLegend } from "@/components/maps/MapLegend";
 import { StatsBar } from "@/components/StatsBar";
 import { ErrorBanner, Spinner, TextInput } from "@/components/ui";
 import { getApiClient } from "@/lib/api";
+import { homeFor, seesIncidents } from "@/lib/routes";
 import { MAP_DEFAULTS } from "@/lib/config";
 import type { Viewport } from "@/components/IncidentMap";
 
@@ -143,6 +144,11 @@ export default function DashboardPage() {
     if (authLoading) return;
     if (!user) {
       router.replace("/login");
+      return;
+    }
+    if (!seesIncidents(user.role)) {
+      // The API refuses incident records to this role; send them home.
+      router.replace(homeFor(user.role));
       return;
     }
 

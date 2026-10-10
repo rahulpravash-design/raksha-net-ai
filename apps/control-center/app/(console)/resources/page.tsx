@@ -25,6 +25,7 @@ import { ResourceStatsBar } from "@/components/resources/ResourceStatsBar";
 import { Button, EmptyState, ErrorBanner, Spinner, TextInput } from "@/components/ui";
 import { getApiClient } from "@/lib/api";
 import { EMPTY_RESOURCE_FORM } from "@/lib/resourceForm";
+import { homeFor, seesIncidents } from "@/lib/routes";
 
 const PAGE_SIZE = 24;
 const REFRESH_MS = 20_000;
@@ -74,6 +75,10 @@ export default function ResourcesPage() {
     if (authLoading) return;
     if (!user) {
       router.replace("/login");
+      return;
+    }
+    if (!seesIncidents(user.role)) {
+      router.replace(homeFor(user.role));
       return;
     }
     // Session token is in browser storage; every setState follows an await.
