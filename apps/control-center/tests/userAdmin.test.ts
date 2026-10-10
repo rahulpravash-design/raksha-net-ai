@@ -69,6 +69,7 @@ describe("permissionsFor", () => {
       canEditProfile: true,
       canChangeRoleOrActive: true,
       canResetMfa: true,
+      canResetPassword: true,
       reason: null,
     });
   });
@@ -76,6 +77,7 @@ describe("permissionsFor", () => {
     const p = permissionsFor({ id: "u1", role: "ADMIN" }, user({ id: "u1" }));
     expect(p.canChangeRoleOrActive).toBe(false);
     expect(p.canResetMfa).toBe(false);
+    expect(p.canResetPassword).toBe(false);
     expect(p.reason).toMatch(/cannot change your own role/i);
   });
   it("only offers an MFA reset where MFA is on", () => {

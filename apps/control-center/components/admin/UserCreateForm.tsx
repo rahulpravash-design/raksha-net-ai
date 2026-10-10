@@ -23,8 +23,8 @@ import {
 /**
  * Create an account. The password is set here and cannot be recovered
  * afterwards, so after creation the screen shows it once for the administrator
- * to hand over securely. (There is no self-service password change yet — see
- * docs/FRONTEND.md.)
+ * to hand over securely. The person must replace it the first time they sign in,
+ * so it does not stay known to anyone else.
  */
 export function UserCreateForm({
   actorRole,
@@ -73,8 +73,8 @@ export function UserCreateForm({
           {created.password}
         </p>
         <p className="muted text-xs">
-          Hand it over through a secure channel. The user cannot change it themselves yet, so
-          treat it as long-lived.
+          Hand it over through a secure channel. The person must replace it the first time they
+          sign in.
         </p>
         <Button onClick={() => onCreated(created.user)}>Done</Button>
       </div>

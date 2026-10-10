@@ -81,6 +81,7 @@ export interface ManagePermissions {
   canEditProfile: boolean;
   canChangeRoleOrActive: boolean;
   canResetMfa: boolean;
+  canResetPassword: boolean;
   reason: string | null;
 }
 
@@ -95,6 +96,7 @@ export function permissionsFor(actor: { id: string; role: UserRole }, target: Ad
       canEditProfile: false,
       canChangeRoleOrActive: false,
       canResetMfa: false,
+      canResetPassword: false,
       reason: "Only a super administrator can manage a super administrator.",
     };
   }
@@ -103,8 +105,9 @@ export function permissionsFor(actor: { id: string; role: UserRole }, target: Ad
     canEditProfile: true,
     canChangeRoleOrActive: !self,
     canResetMfa: !self && target.mfa_enabled,
+    canResetPassword: !self,
     reason: self
-      ? "You cannot change your own role or active status, or reset your own MFA. Manage MFA from your account."
+      ? "You cannot change your own role or active status, or reset your own MFA or password. Manage those from your account security page."
       : null,
   };
 }

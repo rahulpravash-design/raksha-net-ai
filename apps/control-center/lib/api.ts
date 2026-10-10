@@ -18,6 +18,7 @@ let client: ApiClient | null = null;
 export function getApiClient(
   onUnauthenticated?: () => void,
   onMfaEnrolmentRequired?: () => void,
+  onPasswordChangeRequired?: () => void,
 ): ApiClient {
   if (!client) {
     client = new ApiClient({
@@ -25,6 +26,7 @@ export function getApiClient(
       tokens: tokenStore,
       ...(onUnauthenticated ? { onUnauthenticated } : {}),
       ...(onMfaEnrolmentRequired ? { onMfaEnrolmentRequired } : {}),
+      ...(onPasswordChangeRequired ? { onPasswordChangeRequired } : {}),
     });
   }
   return client;

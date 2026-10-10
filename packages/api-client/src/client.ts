@@ -114,6 +114,11 @@ export interface ApiClientOptions {
    * to the enrolment screen instead of showing a wall of failed requests.
    */
   onMfaEnrolmentRequired?: () => void;
+  /**
+   * Called when the backend says an administrator-set password must be changed
+   * before anything else can be done, so the UI can send the user to do it.
+   */
+  onPasswordChangeRequired?: () => void;
   fetchImpl?: typeof fetch;
 }
 
@@ -131,6 +136,7 @@ export class ApiClient {
   private readonly tokens: TokenStore | undefined;
   private readonly onUnauthenticated: (() => void) | undefined;
   private readonly onMfaEnrolmentRequired: (() => void) | undefined;
+  private readonly onPasswordChangeRequired: (() => void) | undefined;
   private readonly fetchImpl: typeof fetch;
   /** Shared so simultaneous 401s trigger exactly one token rotation. */
   private refreshInFlight: Promise<boolean> | null = null;
@@ -140,6 +146,7 @@ export class ApiClient {
     this.tokens = options.tokens;
     this.onUnauthenticated = options.onUnauthenticated;
     this.onMfaEnrolmentRequired = options.onMfaEnrolmentRequired;
+    this.onPasswordChangeRequired = options.onPasswordChangeRequired;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
   }
 
@@ -219,6 +226,36 @@ export class ApiClient {
 
   async hotspots(query: AnalyticsQuery & { limit?: number } = {}): Promise<Hotspots> {
     return this.request<Hotspots>("/api/v1/analytics/hotspots", { query: { ...query } });
+  }
+
+  // --- password ---------------------------------------------------------------
+  /**
+   * Replace your own password. Every other session is ended; the response carries
+   * fresh tokens, which are stored so this session continues.
+   */
+  async changePassword(
+    currentPassword: string,
+    newPassword: string,
+    mfaCode?: string,
+  ): Promise<TokenResponse> {
+    const tokens = await this.request<TokenResponse>("/api/v1/auth/password", {
+      method: "POST",
+      body: {
+        current_password: currentPassword,
+        new_password: newPassword,
+        ...(mfaCode ? { mfa_code: mfaCode } : {}),
+      },
+    });
+    this.tokens?.setTokens({ access: tokens.access_token, refresh: tokens.refresh_token });
+    return tokens;
+  }
+
+  /** Administrators: set a temporary password; the user must change it at first sign-in. */
+  async adminResetPassword(id: string, newPassword: string): Promise<AdminUser> {
+    return this.request<AdminUser>(`/api/v1/users/${id}/reset-password`, {
+      method: "POST",
+      body: { new_password: newPassword },
+    });
   }
 
   // --- two-factor authentication -------------------------------------------
@@ -685,6 +722,7 @@ export class ApiClient {
   private async failure(response: Response): Promise<ApiError> {
     const error = await this.toError(response);
     if (error.code === "MFA_ENROLLMENT_REQUIRED") this.onMfaEnrolmentRequired?.();
+    if (error.code === "PASSWORD_CHANGE_REQUIRED") this.onPasswordChangeRequired?.();
     return error;
   }
 

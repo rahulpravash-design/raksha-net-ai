@@ -20,7 +20,7 @@ export default function ConsoleLoginPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && user) router.replace(homeFor(user.role));
+    if (!loading && user) router.replace(homeFor(user.role, user.must_change_password));
   }, [loading, user, router]);
 
   async function handleSubmit(event: FormEvent) {
@@ -29,7 +29,7 @@ export default function ConsoleLoginPage() {
     setSubmitting(true);
     try {
       await signIn(email, password, needsCode ? code : undefined);
-      router.push("/dashboard");
+      // The effect above routes by role and by whether a password change is due.
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === "MFA_REQUIRED") {
         setNeedsCode(true);

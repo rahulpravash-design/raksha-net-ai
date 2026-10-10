@@ -6,7 +6,9 @@
 //                                RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL=true. Under
 //                                enforcement even an administrator cannot create
 //                                users until enrolled, so create the dispatcher
-//                                account first (without enforcement) and pass it in.
+//                                account first (without enforcement), replace its
+//                                administrator-set password via POST /auth/password,
+//                                and pass it in.
 //
 // Needs a RUNNING stack (API :8000 seeded dev data, built control centre :3001),
 // playwright-core (not a repository dependency) and Chromium (CHROMIUM_PATH).
@@ -48,6 +50,11 @@ if (ENFORCED) {
   email = `mfa-ui-${tag}@example.com`; pw = "e2e-initial-passphrase-" + tag;
   made = await call("POST", "/users", { email, full_name: `MFA UI ${tag}`, password: pw, role: "DISPATCHER" }, adminLogin.access_token);
   check("test account created", made.status === 201);
+  // An administrator-set password must be replaced before anything else works.
+  const first = (await call("POST", "/auth/login", { email, password: pw })).body;
+  pw = "settled-passphrase-" + tag;
+  const settled = await call("POST", "/auth/password", { current_password: "e2e-initial-passphrase-" + tag, new_password: pw }, first.access_token);
+  check("account settled (administrator-set password replaced)", settled.status === 200);
 }
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH ?? "/opt/pw-browsers/chromium", args: ["--no-sandbox"] });

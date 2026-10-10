@@ -5,12 +5,14 @@ import { useEffect } from "react";
 
 import { useAuth } from "@/components/AuthProvider";
 import { MfaSettings } from "@/components/MfaSettings";
+import { PasswordSettings } from "@/components/PasswordSettings";
 import { Spinner } from "@/components/ui";
 
 /**
  * Account security. Deliberately loads nothing but the signed-in user: when
- * two-factor is required by policy the API refuses every other endpoint until it
- * is set up, and this is where those users are sent.
+ * two-factor is required by policy, or an administrator-set password is still in
+ * force, the API refuses every other endpoint until that is dealt with, and this
+ * is where those users are sent.
  */
 export default function SecurityPage() {
   const router = useRouter();
@@ -30,6 +32,7 @@ export default function SecurityPage() {
           {user.full_name} · {user.email}
         </p>
       </div>
+      <PasswordSettings />
       <MfaSettings />
     </div>
   );

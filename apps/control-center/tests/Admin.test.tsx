@@ -13,6 +13,7 @@ const client = {
   updateUser: vi.fn(),
   unlockUser: vi.fn(),
   resetUserMfa: vi.fn(),
+  adminResetPassword: vi.fn(),
   adminUsers: vi.fn(),
   createHospital: vi.fn(),
 };
@@ -21,7 +22,7 @@ vi.mock("@/lib/api", () => ({ getApiClient: () => client }));
 function account(o: Partial<AdminUser> = {}): AdminUser {
   return {
     id: "u2", email: "dana@example.com", full_name: "Dana Dispatcher", phone: null, role: "DISPATCHER",
-    is_active: true, is_verified: true, mfa_enabled: true, created_at: "", last_login_at: null,
+    is_active: true, is_verified: true, mfa_enabled: true, must_change_password: false, created_at: "", last_login_at: null,
     locked_until: null, failed_login_attempts: 0, ...o,
   };
 }
@@ -57,6 +58,38 @@ describe("UserDetail", () => {
     expect(screen.getByText(/end all their sessions/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /confirm mfa reset/i }));
     await waitFor(() => expect(client.resetUserMfa).toHaveBeenCalledWith("u2"));
+  });
+
+  it("sets a temporary password only after a confirmation, then shows it once", async () => {
+    client.adminResetPassword.mockResolvedValue(account({ must_change_password: true }));
+    render(<UserDetail user={account()} actor={admin} onChanged={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: /set temporary password…/i }));
+    expect(client.adminResetPassword).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /confirm temporary password/i })).toBeDisabled();
+    await userEvent.type(screen.getByLabelText(/^Temporary password/), "temporary-passphrase-abc");
+    await userEvent.click(screen.getByRole("button", { name: /confirm temporary password/i }));
+    await waitFor(() => expect(client.adminResetPassword).toHaveBeenCalledWith("u2", "temporary-passphrase-abc"));
+    expect(await screen.findByLabelText("Temporary password", { selector: "p" })).toHaveTextContent("temporary-passphrase-abc");
+  });
+
+  it("does not show a temporary password the server refused", async () => {
+    client.adminResetPassword.mockRejectedValue(new ApiError(400, { code: "WEAK_PASSWORD", message: "Password is too common." }));
+    render(<UserDetail user={account()} actor={admin} onChanged={vi.fn()} />);
+    await userEvent.click(screen.getByRole("button", { name: /set temporary password…/i }));
+    await userEvent.type(screen.getByLabelText(/^Temporary password/), "password");
+    await userEvent.click(screen.getByRole("button", { name: /confirm temporary password/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(/too common/i);
+    expect(screen.queryByLabelText("Temporary password", { selector: "p" })).toBeNull();
+  });
+
+  it("flags an account whose password an administrator set", () => {
+    render(<UserDetail user={account({ must_change_password: true })} actor={admin} onChanged={vi.fn()} />);
+    expect(screen.getByText(/must be changed at next sign-in/i)).toBeInTheDocument();
+  });
+
+  it("offers no temporary password for oneself", () => {
+    render(<UserDetail user={account({ id: "u1" })} actor={admin} onChanged={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /set temporary password/i })).toBeNull();
   });
 
   it("offers no MFA reset where MFA is off", () => {
@@ -127,7 +160,7 @@ describe("UserCreateForm", () => {
 
     expect(await screen.findByLabelText("Initial password")).toHaveTextContent(/^\S{20}$/);
     expect(client.createUser).toHaveBeenCalledWith(expect.objectContaining({ email: "new@example.com", role: "DISPATCHER" }));
-    expect(screen.getByText(/cannot change it themselves yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/must replace it the first time they sign in/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(onCreated).toHaveBeenCalled();
   });

@@ -118,9 +118,15 @@ await cf.getByRole("button", { name: "Generate" }).click();
 await cf.getByRole("button", { name: "Create account" }).click();
 const pwShown = (await cf.locator("p[aria-label=\"Initial password\"]").innerText()).trim();
 check("password shown once, 20 chars", pwShown.length === 20);
-const opLogin = await login(opEmail, pwShown);
+let opLogin = await login(opEmail, pwShown);
+if (opLogin.access_token) {
+  // An administrator-set password must be replaced before the account can do anything else.
+  const settled = await call("POST", "/auth/password", { current_password: pwShown, new_password: "settled-passphrase-" + tag }, opLogin.access_token);
+  check("operator replaces the administrator-set password", settled.status === 200);
+  opLogin = settled.body;
+}
 if (!opLogin.access_token) out.push("   login response: " + JSON.stringify(opLogin).slice(0, 200) + " pw=" + JSON.stringify(pwShown));
-check("the shown password actually works", !!opLogin.access_token && opLogin.user.role === "HOSPITAL_OPERATOR");
+check("the shown password actually worked (it was accepted for the forced change)", !!opLogin.access_token && opLogin.user.role === "HOSPITAL_OPERATOR");
 if (!opLogin.access_token) { console.log(out.join("\n")); process.exit(1); }
 await a.page.screenshot({ path: `${SHOT}/admin-1-created.png` });
 await a.page.getByRole("button", { name: "Done" }).click();

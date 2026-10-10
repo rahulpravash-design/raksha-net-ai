@@ -84,6 +84,8 @@ export interface User {
   is_active: boolean;
   is_verified: boolean;
   mfa_enabled: boolean;
+  /** An administrator chose this password; it must be replaced before anything else works. */
+  must_change_password: boolean;
   created_at: string;
   last_login_at: string | null;
 }
