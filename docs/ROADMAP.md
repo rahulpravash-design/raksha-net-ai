@@ -4,7 +4,10 @@
 > Phase 16 is code-complete; the penetration test and operating-authority
 > acceptance it requires cannot be done by software and are NOT done.**
 > **Phase 17 is measured and fixed in a development environment, with no
-> production capacity evidence. Next: Phase 18. Phase 15 is deliberately skipped.
+> production capacity evidence. Phase 18's buildable artifacts are done (metrics,
+> verified backup/restore, schema-aware readiness, release procedure); deploying,
+> a production restore rehearsal and authority acceptance are not. Phase 15 is
+> deliberately skipped.
 > See `CHECKPOINT.md` for the exact resume point.**
 >
 > Do not implement a future phase unless explicitly requested.
@@ -429,11 +432,50 @@ connection-pool tuning, read replicas. Full record: `docs/PERFORMANCE.md`.
 
 ---
 
-## Phase 18 — Production Readiness ⬜ NOT STARTED
+## Phase 18 — Production Readiness ⚠️ ARTIFACTS BUILT — nothing is deployed or accepted
 
 Managed infrastructure, secret management, observability, backup and rehearsed
 restore, release pipeline with rollback, runbooks, and formal acceptance by an
 operating authority.
+
+**What shipped** (status of every item: `docs/DEPLOYMENT.md` §11):
+
+- **`GET /metrics`** (Prometheus): per-route request/latency series (route
+  *templates*, so cardinality is bounded — tested), pool use, queue depth, and the
+  overload signals (queued, shed, pool exhausted). Bearer-token protected; absent
+  unless configured.
+- **Backup and restore scripts** (`scripts/backup.sh`, `restore.sh`,
+  `verify_restore.sh`): age-encrypted, checksummed, with media. The verifier
+  restores into a scratch database and compares row counts, an id checksum, schema
+  revision, indexes, a spatial query and decryption of the encrypted columns.
+  Rehearsed on a 100k-incident database (backup 3 s, restore 4 s) and shown to
+  refuse a corrupt file, a wrong private key, a wrong encryption key and an
+  existing target; a failed restore removes its half-made database.
+- **Schema-aware readiness**: an instance whose schema is behind the code reports
+  `503` (`schema_state: behind`), so a new version started before its migration
+  does not receive traffic.
+- **`docs/RELEASE.md`**: migrate-then-release, and a rollback guide grounded in the
+  actual migrations (which are additive; 0010 is not). The additive claim was
+  checked by running the pre-Phase-16 models against the current schema.
+- **A rate-limiting defect found and fixed**: the docs described Redis-backed
+  limiting that did not exist (`RAKSHA_REDIS_URL` was never read; the limiter was
+  always per-process; the middleware keyed clients with the per-process `hash()`;
+  no test ever triggered a `429`). It is now real, with a safe fallback and a
+  metric, and tested against a real Redis and across two real API processes
+  (limit 10: memory let 19 through, Redis exactly 10).
+- Runbook sections for metrics, overload, backup, restore and what each proves.
+
+**Not done — and not doable from a development session:**
+
+- **Nothing is deployed.** No managed infrastructure, secret store, TLS, collector,
+  dashboards, alert rules or paging exists.
+- **A restore has not been rehearsed in a real environment**, from real backups, on
+  production-sized data. The 1-hour RTO is untested.
+- **The 15-minute RPO is not established**: a logical dump gives an RPO equal to the
+  backup interval; 15 minutes needs continuous WAL archiving on the platform.
+- **No deploy pipeline** (build/publish/deploy/rollback automation); `RELEASE.md` is
+  a manual procedure.
+- **Operating-authority acceptance** and the **penetration test** (Phase 16): people.
 
 ---
 

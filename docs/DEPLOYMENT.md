@@ -113,8 +113,8 @@ errors.
 | Signal | Tooling |
 |---|---|
 | Logs | Structured JSON to stdout, shipped by the platform, correlation ID per request |
-| Metrics | Prometheus: request rate, latency histogram, error rate, DB pool usage, queue depth |
-| Traces | OpenTelemetry (Phase 18) |
+| Metrics | **Built:** `GET /metrics` (Prometheus text, bearer-token protected, absent unless `RAKSHA_METRICS_TOKEN` is set): request rate and latency histogram per route template, in-flight requests, DB pool use, open/unassigned incidents, and requests queued/shed. Series and alerts: runbook. **Not built:** a Prometheus/Grafana deployment, dashboards, alert rules |
+| Traces | OpenTelemetry — **not built** |
 | Errors | Sentry or equivalent, with PII scrubbing |
 | Uptime | External probe against `/health/ready` |
 
@@ -123,11 +123,21 @@ latency > 2 s, database connection saturation, disk > 85%.
 
 ## 9. Backup and recovery
 
-- Automated daily full backup plus continuous WAL archiving. **RPO 15 minutes,
-  RTO 1 hour.**
-- Restores are rehearsed quarterly into an isolated environment; a backup that
-  has never been restored is not a backup.
-- Media object storage uses versioning and lifecycle rules.
+- **Built and tested:** `scripts/backup.sh`, `restore.sh` and `verify_restore.sh`
+  (age-encrypted, checksummed, media included; procedure in the runbook). On a
+  100,000-incident database a backup took 3 s and a verified restore 4 s on a
+  development machine.
+- **Stated targets, not demonstrated:** RPO 15 minutes and RTO 1 hour. A logical
+  dump gives an RPO equal to the interval between backups; 15 minutes needs
+  continuous WAL archiving / point-in-time recovery on the database platform, which
+  is infrastructure this repository cannot provide or prove. The RTO has not been
+  measured on production-sized data or hardware.
+- Restores must be rehearsed (quarterly) from real backups in an isolated
+  environment; `verify_restore.sh` makes that a one-command check. A backup that has
+  never been restored is not a backup.
+- `RAKSHA_ENCRYPTION_KEY` is not in any backup and must be kept separately; without
+  it the encrypted phone numbers and MFA secrets cannot be recovered.
+- Media object storage uses versioning and lifecycle rules (deployment).
 - The disaster-recovery runbook lives in `infrastructure/deployment/`.
 
 ## 10. Scaling path
@@ -151,25 +161,29 @@ latency > 2 s, database connection saturation, disk > 85%.
 - `RAKSHA_MAX_CONCURRENT_REQUESTS` (24) must stay below the pool total and the
   worker-thread count. Above it requests queue for up to 3 s, then receive
   `503 SERVICE_BUSY` with `Retry-After`; the proxy and clients should honour it.
-- Without Redis, rate limiting is per process.
+- Rate limiting is per process unless `RAKSHA_RATE_LIMIT_BACKEND=redis`; behind several processes set it (see `SECURITY.md` §7).
 
-## 11. Production readiness checklist
+## 11. Production readiness status
 
-```
-[ ] Managed PostgreSQL with PostGIS, encrypted at rest
-[ ] Secrets in a managed secret store
-[ ] TLS terminated, HSTS enabled, security headers verified
-[ ] CORS restricted to known origins
-[ ] Rate limiting enabled and backed by Redis
-[ ] Migrations applied and verified
-[ ] Health probes wired to the orchestrator
-[ ] Log shipping, metrics and alerting live
-[ ] Backups running and a restore rehearsed
-[ ] Penetration test completed and findings closed
-[ ] AI evaluation thresholds met (if AI is enabled)
-[ ] Incident-response and escalation runbook signed off
-[ ] Operating authority has accepted the residual risk
-```
+An honest account of each item: what the repository provides, and what only a real
+deployment (or a person) can supply. Nothing here has been deployed.
 
-The last item is not ceremonial. This platform must not carry real emergency
-traffic until a responsible authority has accepted it.
+| Item | In this repository | Still needed |
+|---|---|---|
+| Managed PostgreSQL + PostGIS, encrypted at rest | — | The platform; not provisioned |
+| Secrets in a managed store | Config reads the environment; startup refuses placeholder/missing secrets in production | A secret store, and putting the secrets in it |
+| TLS, HSTS, security headers | API and front-end headers + CSP; nginx example | Termination and certificates; verify on the real host |
+| CORS restricted | **Enforced at startup** in staging/production | — |
+| Rate limiting backed by Redis | `RAKSHA_RATE_LIMIT_BACKEND=redis` shares counters across processes (tested against a real Redis and across two real processes); falls back to local counting if Redis fails, with a metric | A Redis for the deployment, and setting the backend to `redis` (the default is `memory`) |
+| Migrations applied and verified | Gate: chain up/down, drift check; `0010` proven on planted data | Rehearsal on a restored production copy (`RELEASE.md`) |
+| Health probes wired | Liveness + readiness (DB, PostGIS, schema state); container health check | Wiring in the orchestrator |
+| Log shipping, metrics, alerting | Structured logs; `/metrics`; alert suggestions in the runbook | A collector, dashboards, alert rules, paging |
+| Backups running; restore rehearsed | Scripts + `verify_restore.sh`, rehearsed locally | A schedule, off-site storage, key custody; a rehearsal in the real environment |
+| Penetration test, findings closed | — | **A person.** Not done |
+| AI evaluation thresholds | n/a (rule-based baseline) | If a trained model is ever enabled |
+| Incident-response runbook signed off | `RUNBOOK.md` (technical) | Sign-off by the responsible people |
+| Release pipeline with rollback | CI; `RELEASE.md` (manual procedure) | A deploy pipeline; a rehearsal |
+| **Operating authority has accepted the residual risk** | — | **A person. Not done** |
+
+The last row is not ceremonial. This platform must not carry real emergency traffic
+until a responsible authority has accepted it.

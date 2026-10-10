@@ -16,6 +16,10 @@
 but its penetration test and risk acceptance have NOT happened. Phase 17 is
 measured and fixed in a development environment only.**
 
+> **Backend vs. what a person can actually use.** \"Complete\" in the table means the
+> backend, its API and its tests. **Almost none of Phases 10–14 has a user interface**
+> (§3). A dispatcher cannot dispatch a unit from any screen.
+
 | Phase | State |
 |---|---|
 | 0 Foundation | ✅ complete |
@@ -36,24 +40,23 @@ measured and fixed in a development environment only.**
 | 15 Prediction | ⬜ deliberately skipped — no historical dataset exists |
 | 16 Security hardening | ⚠️ **code-complete; pen test + authority acceptance NOT done** |
 | 17 Performance & scale | ⚠️ measured + fixed in a dev environment; **no production capacity evidence** |
-| 18 Production readiness | ⬜ **next** |
+| 18 Production readiness | ⚠️ artifacts built (metrics, verified backup/restore, schema-aware readiness, release procedure); **nothing deployed, no authority acceptance** |
 
 **Verification at checkpoint time** — all of this was run, not assumed:
 
-- `./scripts/check.sh` — **20/20 steps green** (ruff, black, mypy, pytest, the
-  migration chain + model-drift check, AI pytest, pip-audit, npm audit, then
-  eslint + tsc + vitest + build for all three front ends). Read from its actual
-  final line (`All checks passed.`).
-- **413 backend tests**, **31 AI tests**, **90 frontend tests** (45 citizen, 40
-  control centre, 5 responder). 534 total, all passing. The backend suite was run
-  twice in a row to confirm one flaky test was really fixed.
-- Migrations `0001 → 0013`; the gate now upgrades to head, fails on model/migration
-  drift, and downgrades to base on every run.
-- Load results (`docs/PERFORMANCE.md`): 100k incidents; queue p95 283 ms and report
-  p95 180 ms against 1,500 / 500 ms targets — **on one shared development machine**.
-- Earlier this phase-set: a live Chromium run of sign-in, dashboard and the MFA path
-  against the running stack (scripts not in the repo; see §5, item 14).
-- 272 tracked files, 13 migrations, 68 API operations, 41 commits.
+- `./scripts/check.sh` — **20/20 steps green** (ruff, black, mypy, pytest, migration
+  chain + drift check, AI pytest, pip-audit, npm audit, then eslint + tsc + vitest +
+  build for all three front ends). Read from its actual final line.
+- **452 backend tests** (none skipped, including those that start a real
+  `redis-server`), **31 AI tests**, **90 frontend tests**. 573 total, all passing.
+- Migrations `0001 → 0013`; the gate upgrades to head, fails on model/migration
+  drift and downgrades to base on every run (and cleans up even if it fails).
+- Backup → restore → compare, on a 100k-incident database: all checks pass; each
+  refusal path (corrupt file, wrong age key, wrong encryption key, existing target)
+  was exercised. See `infrastructure/deployment/RUNBOOK.md`.
+- Rate limiting across two real API processes: limit 10 → memory let 19 through,
+  Redis exactly 10.
+- 285 tracked files, 13 migrations, 68 API operations (+ `/metrics`, unlisted), 46 commits.
 
 ---
 
@@ -103,6 +106,28 @@ there is no partially-written code. Details and limits: `docs/SECURITY.md`.
   Postgres, so every row got the same values) and the first numbers were thrown
   away. Verify generated data varies before trusting a measurement.
 
+**Phase 18 (production readiness)** was done after that. Status of every item:
+`docs/DEPLOYMENT.md` §11; procedures: `docs/RELEASE.md` and the runbook.
+
+- **`/metrics`** (Prometheus; absent unless `RAKSHA_METRICS_TOKEN`; route *templates*
+  as labels so cardinality is bounded — tested; overload counters).
+- **`scripts/backup.sh`, `restore.sh`, `verify_restore.sh`** — age-encrypted,
+  checksummed, media included; the verifier proves a restore by comparing counts, an
+  id checksum, revision, indexes, a spatial query and decryption.
+- **Readiness reports `schema_state`** and refuses traffic when the schema is
+  *behind* the code (a new version started before its migration).
+- **`docs/RELEASE.md`** — migrate-then-release; rollback guidance from the real
+  migrations (0009/0011/0012/0013 additive; rolling past **0010** needs a database
+  downgrade first). The additive claim was checked with the pre-Phase-16 models.
+- **A rate-limiting defect, found by reading the code and fixed.** The docs said
+  Redis-backed limiting existed; it did not (`RAKSHA_REDIS_URL` was never read), the
+  middleware used the per-process `hash()` for its key, and no test ever triggered a
+  `429`. Now real (`RAKSHA_RATE_LIMIT_BACKEND=redis`, falls back locally if Redis
+  fails, counted in a metric) and tested. **Default is still `memory`; compose uses
+  `redis`.**
+- Bugs my own tests caught on the way: a racy "queued" counter; a `restore.sh` that
+  created the target database before validating its inputs.
+
 Two lessons, in case the pattern recurs:
 
 1. **`ruff S608` flags any f-string passed to `text()`**, even over static
@@ -115,35 +140,44 @@ Two lessons, in case the pattern recurs:
 
 ## 3. The exact next step
 
-**Start Phase 18 — Production readiness.** From `docs/ROADMAP.md`: managed
-infrastructure, secret management, observability, backup and rehearsed restore,
-release pipeline with rollback, runbooks, and formal acceptance by an operating
-authority.
+**Build the user interfaces for Phases 10–14. This is the largest honest gap in the
+project, and it is buildable.**
 
-Much of that is organisational or needs real infrastructure and **cannot be
-completed or claimed from a development session** (managed infrastructure, a
-rehearsed restore in a real environment, the authority's acceptance). What can be
-built and tested honestly here, in this order:
+Every capability below exists in the backend, with tests, and is reachable only
+through the API. Checked by grepping the three apps: the only screen that calls any
+of it is the responder app's assignments list (`api.myAssignments`).
 
-1. **A `/metrics` endpoint** (Prometheus text format): request rate and latency
-   histogram per route, error rate, DB pool usage, and the new overload signals
-   (requests queued/shed by `ConcurrencyLimitMiddleware`, pool exhaustion).
-   `docs/DEPLOYMENT.md` §8 already promises these. Decide whether a client library
-   (`prometheus-client`) is justified per `CLAUDE.md` §3, and keep the endpoint
-   restricted — it must not be public. The shed/queue counters are the thing
-   that would have shown the Phase 17 deadlock early.
-2. **Backup and restore scripts** (`pg_dump`/WAL guidance) that can actually be
-   run against the local Postgres, **with a restore verified end to end** into a
-   scratch database: restore, then compare row counts and run the readiness probe.
-   Encrypted columns need the matching `RAKSHA_ENCRYPTION_KEY` — state that.
-3. **Readiness that means something**: `/health/ready` currently checks the
-   database and PostGIS; consider Redis and the scanner as *degraded*, not down.
-4. **Release/rollback notes tied to migrations** — which migrations reverse
-   losslessly (all do, and the gate proves it on empty data; `0010` rewrites data).
-5. **Do not** claim a cloud deployment, a rehearsed production restore, or
-   operating-authority acceptance. Write the procedures; leave the boxes unticked.
+| Missing screen | Who needs it | Backend ready |
+|---|---|---|
+| **Resource list + ranked recommendations on an incident, and a "Dispatch this unit" action** | Dispatcher (control centre) | `/resources`, `/incidents/{id}/resource-recommendations`, `POST /incidents/{id}/dispatches` |
+| Dispatches on an incident, with progress | Dispatcher | `GET /incidents/{id}/dispatches` |
+| Hospital capacity, nearby hospitals, send/track an inbound notice | Dispatcher, hospital operator | `/hospitals*`, `/hospital-notices*` |
+| **Notification inbox** (+ unread badge) | Citizen, responder, dispatcher (all three apps) | `/notifications*` |
+| Analytics (response/resolution time, categories, utilisation, hotspot map) | Dispatcher/admin | `/analytics/*` |
+| MFA enrolment (QR/URI, confirm, disable) | Everyone with MFA | `/auth/mfa/*` |
+| Admin: unlock / reset MFA / create operators | Admin | `/users/*` |
+| **A hospital-operator application at all** | Hospital operator | the API; there is no app |
 
-Then the outstanding **Netlify decision (§7)**.
+Start with the dispatch workflow — it is the product's core human-in-the-loop action
+(`CLAUDE.md` §2 rule 1: AI proposes, a human disposes), and today the "disposes" half
+has no screen. In order:
+
+1. `packages/api-client`: it already has the dispatch/resource methods and types;
+   check them against the live API before building on them.
+2. Control centre, incident page: a **Resources** panel (recommendations with their
+   `reasons`, ETA labelled as an estimate) and a confirm-to-dispatch control. The
+   approver is the signed-in user — never a form field. Show who approved existing
+   dispatches. Respect `canDispatch(role)`.
+3. A shared notification inbox component for the three apps.
+4. Then analytics (coarsened hotspots only — never request or display raw
+   coordinates), hospital notices, MFA enrolment.
+5. Follow the existing patterns (vitest component tests per screen; `check.sh`).
+   **Verify in a real browser**, as the Phase 16 sign-in run did — type checks and
+   unit tests do not show that a dispatch actually works.
+
+Everything else left is blocked on people or inputs: the penetration test and the
+authority's acceptance (Phase 16/18), a production deployment and restore rehearsal
+(18), a production load test (17), the Netlify decision (§7), and Phases 8/9/15.
 
 ---
 
@@ -228,6 +262,19 @@ Everything below is committed. Nothing is staged or modified.
 - Tests: `tests/unit/test_overload.py`; `test_geo_api.py` made deterministic
 - Docs: `docs/PERFORMANCE.md` (new), `TESTING.md` §8, `DEPLOYMENT.md` (sizing)
 
+**Phase 18 — production readiness**
+- `scripts/_pg.sh`, `backup.sh`, `restore.sh`, `verify_restore.sh` (new)
+- `backend/app/core/metrics.py`, `app/api/metrics.py`, `app/services/operational_metrics.py`,
+  `app/utils/schema_version.py` (new); `core/middleware.py` (`MetricsMiddleware`, stable
+  rate-limit key), `core/rate_limit.py` (rewritten), `core/config.py`, `core/errors.py`,
+  `api/v1/endpoints/health.py`, `schemas/common.py`, `main.py`
+- Tests: `test_metrics.py`, `test_rate_limit.py`, `test_rate_limit_redis.py`,
+  `test_rate_limit_http.py`, additions to `test_health.py` and `test_overload.py`
+- `docker-compose.yml` (redis backend), `.github/workflows/ci.yml` (restore round trip,
+  redis-server), `.gitignore` (`/backups/`), `.env.example`
+- Docs: `docs/RELEASE.md` (new), `DEPLOYMENT.md`, `SECURITY.md` §7, `TESTING.md`,
+  `PERFORMANCE.md`, `ROADMAP.md`, `infrastructure/deployment/RUNBOOK.md`
+
 ---
 
 ## 5. Known issues, gaps and honest limits
@@ -307,6 +354,19 @@ Everything below is committed. Nothing is staged or modified.
     keep-alive race. Understand it before running several processes in earnest.
 20. **Postgres `max_connections` (default 100)** limits API processes to three at
     full pool use; `processes × 30` must fit. Documented in DEPLOYMENT.md.
+21. **Phases 10–14 have almost no UI** — the headline gap; see §3.
+22. **Nothing is deployed.** Phase 18 produced procedures and tooling, not a running
+    environment. The 15-minute RPO is not established (a logical dump's RPO is the
+    backup interval; PITR is platform infrastructure) and the 1-hour RTO is untested
+    on production-sized data. `RAKSHA_ENCRYPTION_KEY` is not in any backup.
+23. **`RAKSHA_RATE_LIMIT_BACKEND` defaults to `memory`.** Behind several API processes
+    it must be `redis` or limits are multiplied. A production-like start on `memory`
+    only logs a warning.
+24. **The new CI steps (restore round trip, `apt-get install redis-server`) have not
+    been run on a real GitHub runner** — CI has never been run from here. Expect to
+    fix small things on first execution.
+25. `/metrics` and the backup scripts are tested locally only; no collector, dashboard
+    or alert rule exists.
 
 ---
 
@@ -396,16 +456,13 @@ you to confirm which Netlify account/team to use.
 
 ## 8. Suggested order when you return
 
-1. **Phase 18 (Production readiness artifacts)** — §3. Metrics, a *verified*
-   backup/restore, honest readiness. Claim no deployment or acceptance.
-2. **Decide Netlify (§7)** and deploy.
-3. **The human half of Phase 16** — commission a penetration test; get the
-   residual risk accepted; then (optionally) the MFA enrolment UI, recovery
-   codes, a nonce-based CSP.
-4. **The human half of Phase 17** — run the load test from a separate machine
-   against a production-shaped deployment.
-5. A committed browser smoke test (§5, item 14), and a live pass over resources,
-   dispatch, hospitals, notifications and analytics.
+1. **The Phase 10–14 user interfaces (§3)**, dispatch workflow first, each verified in
+   a real browser.
+2. **Decide Netlify (§7)** and deploy (frontends can go to Netlify; the backend cannot).
+3. **The human work**: commission the penetration test; get the residual risk
+   accepted; stand up real infrastructure and rehearse a restore and a load test there.
+4. Optional hardening: MFA recovery codes, nonce-based CSP, a committed browser smoke
+   test, a deploy pipeline.
 
 Phases 8, 9 and 15 stay blocked on inputs that do not exist (a labelled photo
 dataset, an ASR provider, a real historical dataset). Do not fake any of them.

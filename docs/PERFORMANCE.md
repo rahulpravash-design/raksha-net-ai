@@ -183,8 +183,11 @@ believing a number computed from it.
 - **Cap vs pool:** keep `RAKSHA_MAX_CONCURRENT_REQUESTS` below the pool total and
   below the worker-thread count (40). Raising either without the other brings the
   deadlock back.
-- **Rate limiting** falls back to per-process counters when Redis is not
-  reachable, so with several processes each enforces its own limit.
+- **Rate limiting** is per process by default, so with several processes each
+  enforces its own limit (measured: a limit of 10 let 19 through across two
+  processes). Set `RAKSHA_RATE_LIMIT_BACKEND=redis` for several processes. When this
+  document was first written the Redis backend did not actually exist in the code,
+  though the docs said it did (see `SECURITY.md` §7); that is now fixed.
 - Clients and any proxy should honour `Retry-After` on `503`.
 
 ## 6. Not shown, and open

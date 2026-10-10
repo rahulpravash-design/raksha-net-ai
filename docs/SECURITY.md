@@ -189,12 +189,34 @@ run insecurely.
 |---|---|---|
 | Authentication | 10/min | Client IP |
 | Reporting | 12/min | User ID |
-| General API | 120/min | User ID, else IP |
+| General API | 120/min | A digest of the bearer token, else the client IP |
 
-Fixed-window counters in Redis (in-memory fallback for single-process
-development). Exceeded limits return `429` with `Retry-After`. Emergency
+Fixed-window counters. Exceeded limits return `429` with `Retry-After`. Emergency
 reporting limits are deliberately generous: rate limiting must not become a
 denial of service against a genuine emergency.
+
+**Backend (`RAKSHA_RATE_LIMIT_BACKEND`).** `memory` counts per process, which is
+right for development, tests and a single process and **wrong behind several**:
+with two API processes and a limit of 10, 19 login attempts were answered (measured);
+with `redis`, exactly 10. Use `redis` for any multi-process deployment. If Redis
+fails, counting falls back to the local process rather than allowing everything,
+Redis is not retried for a few seconds, and
+`raksha_rate_limit_backend_errors_total` counts the failures — so while it is
+rising the limits are weaker (up to `limit` extra requests per process per window).
+A production-like environment started with `memory` logs a warning.
+
+**Correction to earlier versions of this document.** It described Redis-backed
+counters as implemented. They were not: `RAKSHA_REDIS_URL` was defined and never
+read, no Redis client was ever created, and the limiter was always per-process.
+The middleware also keyed clients with Python's built-in `hash()`, which differs
+per process, so a shared store would not have shared anything. Both are fixed and
+tested (against a real Redis, and across two real processes). No test of any kind
+exercised a `429` before this; `TESTING.md` listed one.
+
+Limits that **account lockout** (section 2) does not depend on: lockout is stored
+in the database and holds regardless of this backend.
+
+---
 
 ## 8. Audit logging
 

@@ -107,7 +107,7 @@ accuracy.
 |---|---|
 | Authorisation matrix (role x endpoint) | Every CI run |
 | Upload abuse: oversize, wrong MIME, MIME/magic mismatch, traversal filename | Every CI run |
-| Rate-limit enforcement | Every CI run |
+| Rate-limit enforcement (unit, HTTP-level, and against a real `redis-server`) | Every CI run (CI installs `redis-server`) |
 | `pip-audit` / `npm audit` | Every CI run |
 | Dependency review | Weekly |
 | Penetration test | Before any pilot |

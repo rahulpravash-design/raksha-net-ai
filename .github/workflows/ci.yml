@@ -62,6 +62,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
+      - name: Install redis-server
+        # The rate-limiter tests start a real Redis; without the binary they skip,
+        # which would leave the shared-counter behaviour unverified in CI.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends redis-server
+
       - name: Create the test database
         env:
           PGPASSWORD: raksha_ci_password
@@ -91,6 +96,13 @@ jobs:
           alembic upgrade head
           # Fails if a model changed without a migration (or the reverse).
           alembic check
+
+      - name: Backup and restore round trip
+        # Backs the migrated database up, restores it into a scratch database and
+        # compares the two (scripts/verify_restore.sh). The database is empty, so
+        # this guards the scripts and the schema/index/PostGIS restore; it does
+        # not exercise the encrypted-column check, which needs rows.
+        run: scripts/verify_restore.sh
 
       - name: Tests
         working-directory: backend
