@@ -42,6 +42,27 @@ location. Security is a functional requirement, not a hardening phase.
   `401 INVALID_CREDENTIALS` after comparable work, so the endpoint is not a user
   enumeration oracle.
 
+### Passwords: change, forced change, administrator reset
+
+* `POST /auth/password` needs the current password, and a current TOTP code when MFA is
+  on (replay-protected like login). Wrong answers count toward lockout — otherwise the
+  endpoint is a password-guessing oracle for anyone holding a session. The new password
+  goes through the same strength rules as registration and must differ from the old.
+* On success every refresh token of the account is revoked and the caller gets a fresh
+  pair. **Access tokens already issued stay valid until they expire** (default 30 min):
+  they are stateless, and shortening that window is the only lever. Presenting a revoked
+  refresh token afterwards ends the whole chain, as for any replayed token.
+* A password an administrator chose (account creation, or `reset-password`) is flagged
+  `must_change_password`. Until it is replaced, every endpoint except `/auth/me`,
+  `/auth/password` and `/auth/mfa/*` answers `403 PASSWORD_CHANGE_REQUIRED`, so a
+  password known to someone else never stays in force.
+* An administrator cannot reset their own password this way (a hijacked admin session
+  could otherwise set one it knows without being asked for the old one) and only a
+  super administrator manages a super administrator. Reset and change are audited
+  (`auth.password_reset_by_admin`, `auth.password_changed`) without any password.
+* Not built: an email-based "I forgot my password" flow (no email channel exists), and
+  password history or expiry.
+
 ### Account lockout
 
 Five consecutive failed sign-ins lock the account for 15 minutes

@@ -70,6 +70,7 @@ Returns **503** with `"status": "degraded"` if the database is unreachable.
 | POST | `/auth/refresh` | refresh token | Rotate tokens |
 | POST | `/auth/logout` | refresh token | Revoke a refresh token |
 | GET | `/auth/me` | access token | Current user profile (exempt from the MFA policy) |
+| POST | `/auth/password` | access token | Change your own password. Needs `current_password` (and `mfa_code` when MFA is on). Ends every other session and returns a fresh token pair. Exempt from the account policies, so a user who must change an administrator-set password can reach it |
 | POST | `/auth/mfa/enroll` | access token | Begin TOTP enrolment; returns the shared secret and an `otpauth://` URI |
 | POST | `/auth/mfa/enable` | access token | Confirm enrolment with a code; MFA is on from here |
 | POST | `/auth/mfa/disable` | access token | Turn MFA off; needs the password **and** a current code |
@@ -107,13 +108,17 @@ Further sign-in outcomes:
 | 401 | `INVALID_MFA_CODE` | Wrong, expired, or already-used code. **Counts toward lockout.** |
 | 403 | `ACCOUNT_LOCKED` | Too many failures. `details.retry_after_seconds` says how long. The correct password is refused too until the lock expires. |
 | 403 | `ACCOUNT_INACTIVE` | The account is deactivated. |
+| 403 | `PASSWORD_CHANGE_REQUIRED` | Returned by any endpoint other than `/auth/me`, `/auth/password` and `/auth/mfa/*` while `must_change_password` is true — i.e. an administrator chose this account's password (creation or reset). |
 | 403 | `MFA_ENROLLMENT_REQUIRED` | Returned by any endpoint other than `/auth/me` and `/auth/mfa/*` when `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL` is on and a non-citizen account has not enrolled. |
 
 Five consecutive failures lock the account for 15 minutes (configurable); each
 further failure doubles the lock, capped at 24 hours. Only a successful sign-in
 resets the count. The MFA management endpoints answer a wrong code with
 `400 INVALID_MFA_CODE` rather than 401, so a client does not mistake it for an
-expired session.
+expired session. `POST /auth/password` does the same for a wrong current password
+(`400 INVALID_CREDENTIALS`), a wrong or missing MFA code (`400 INVALID_MFA_CODE`) and a
+new password equal to the old one (`400 PASSWORD_UNCHANGED`); the first two **count toward
+lockout**, so a stolen session cannot be used to guess the password.
 
 ### `POST /auth/refresh`
 `{"refresh_token": "8f2b…"}` -> new access **and** refresh token; the presented
@@ -134,6 +139,7 @@ and returns `401`.
 | GET | `/users/{id}` | ADMIN, SUPER_ADMIN | Read a user |
 | PATCH | `/users/{id}` | ADMIN, SUPER_ADMIN | Update role / active flag |
 | POST | `/users/{id}/unlock` | ADMIN, SUPER_ADMIN | Clear an account lockout |
+| POST | `/users/{id}/reset-password` | ADMIN, SUPER_ADMIN | Set a temporary password (`new_password`): ends the user's sessions, clears any lockout and makes them change it at first sign-in. Not permitted on yourself |
 | POST | `/users/{id}/reset-mfa` | ADMIN, SUPER_ADMIN | Remove a user's second factor and revoke their sessions. Not permitted on yourself. |
 
 Only `SUPER_ADMIN` may create or modify a `SUPER_ADMIN`. No role may modify

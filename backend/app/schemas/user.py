@@ -89,8 +89,15 @@ class UserRead(ORMModel):
     is_active: bool
     is_verified: bool
     mfa_enabled: bool
+    must_change_password: bool
     created_at: datetime
     last_login_at: datetime | None
+
+
+class AdminPasswordReset(BaseModel):
+    """An administrator sets a temporary password; the user must replace it."""
+
+    new_password: str = Field(min_length=1, max_length=128)
 
 
 class UserAdminRead(UserRead):

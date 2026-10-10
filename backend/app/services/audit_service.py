@@ -24,6 +24,10 @@ class AuditAction:
     MFA_DISABLED = "auth.mfa_disabled"
     MFA_RESET = "auth.mfa_reset"
     ACCOUNT_UNLOCKED = "auth.account_unlocked"
+    PASSWORD_CHANGED = "auth.password_changed"  # noqa: S105 - an action name
+    PASSWORD_RESET_BY_ADMIN = (
+        "auth.password_reset_by_admin"  # noqa: S105 - an action name
+    )
     LOGOUT = "auth.logout"
     TOKEN_REFRESHED = "auth.token_refreshed"  # noqa: S105 - an action name
     TOKEN_REUSE_DETECTED = "auth.token_reuse_detected"  # noqa: S105 - an action name

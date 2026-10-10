@@ -35,6 +35,7 @@ Engine: **PostgreSQL 16 + PostGIS 3** · Migrations: **Alembic**
 | `failed_login_attempts` | integer, default 0 | consecutive failures since the last success (Phase 16) |
 | `locked_until` | timestamptz null | set when the threshold is reached; refused until it passes |
 | `mfa_enabled` | boolean, default false | TOTP second factor is active |
+| `must_change_password` | boolean, default false | An administrator chose this password; it must be replaced before anything else works (migration 0014) |
 | `mfa_secret` | varchar(255) null | TOTP shared secret, **encrypted at rest** (Fernet); present while enrolment is pending and once enabled |
 | `mfa_last_step` | bigint null | 30-second step of the last accepted code, to refuse a replay |
 | `created_at` / `updated_at` | timestamptz | |
@@ -219,7 +220,7 @@ Current chain: `0001_enable_postgis` -> `0002_create_core_schema` ->
 `0003_incident_analyses` -> `0004_priority_engine_version` -> `0005_resources`
 -> `0006_dispatches` -> `0007_hospitals` -> `0008_notifications` ->
 `0009_account_lockout` -> `0010_encrypt_contact_details` -> `0011_mfa` ->
-`0012_media_scan_status` -> `0013_incident_created_at_index`.
+`0012_media_scan_status` -> `0013_incident_created_at_index` -> `0014_must_change_password`.
 
 ## 6. Data retention
 

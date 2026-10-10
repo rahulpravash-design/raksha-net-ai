@@ -64,6 +64,11 @@ class InvalidCoordinatesError(ValidationError):
     message = "The supplied coordinates are not valid for this deployment."
 
 
+class PasswordUnchangedError(ValidationError):
+    code = "PASSWORD_UNCHANGED"
+    message = "The new password must be different from the current one."
+
+
 class WeakPasswordError(ValidationError):
     code = "WEAK_PASSWORD"
     message = "The password does not meet the minimum requirements."
@@ -107,6 +112,15 @@ class MfaEnrollmentRequiredError(NotAuthenticatedError):
     message = (
         "Multi-factor authentication must be set up for this account "
         "before it can be used."
+    )
+
+
+class PasswordChangeRequiredError(NotAuthenticatedError):
+    status_code = status.HTTP_403_FORBIDDEN
+    code = "PASSWORD_CHANGE_REQUIRED"
+    message = (
+        "This account's password was set by an administrator and must be "
+        "changed before anything else can be done."
     )
 
 

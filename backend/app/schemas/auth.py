@@ -44,3 +44,10 @@ class MfaCodeRequest(BaseModel):
 
 class MfaDisableRequest(MfaCodeRequest):
     password: str = Field(min_length=1, max_length=128)
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=1, max_length=128)
+    #: Required only for an account with MFA enabled.
+    mfa_code: str | None = Field(default=None, pattern=r"^\d{6}$")

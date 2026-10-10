@@ -17,6 +17,7 @@ from app.core.errors import (
     InvalidTokenError,
     MfaEnrollmentRequiredError,
     NotAuthenticatedError,
+    PasswordChangeRequiredError,
 )
 from app.core.security import decode_access_token
 from app.db.session import get_db
@@ -96,8 +97,12 @@ AuthenticatedUser = Annotated[User, Depends(get_authenticated_user)]
 
 
 def get_current_user(user: AuthenticatedUser, settings: AppSettings) -> User:
-    """The caller, once the MFA policy is met. This is the default for every
-    endpoint, so the policy cannot be forgotten on a new one."""
+    """The caller, once the account policies are met: no administrator-set
+    password still in force, and two-factor enrolled where policy requires it.
+    This is the default for every endpoint, so a policy cannot be forgotten on a
+    new one."""
+    if user.must_change_password:
+        raise PasswordChangeRequiredError()
     if (
         settings.mfa_required_for_operational
         and user.role in OPERATIONAL_ROLES

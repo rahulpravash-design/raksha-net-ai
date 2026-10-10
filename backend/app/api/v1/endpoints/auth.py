@@ -12,6 +12,7 @@ from app.schemas.auth import (
     MfaCodeRequest,
     MfaDisableRequest,
     MfaEnrollResponse,
+    PasswordChangeRequest,
     RefreshRequest,
     TokenResponse,
 )
@@ -106,6 +107,31 @@ def me(user: AuthenticatedUser) -> UserRead:
     """Deliberately not behind the MFA policy: a person told to enrol must be
     able to see who they are and that MFA is what is missing."""
     return UserRead.model_validate(user)
+
+
+@router.post(
+    "/password",
+    response_model=TokenResponse,
+    summary="Change your own password",
+)
+def change_password(
+    payload: PasswordChangeRequest,
+    user: AuthenticatedUser,
+    session: DbSession,
+    settings: AppSettings,
+    context: Context,
+) -> TokenResponse:
+    """Needs the current password (and a current MFA code when MFA is on).
+
+    Deliberately not behind the account-policy dependency: a person whose
+    password was set by an administrator must be able to reach this before
+    anything else. Ends every other session and returns fresh tokens for this one.
+    """
+    _enforce_auth_rate_limit(context, settings)
+    tokens = AuthService(session, settings).change_password(
+        user, payload.current_password, payload.new_password, payload.mfa_code, context
+    )
+    return _to_response(tokens)
 
 
 @router.post(

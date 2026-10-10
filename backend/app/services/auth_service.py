@@ -21,6 +21,7 @@ from app.core.errors import (
     InvalidTokenError,
     MfaRequiredError,
     NotFoundError,
+    PasswordUnchangedError,
     ValidationError,
 )
 from app.core.logging import get_logger
@@ -138,6 +139,8 @@ class AuthService:
             hashed_password=hash_password(payload.password, self.settings),
             role=payload.role,
             is_active=payload.is_active,
+            # The administrator knows this password; the person must replace it.
+            must_change_password=True,
         )
         self.users.add(user)
         self.audit.record(
@@ -279,6 +282,91 @@ class AuthService:
         self._audit_mfa(AuditAction.MFA_DISABLED, user, context)
         self.session.commit()
         return user
+
+    # -- password -----------------------------------------------------------
+    def change_password(
+        self,
+        user: User,
+        current_password: str,
+        new_password: str,
+        mfa_code: str | None,
+        context: RequestContext | None = None,
+    ) -> IssuedTokens:
+        """Replace the caller's own password.
+
+        A stolen access token alone must not be enough to take an account over,
+        so the current password is required (and a current MFA code where MFA is
+        on). Wrong answers count toward lockout exactly like wrong login
+        attempts: otherwise this endpoint is a password-guessing oracle for
+        whoever holds a session. Every other session is ended; the caller gets
+        fresh tokens so their own continues.
+        """
+        context = context or RequestContext()
+
+        if not verify_password(current_password, user.hashed_password):
+            self._record_failed_login(user.email, context, user_id=user.id)
+            self._register_failed_attempt(user, context)
+            self.session.commit()
+            raise InvalidCredentialsError(status_code=400)
+
+        if user.mfa_enabled:
+            step = (
+                totp.verify(user.mfa_secret or "", mfa_code, last_step=user.mfa_last_step)
+                if mfa_code
+                else None
+            )
+            if step is None:
+                self._record_failed_login(user.email, context, user_id=user.id)
+                self._register_failed_attempt(user, context)
+                self.session.commit()
+                raise InvalidMfaCodeError(status_code=400)
+            user.mfa_last_step = step
+
+        validate_password_strength(new_password, self.settings)
+        if verify_password(new_password, user.hashed_password):
+            raise PasswordUnchangedError()
+
+        user.hashed_password = hash_password(new_password, self.settings)
+        user.must_change_password = False
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        now = utcnow()
+        self.tokens.revoke_all_for_user(user.id, now)
+        tokens = self._issue_tokens(user, context)
+        self._audit_mfa(AuditAction.PASSWORD_CHANGED, user, context)
+        self.session.commit()
+        return tokens
+
+    def admin_reset_password(
+        self,
+        target: User,
+        new_password: str,
+        *,
+        actor: User,
+        context: RequestContext | None = None,
+    ) -> User:
+        """Set a temporary password for someone who cannot sign in.
+
+        They must replace it at first use, their other sessions end, and any
+        lockout is cleared (a person locked out by forgetting their password is
+        the usual reason for this). An administrator cannot do this to
+        themselves: that would let a hijacked admin session set a password it
+        knows without being asked for the old one.
+        """
+        context = context or RequestContext()
+        if target.id == actor.id:
+            raise ForbiddenError("Change your own password from your account settings.")
+        self._assert_may_manage(target, actor)
+        validate_password_strength(new_password, self.settings)
+
+        target.hashed_password = hash_password(new_password, self.settings)
+        target.must_change_password = True
+        target.failed_login_attempts = 0
+        target.locked_until = None
+        self.tokens.revoke_all_for_user(target.id, utcnow())
+        self._audit_admin(AuditAction.PASSWORD_RESET_BY_ADMIN, target, actor, context)
+        self.session.commit()
+        return target
 
     # -- administrative recovery -------------------------------------------
     def unlock_account(

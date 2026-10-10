@@ -62,6 +62,13 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         DateTime(timezone=True), nullable=True
     )
 
+    #: Set when an administrator chose this account's password (creation or a
+    #: reset): the person must replace it before doing anything else, so a
+    #: password known to someone else never stays in force.
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
     #: TOTP shared secret, encrypted at rest. Present while enrolment is
     #: pending *and* once enabled; ``mfa_enabled`` is what says which.
     mfa_secret: Mapped[str | None] = mapped_column(EncryptedString(255), nullable=True)

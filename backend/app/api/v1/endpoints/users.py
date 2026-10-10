@@ -20,6 +20,7 @@ from app.models.enums import UserRole
 from app.repositories.user_repository import UserRepository
 from app.schemas.common import Page
 from app.schemas.user import (
+    AdminPasswordReset,
     UserAdminRead,
     UserCreate,
     UserRead,
@@ -231,3 +232,27 @@ def reset_user_mfa(
         raise NotFoundError("User not found.")
     reset = AuthService(session, settings).reset_mfa(target, actor=admin, context=context)
     return UserAdminRead.model_validate(reset)
+
+
+@router.post(
+    "/{user_id}/reset-password",
+    response_model=UserAdminRead,
+    summary="Set a temporary password and end the user's sessions",
+)
+def reset_user_password(
+    user_id: uuid.UUID,
+    payload: AdminPasswordReset,
+    admin: AdminUser,
+    session: DbSession,
+    settings: AppSettings,
+    context: Context,
+) -> UserAdminRead:
+    """For someone who has forgotten their password. The user must change it at
+    first sign-in; an administrator cannot do this to themselves."""
+    target = UserRepository(session).get(user_id)
+    if target is None:
+        raise NotFoundError("User not found.")
+    updated = AuthService(session, settings).admin_reset_password(
+        target, payload.new_password, actor=admin, context=context
+    )
+    return UserAdminRead.model_validate(updated)
