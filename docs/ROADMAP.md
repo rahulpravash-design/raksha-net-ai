@@ -271,6 +271,13 @@ where they are. The brief omits the reporter's identity.
 and terrain, and every figure the API returns is labelled as such. Real
 routing (OSRM or similar) remains unbuilt.
 
+**Dispatcher screen.** The control-centre incident page carries a dispatch
+panel: ranked suggestions with their reasons, a two-step confirm-to-dispatch,
+the dispatches already made (with approver), and a stand-down that requires a
+reason. It was checked in a real browser against the running API and responder
+app (`scripts/e2e/dispatch.mjs`), including that nothing exists after the
+first click and that the recorded approver is the signed-in user.
+
 **Done when:** a dispatcher can commit a unit, the crew can work it to
 completion from their own device, and no dispatch exists without a named human
 approver. ✅

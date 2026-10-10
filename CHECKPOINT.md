@@ -48,7 +48,7 @@ measured and fixed in a development environment only.**
   chain + drift check, AI pytest, pip-audit, npm audit, then eslint + tsc + vitest +
   build for all three front ends). Read from its actual final line.
 - **452 backend tests** (none skipped, including those that start a real
-  `redis-server`), **31 AI tests**, **90 frontend tests**. 573 total, all passing.
+  `redis-server`), **31 AI tests**, **102 frontend tests**. 585 total, all passing.
 - Migrations `0001 → 0013`; the gate upgrades to head, fails on model/migration
   drift and downgrades to base on every run (and cleans up even if it fails).
 - Backup → restore → compare, on a 100k-incident database: all checks pass; each
@@ -149,8 +149,8 @@ of it is the responder app's assignments list (`api.myAssignments`).
 
 | Missing screen | Who needs it | Backend ready |
 |---|---|---|
-| **Resource list + ranked recommendations on an incident, and a "Dispatch this unit" action** | Dispatcher (control centre) | `/resources`, `/incidents/{id}/resource-recommendations`, `POST /incidents/{id}/dispatches` |
-| Dispatches on an incident, with progress | Dispatcher | `GET /incidents/{id}/dispatches` |
+| ~~Ranked recommendations, confirm-to-dispatch, dispatches on an incident, stand down~~ **BUILT** (`DispatchPanel`, §3a) | Dispatcher | — |
+| Resource inventory screen (list, create, set status, base location) | Dispatcher/admin | `/resources` |
 | Hospital capacity, nearby hospitals, send/track an inbound notice | Dispatcher, hospital operator | `/hospitals*`, `/hospital-notices*` |
 | **Notification inbox** (+ unread badge) | Citizen, responder, dispatcher (all three apps) | `/notifications*` |
 | Analytics (response/resolution time, categories, utilisation, hotspot map) | Dispatcher/admin | `/analytics/*` |
@@ -158,22 +158,45 @@ of it is the responder app's assignments list (`api.myAssignments`).
 | Admin: unlock / reset MFA / create operators | Admin | `/users/*` |
 | **A hospital-operator application at all** | Hospital operator | the API; there is no app |
 
-Start with the dispatch workflow — it is the product's core human-in-the-loop action
-(`CLAUDE.md` §2 rule 1: AI proposes, a human disposes), and today the "disposes" half
-has no screen. In order:
+The dispatch workflow — the product's core human-in-the-loop action — is now built
+(§3a). Remaining, in order:
 
-1. `packages/api-client`: it already has the dispatch/resource methods and types;
-   check them against the live API before building on them.
-2. Control centre, incident page: a **Resources** panel (recommendations with their
-   `reasons`, ETA labelled as an estimate) and a confirm-to-dispatch control. The
-   approver is the signed-in user — never a form field. Show who approved existing
-   dispatches. Respect `canDispatch(role)`.
 3. A shared notification inbox component for the three apps.
 4. Then analytics (coarsened hotspots only — never request or display raw
    coordinates), hospital notices, MFA enrolment.
 5. Follow the existing patterns (vitest component tests per screen; `check.sh`).
    **Verify in a real browser**, as the Phase 16 sign-in run did — type checks and
    unit tests do not show that a dispatch actually works.
+
+### 3a. Dispatch workflow (built, browser-verified)
+
+`apps/control-center/components/DispatchPanel.tsx`, on the incident page. Shows the
+ranked suggestions with their `reasons` and an ETA labelled "straight-line estimate";
+**two steps** to dispatch (choose, then "Confirm dispatch" with an optional crew
+note); no approver field anywhere (the API records the caller); existing dispatches
+with approver, status, ETA at dispatch, note and cancel reason; "Stand down" needs a
+reason (the confirm button stays disabled without one). Read-only for roles that
+cannot dispatch (no suggestions are even requested); closed incidents offer nothing.
+A `RESOURCE_ALREADY_DISPATCHED` conflict shows the server's message and refreshes
+the ranking. The panel states that dispatching does **not** move the incident's
+status — the dispatcher still does that in "Move this incident" (the backend
+forbids REPORTED→ASSIGNED, so auto-advancing is not available).
+Not built here: a resource inventory screen, and progress updates beyond what the
+dispatch list already shows (the crew reports those in the responder app).
+
+Tests: 12 vitest component tests (`tests/DispatchPanel.test.tsx`).
+Real browser (Chromium, built control centre + responder app + live API, 18 checks —
+`scripts/e2e/dispatch.mjs`, not part of the gate because it needs a running stack
+and `playwright-core`): nearest unit suggested and a farther one withheld; nothing
+exists server-side after the first click; after confirming, exactly one dispatch
+exists with `approved_by` = the signed-in dispatcher; the dispatched unit leaves the
+suggestions; the responder's `/dispatches/mine` and the responder app both show it;
+stand-down needs a reason and records it; the freed unit is suggested again; a
+responder token gets 403 on `POST /incidents/{id}/dispatches`; no CSP violations or
+console errors. Two of my own first-run "failures" were wrong expectations in the
+script (a farther unit is correctly withheld inside the 5 km tier; leftover units
+from an earlier run share coordinates), not product bugs — recorded so they are not
+rediscovered.
 
 Everything else left is blocked on people or inputs: the penetration test and the
 authority's acceptance (Phase 16/18), a production deployment and restore rehearsal
@@ -354,7 +377,7 @@ Everything below is committed. Nothing is staged or modified.
     keep-alive race. Understand it before running several processes in earnest.
 20. **Postgres `max_connections` (default 100)** limits API processes to three at
     full pool use; `processes × 30` must fit. Documented in DEPLOYMENT.md.
-21. **Phases 10–14 have almost no UI** — the headline gap; see §3.
+21. **Phases 10–14 still lack most UI** (dispatch workflow now built, §3a); see §3.
 22. **Nothing is deployed.** Phase 18 produced procedures and tooling, not a running
     environment. The 15-minute RPO is not established (a logical dump's RPO is the
     backup interval; PITR is platform infrastructure) and the 1-hour RTO is untested
@@ -456,8 +479,9 @@ you to confirm which Netlify account/team to use.
 
 ## 8. Suggested order when you return
 
-1. **The Phase 10–14 user interfaces (§3)**, dispatch workflow first, each verified in
-   a real browser.
+1. **The remaining Phase 10–14 user interfaces (§3)** — notification inbox first, then
+   resource inventory, hospital notices, analytics, MFA enrolment — each verified in a
+   real browser as the dispatch workflow was.
 2. **Decide Netlify (§7)** and deploy (frontends can go to Netlify; the backend cannot).
 3. **The human work**: commission the penetration test; get the residual risk
    accepted; stand up real infrastructure and rehearse a restore and a load test there.
