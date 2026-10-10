@@ -7,6 +7,7 @@ FROM node:22-alpine AS deps
 WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY packages/api-client/package.json ./packages/api-client/
+COPY packages/ui/package.json ./packages/ui/
 COPY apps/responder-web/package.json ./apps/responder-web/
 RUN npm ci --workspace @raksha/responder-web --include-workspace-root
 

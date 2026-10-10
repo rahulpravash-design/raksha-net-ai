@@ -379,10 +379,21 @@ Everything below is committed. Nothing is staged or modified.
 
 **Real gaps to be aware of:**
 
-6. **Docker has never been run.** No daemon in the dev sandbox. The Dockerfiles
-   and `docker-compose.yml` are written and YAML-valid but **unbuilt and
-   untested**, including the `responder-web` image. Verify with
-   `docker compose up` before trusting them.
+6. **Docker: built and run once, here (2026-10-10).** All four images build; `docker
+   compose up` brings the stack up from an empty volume; the backend applies every
+   migration to the PostGIS image and reports `schema_state: current`; every container runs
+   as uid 10001; uploads land (stripped) in the media volume; data survives a restart;
+   Redis-backed rate limiting answers `429` after ten sign-ins; and the browser scripts
+   (csp, landing-live, responder-scope, responder-security, mfa-recovery, dispatch,
+   hospital-edit, command — 195 checks) all pass against the containers (rate limiting off
+   for that run only). Two fixes came out of it: the backend image no longer installs
+   anything with apt (`psycopg[binary]` brings libpq; the health check uses Python), and the
+   front-end images copy `packages/ui/package.json` in their dependency stage. **Limits:**
+   this sandbox's egress policy blocks the Debian mirror and the build containers cannot
+   reach the network directly, so the images were built with `--network host` and the
+   sandbox proxy's CA injected through a throwaway copy of each Dockerfile — the network
+   plumbing differed, the build steps did not. Not run on a real registry, orchestrator or
+   cloud host; images not scanned.
 7. **Netlify deployment was requested but not done.** See §7 below — it needs a
    decision from you first, because Netlify cannot host this backend.
 8. **`eslint-config-next@16.3.5` is incompatible with ESLint 10** (its bundled

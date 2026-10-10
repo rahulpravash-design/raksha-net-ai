@@ -7,6 +7,7 @@ FROM node:22-alpine AS deps
 WORKDIR /repo
 COPY package.json package-lock.json ./
 COPY packages/api-client/package.json ./packages/api-client/
+COPY packages/ui/package.json ./packages/ui/
 COPY apps/citizen-web/package.json ./apps/citizen-web/
 RUN npm ci --workspace @raksha/citizen-web --include-workspace-root
 

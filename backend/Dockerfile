@@ -8,10 +8,9 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# libpq for psycopg, curl for the container health check.
-RUN apt-get update \
-    && apt-get install --no-install-recommends -y libpq5 curl \
-    && rm -rf /var/lib/apt/lists/*
+# No system packages: psycopg[binary] ships its own libpq, and the health check
+# below uses Python's standard library instead of curl. Fewer packages, fewer CVEs
+# to patch, and no apt mirror needed at build time.
 
 WORKDIR /app
 
@@ -34,6 +33,6 @@ ENV PYTHONPATH=/app
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD curl -fsS http://localhost:8000/api/v1/health/ready || exit 1
+    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/ready', timeout=4)"]
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

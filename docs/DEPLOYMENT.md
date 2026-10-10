@@ -177,7 +177,8 @@ deployment (or a person) can supply. Nothing here has been deployed.
 | CORS restricted | **Enforced at startup** in staging/production | — |
 | Rate limiting backed by Redis | `RAKSHA_RATE_LIMIT_BACKEND=redis` shares counters across processes (tested against a real Redis and across two real processes); falls back to local counting if Redis fails, with a metric | A Redis for the deployment, and setting the backend to `redis` (the default is `memory`) |
 | Migrations applied and verified | Gate: chain up/down, drift check; `0010` proven on planted data | Rehearsal on a restored production copy (`RELEASE.md`) |
-| Health probes wired | Liveness + readiness (DB, PostGIS, schema state); container health check | Wiring in the orchestrator |
+| Container images | Four images; built and the compose stack run end to end once in a sandbox (non-root, health checks, migrations from empty, browser suite green — `CHECKPOINT.md` §5 item 6). The backend image installs no OS packages | A registry, image scanning, and a run on the real host |
+| Health probes wired | Liveness + readiness (DB, PostGIS, schema state); container health check (stdlib Python, no curl) | Wiring in the orchestrator |
 | Log shipping, metrics, alerting | Structured logs; `/metrics`; alert suggestions in the runbook | A collector, dashboards, alert rules, paging |
 | Backups running; restore rehearsed | Scripts + `verify_restore.sh`, rehearsed locally | A schedule, off-site storage, key custody; a rehearsal in the real environment |
 | Penetration test, findings closed | — | **A person.** Not done |
