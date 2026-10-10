@@ -129,3 +129,32 @@ class RefreshToken(UUIDPrimaryKeyMixin, Base):
     @property
     def is_revoked(self) -> bool:
         return self.revoked_at is not None
+
+
+class PasswordResetToken(UUIDPrimaryKeyMixin, Base):
+    """A single-use, short-lived link credential for recovering an account.
+
+    Only the SHA-256 of the token is stored (like a refresh token), so a copy of
+    this table cannot be used to take accounts over. ``used_at`` makes it
+    single-use; a newer request, or a successful reset, invalidates older ones.
+    """
+
+    __tablename__ = "password_reset_tokens"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    token_hash: Mapped[str] = mapped_column(
+        String(128), unique=True, nullable=False, index=True
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    ip_address: Mapped[str | None] = mapped_column(INET, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

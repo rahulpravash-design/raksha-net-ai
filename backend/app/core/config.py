@@ -124,6 +124,33 @@ class Settings(BaseSettings):
     #: production-like environment refuses to start with it off.
     mfa_required_for_operational: bool = False
 
+    # --- Email (password recovery) ------------------------------------------
+    #: SMTP server to send mail through. Unset means no email channel exists:
+    #: the platform runs fully without it, and the sign-in screens say that
+    #: self-service recovery is unavailable instead of promising a message.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: SecretStr | None = None
+    #: ``starttls`` upgrades a plain connection (port 587), ``ssl`` connects
+    #: encrypted from the start (port 465), ``none`` is for a local test mailbox
+    #: only — production-like environments refuse it.
+    smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
+    smtp_timeout_seconds: float = 10.0
+    email_from: str = "RAKSHA NET AI <no-reply@localhost>"
+    #: How long a recovery link stays valid.
+    password_reset_token_minutes: int = 30
+    #: Recovery requests honoured per account per hour. More are accepted (so
+    #: the response never reveals the account exists) but send nothing: this
+    #: stops the form being used to flood someone's inbox.
+    password_reset_max_per_hour: int = 3
+    #: Where the recovery link points. Fixed by configuration, never taken from
+    #: the request: a link built from a client-supplied host is how a reset token
+    #: gets sent to an attacker's site.
+    citizen_app_url: str = "http://localhost:3000"
+    control_center_url: str = "http://localhost:3001"
+    responder_app_url: str = "http://localhost:3002"
+
     # --- Observability -----------------------------------------------------
     #: Bearer token a metrics scraper must present to read ``/metrics``. Unset
     #: means the endpoint does not exist (404), not that it is open: metrics
@@ -210,6 +237,10 @@ class Settings(BaseSettings):
         )
 
     @property
+    def email_configured(self) -> bool:
+        return bool(self.smtp_host and self.smtp_host.strip())
+
+    @property
     def is_development(self) -> bool:
         return self.environment is Environment.DEVELOPMENT
 
@@ -251,6 +282,17 @@ class Settings(BaseSettings):
             problems.append("RAKSHA_CORS_ORIGINS must list the allowed origins")
         if any(origin.startswith("http://") for origin in self.cors_origins):
             problems.append("RAKSHA_CORS_ORIGINS must use https outside development")
+
+        if self.email_configured:
+            if self.smtp_security == "none":
+                problems.append("RAKSHA_SMTP_SECURITY must be starttls or ssl")
+            for name, url in (
+                ("RAKSHA_CITIZEN_APP_URL", self.citizen_app_url),
+                ("RAKSHA_CONTROL_CENTER_URL", self.control_center_url),
+                ("RAKSHA_RESPONDER_APP_URL", self.responder_app_url),
+            ):
+                if not url.startswith("https://"):
+                    problems.append(f"{name} must be an https:// URL when email is on")
 
         if problems:
             raise RuntimeError(

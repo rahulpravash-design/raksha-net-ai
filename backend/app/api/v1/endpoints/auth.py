@@ -2,23 +2,27 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, BackgroundTasks, status
 
 from app.api.deps import AppSettings, AuthenticatedUser, Context, DbSession
 from app.core.errors import RateLimitedError
 from app.core.rate_limit import get_rate_limiter
 from app.schemas.auth import (
+    ForgotPasswordRequest,
     LoginRequest,
     MfaCodeRequest,
     MfaDisableRequest,
     MfaEnrollResponse,
     PasswordChangeRequest,
+    RecoveryStatus,
     RefreshRequest,
+    ResetPasswordRequest,
     TokenResponse,
 )
 from app.schemas.common import Message
 from app.schemas.user import UserRead, UserRegister
 from app.services.auth_service import AuthService, IssuedTokens, RequestContext
+from app.services.email_service import deliver
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -116,6 +120,7 @@ def me(user: AuthenticatedUser) -> UserRead:
 )
 def change_password(
     payload: PasswordChangeRequest,
+    background: BackgroundTasks,
     user: AuthenticatedUser,
     session: DbSession,
     settings: AppSettings,
@@ -131,7 +136,64 @@ def change_password(
     tokens = AuthService(session, settings).change_password(
         user, payload.current_password, payload.new_password, payload.mfa_code, context
     )
+    background.add_task(deliver, settings, AuthService.changed_notice(tokens.user))
     return _to_response(tokens)
+
+
+@router.get(
+    "/recovery-status",
+    response_model=RecoveryStatus,
+    summary="Whether self-service password recovery is available",
+)
+def recovery_status(settings: AppSettings) -> RecoveryStatus:
+    return RecoveryStatus(email_available=settings.email_configured)
+
+
+@router.post(
+    "/forgot-password",
+    response_model=Message,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Ask for a password recovery email",
+)
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    background: BackgroundTasks,
+    session: DbSession,
+    settings: AppSettings,
+    context: Context,
+) -> Message:
+    """Always answers the same way. Whether an email is sent is not something the
+    caller can learn from the response: the message goes out after it, and only
+    for an active account that has not used up its hourly allowance."""
+    _enforce_auth_rate_limit(context, settings)
+    email = AuthService(session, settings).request_password_reset(payload.email, context)
+    background.add_task(deliver, settings, email)
+    return Message(
+        message="If an account exists for that address and email is set up, "
+        "a recovery link is on its way."
+    )
+
+
+@router.post(
+    "/reset-password",
+    response_model=Message,
+    summary="Set a new password from a recovery link",
+)
+def reset_password(
+    payload: ResetPasswordRequest,
+    background: BackgroundTasks,
+    session: DbSession,
+    settings: AppSettings,
+    context: Context,
+) -> Message:
+    """Spends the link, ends every session and clears any lockout. Does not sign
+    the person in: they sign in normally, and two-factor still applies."""
+    _enforce_auth_rate_limit(context, settings)
+    notice = AuthService(session, settings).complete_password_reset(
+        payload.token, payload.new_password, context
+    )
+    background.add_task(deliver, settings, notice)
+    return Message(message="Your password has been changed. You can sign in now.")
 
 
 @router.post(

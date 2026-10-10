@@ -18,6 +18,7 @@ from app.core.errors import (
     InactiveAccountError,
     InvalidCredentialsError,
     InvalidMfaCodeError,
+    InvalidResetTokenError,
     InvalidTokenError,
     MfaRequiredError,
     NotFoundError,
@@ -35,11 +36,20 @@ from app.core.security import (
     verify_password,
 )
 from app.models.enums import UserRole
-from app.models.user import RefreshToken, User
-from app.repositories.user_repository import RefreshTokenRepository, UserRepository
+from app.models.user import PasswordResetToken, RefreshToken, User
+from app.repositories.user_repository import (
+    PasswordResetRepository,
+    RefreshTokenRepository,
+    UserRepository,
+)
 from app.schemas.auth import LoginRequest
 from app.schemas.user import UserCreate, UserRegister
 from app.services.audit_service import AuditAction, AuditService
+from app.services.email_messages import (
+    OutgoingEmail,
+    password_changed_email,
+    password_reset_email,
+)
 from app.utils.time import utcnow
 
 logger = get_logger(__name__)
@@ -71,6 +81,7 @@ class AuthService:
         self.settings = settings or get_settings()
         self.users = UserRepository(session)
         self.tokens = RefreshTokenRepository(session)
+        self.reset_tokens = PasswordResetRepository(session)
         self.audit = AuditService(session)
 
     # -- registration -------------------------------------------------------
@@ -367,6 +378,92 @@ class AuthService:
         self._audit_admin(AuditAction.PASSWORD_RESET_BY_ADMIN, target, actor, context)
         self.session.commit()
         return target
+
+    # -- self-service recovery (email) --------------------------------------
+    def request_password_reset(
+        self, email: str, context: RequestContext | None = None
+    ) -> OutgoingEmail | None:
+        """Prepare a recovery email, or return ``None`` and say nothing about why.
+
+        The caller answers every request identically whatever this returns, so
+        the form cannot be used to find out which addresses have accounts. No
+        email is prepared when none can be sent (no channel, unknown address,
+        deactivated account) or when the account has already had its share this
+        hour — the cap is what stops the form flooding someone's inbox.
+        """
+        context = context or RequestContext()
+        if not self.settings.email_configured:
+            return None
+        user = self.users.get_by_email(email.strip().lower())
+        if user is None or not user.is_active:
+            return None
+
+        now = utcnow()
+        sent = self.reset_tokens.count_since(user.id, now - timedelta(hours=1))
+        if sent >= self.settings.password_reset_max_per_hour:
+            logger.warning("password_reset_throttled", extra={"user_id": str(user.id)})
+            return None
+
+        self.reset_tokens.invalidate_unused(user.id, now)
+        raw, token_hash = generate_refresh_token()
+        self.reset_tokens.add(
+            PasswordResetToken(
+                user_id=user.id,
+                token_hash=token_hash,
+                expires_at=now
+                + timedelta(minutes=self.settings.password_reset_token_minutes),
+                ip_address=context.ip_address,
+            )
+        )
+        self._audit_mfa(AuditAction.PASSWORD_RESET_REQUESTED, user, context)
+        self.session.commit()
+        return password_reset_email(
+            self.settings,
+            recipient=user.email,
+            name=user.full_name,
+            role=user.role,
+            token=raw,
+        )
+
+    def complete_password_reset(
+        self,
+        raw_token: str,
+        new_password: str,
+        context: RequestContext | None = None,
+    ) -> OutgoingEmail:
+        """Set a new password from a recovery link.
+
+        A weak password is refused *before* the link is spent, so a typo does
+        not cost the person their link. Success proves control of the inbox, so
+        it clears a lockout and any administrator-set flag; it also ends every
+        session. It does not sign anyone in, and two-factor still applies at the
+        next sign-in: email alone must never be enough to get past a second factor.
+        """
+        context = context or RequestContext()
+        now = utcnow()
+        stored = self.reset_tokens.get_by_hash(hash_refresh_token(raw_token))
+        if stored is None or stored.used_at is not None or stored.expires_at <= now:
+            raise InvalidResetTokenError()
+        user = self.users.get(stored.user_id)
+        if user is None or not user.is_active:
+            raise InvalidResetTokenError()
+
+        validate_password_strength(new_password, self.settings)
+
+        user.hashed_password = hash_password(new_password, self.settings)
+        user.must_change_password = False
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        self.reset_tokens.invalidate_unused(user.id, now)
+        self.tokens.revoke_all_for_user(user.id, now)
+        self._audit_mfa(AuditAction.PASSWORD_RESET_COMPLETED, user, context)
+        self.session.commit()
+        return password_changed_email(recipient=user.email, name=user.full_name)
+
+    @staticmethod
+    def changed_notice(user: User) -> OutgoingEmail:
+        """The security notice sent after a password change."""
+        return password_changed_email(recipient=user.email, name=user.full_name)
 
     # -- administrative recovery -------------------------------------------
     def unlock_account(

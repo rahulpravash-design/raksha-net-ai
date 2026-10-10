@@ -12,7 +12,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.enums import UserRole
-from app.models.user import RefreshToken, User
+from app.models.user import PasswordResetToken, RefreshToken, User
 
 
 class UserRepository:
@@ -110,4 +110,43 @@ class RefreshTokenRepository:
         tokens = list(self.session.scalars(stmt))
         for token in tokens:
             token.revoked_at = now
+        return len(tokens)
+
+
+class PasswordResetRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, token: PasswordResetToken) -> PasswordResetToken:
+        self.session.add(token)
+        self.session.flush()
+        return token
+
+    def get_by_hash(self, token_hash: str) -> PasswordResetToken | None:
+        stmt = select(PasswordResetToken).where(
+            PasswordResetToken.token_hash == token_hash
+        )
+        return self.session.scalars(stmt).first()
+
+    def count_since(self, user_id: uuid.UUID, since: datetime) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(PasswordResetToken)
+            .where(
+                PasswordResetToken.user_id == user_id,
+                PasswordResetToken.created_at >= since,
+            )
+        )
+        return self.session.scalar(stmt) or 0
+
+    def invalidate_unused(self, user_id: uuid.UUID, now: datetime) -> int:
+        """Spend every outstanding token for the account (a newer link, or a
+        completed reset, replaces them)."""
+        stmt = select(PasswordResetToken).where(
+            PasswordResetToken.user_id == user_id,
+            PasswordResetToken.used_at.is_(None),
+        )
+        tokens = list(self.session.scalars(stmt))
+        for token in tokens:
+            token.used_at = now
         return len(tokens)

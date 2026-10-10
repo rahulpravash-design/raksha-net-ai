@@ -25,6 +25,12 @@ class AuditAction:
     MFA_RESET = "auth.mfa_reset"
     ACCOUNT_UNLOCKED = "auth.account_unlocked"
     PASSWORD_CHANGED = "auth.password_changed"  # noqa: S105 - an action name
+    PASSWORD_RESET_REQUESTED = (
+        "auth.password_reset_requested"  # noqa: S105 - an action name
+    )
+    PASSWORD_RESET_COMPLETED = (
+        "auth.password_reset_completed"  # noqa: S105 - an action name
+    )
     PASSWORD_RESET_BY_ADMIN = (
         "auth.password_reset_by_admin"  # noqa: S105 - an action name
     )

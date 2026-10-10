@@ -64,6 +64,14 @@ class InvalidCoordinatesError(ValidationError):
     message = "The supplied coordinates are not valid for this deployment."
 
 
+class InvalidResetTokenError(ValidationError):
+    """One answer for unknown, expired, used and replaced links, so the response
+    reveals nothing about which it was."""
+
+    code = "INVALID_RESET_TOKEN"
+    message = "This recovery link is invalid or has expired. Request a new one."
+
+
 class PasswordUnchangedError(ValidationError):
     code = "PASSWORD_UNCHANGED"
     message = "The new password must be different from the current one."

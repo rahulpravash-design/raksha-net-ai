@@ -51,3 +51,24 @@ class PasswordChangeRequest(BaseModel):
     new_password: str = Field(min_length=1, max_length=128)
     #: Required only for an account with MFA enabled.
     mfa_code: str | None = Field(default=None, pattern=r"^\d{6}$")
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+    @field_validator("email")
+    @classmethod
+    def _lower(cls, value: str) -> str:
+        return value.strip().lower()
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=512)
+    new_password: str = Field(min_length=1, max_length=128)
+
+
+class RecoveryStatus(BaseModel):
+    #: Whether this deployment can send recovery email at all. Lets the sign-in
+    #: screens say "ask an administrator" instead of promising a message that
+    #: will never arrive.
+    email_available: bool
