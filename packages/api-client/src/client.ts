@@ -10,7 +10,13 @@
 
 import type {
   AnalysisReviewInput,
+  AdminUser,
   ApiErrorBody,
+  CreateUserInput,
+  MfaEnrollment,
+  UpdateUserInput,
+  UserRole,
+  UserSummary,
   AppNotification,
   Dispatch,
   DispatchStatus,
@@ -27,6 +33,7 @@ import type {
   Page,
   PriorityBand,
   Resource,
+  CreateHospitalInput,
   CreateHospitalNoticeInput,
   CreateResourceInput,
   Hospital,
@@ -174,6 +181,52 @@ export class ApiClient {
 
   async me(): Promise<User> {
     return this.request<User>("/api/v1/auth/me");
+  }
+
+  // --- two-factor authentication -------------------------------------------
+  async mfaEnroll(): Promise<MfaEnrollment> {
+    return this.request<MfaEnrollment>("/api/v1/auth/mfa/enroll", { method: "POST" });
+  }
+
+  async mfaEnable(code: string): Promise<User> {
+    return this.request<User>("/api/v1/auth/mfa/enable", { method: "POST", body: { code } });
+  }
+
+  async mfaDisable(password: string, code: string): Promise<User> {
+    return this.request<User>("/api/v1/auth/mfa/disable", {
+      method: "POST",
+      body: { password, code },
+    });
+  }
+
+  // --- user administration (ADMIN, SUPER_ADMIN) -----------------------------
+  async adminUsers(
+    query: { page?: number; page_size?: number; role?: UserRole; is_active?: boolean; q?: string } = {},
+  ): Promise<Page<AdminUser>> {
+    return this.request<Page<AdminUser>>("/api/v1/users", { query: { ...query } });
+  }
+
+  async createUser(input: CreateUserInput): Promise<AdminUser> {
+    return this.request<AdminUser>("/api/v1/users", { method: "POST", body: input });
+  }
+
+  async updateUser(id: string, changes: UpdateUserInput): Promise<AdminUser> {
+    return this.request<AdminUser>(`/api/v1/users/${id}`, { method: "PATCH", body: changes });
+  }
+
+  async unlockUser(id: string): Promise<AdminUser> {
+    return this.request<AdminUser>(`/api/v1/users/${id}/unlock`, { method: "POST" });
+  }
+
+  async resetUserMfa(id: string): Promise<AdminUser> {
+    return this.request<AdminUser>(`/api/v1/users/${id}/reset-mfa`, { method: "POST" });
+  }
+
+  /** Active responders (id, name, role only) — for dispatchers linking a crew to a unit. */
+  async responderDirectory(q?: string): Promise<UserSummary[]> {
+    return this.request<UserSummary[]>("/api/v1/users/directory", {
+      query: q ? { q } : {},
+    });
   }
 
   // --- incidents -----------------------------------------------------------
@@ -385,6 +438,10 @@ export class ApiClient {
     query: { page?: number; page_size?: number; active_only?: boolean } = {},
   ): Promise<Page<Hospital>> {
     return this.request<Page<Hospital>>("/api/v1/hospitals", { query: { ...query } });
+  }
+
+  async createHospital(input: CreateHospitalInput): Promise<Hospital> {
+    return this.request<Hospital>("/api/v1/hospitals", { method: "POST", body: input });
   }
 
   async hospitalsNearby(params: {

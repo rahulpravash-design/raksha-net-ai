@@ -4,6 +4,8 @@ import { motion } from "motion/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { isAdminRole } from "@raksha/api-client";
+
 import { useAuth } from "@/components/AuthProvider";
 import { seesIncidents } from "@/lib/routes";
 
@@ -13,10 +15,12 @@ const ITEMS = [
     label: "Command centre",
     match: (p: string) => p.startsWith("/dashboard") || p.startsWith("/incidents"),
     dispatchSide: true,
+    adminOnly: false,
   },
-  { href: "/resources", label: "Resources", match: (p: string) => p.startsWith("/resources"), dispatchSide: true },
-  { href: "/hospitals", label: "Hospitals", match: (p: string) => p.startsWith("/hospitals"), dispatchSide: false },
-  { href: "/", label: "Overview", match: (p: string) => p === "/", dispatchSide: false },
+  { href: "/resources", label: "Resources", match: (p: string) => p.startsWith("/resources"), dispatchSide: true, adminOnly: false },
+  { href: "/hospitals", label: "Hospitals", match: (p: string) => p.startsWith("/hospitals"), dispatchSide: false, adminOnly: false },
+  { href: "/admin/users", label: "Accounts", match: (p: string) => p.startsWith("/admin"), dispatchSide: false, adminOnly: true },
+  { href: "/", label: "Overview", match: (p: string) => p === "/", dispatchSide: false, adminOnly: false },
 ];
 
 /**
@@ -37,7 +41,7 @@ export function Sidebar() {
       <p className="muted mb-1 hidden px-3 text-[0.65rem] font-semibold uppercase tracking-[0.2em] lg:block">
         Modules
       </p>
-      {ITEMS.filter((item) => !item.dispatchSide || seesIncidents(user.role)).map((item) => {
+      {ITEMS.filter((item) => (!item.dispatchSide || seesIncidents(user.role)) && (!item.adminOnly || isAdminRole(user.role))).map((item) => {
         const active = item.match(pathname);
         return (
           <Link

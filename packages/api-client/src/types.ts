@@ -88,6 +88,34 @@ export interface User {
   last_login_at: string | null;
 }
 
+/** The administrator's view of an account: the profile plus lockout state. */
+export interface AdminUser extends User {
+  locked_until: string | null;
+  failed_login_attempts: number;
+}
+
+export interface CreateUserInput {
+  email: string;
+  full_name: string;
+  phone?: string | null;
+  password: string;
+  role: UserRole;
+  is_active?: boolean;
+}
+
+export interface UpdateUserInput {
+  full_name?: string;
+  phone?: string | null;
+  role?: UserRole;
+  is_active?: boolean;
+}
+
+/** Shown once, so it can be added to an authenticator app. */
+export interface MfaEnrollment {
+  secret: string;
+  provisioning_uri: string;
+}
+
 export interface UserSummary {
   id: string;
   full_name: string;
@@ -342,12 +370,30 @@ export interface CreateResourceInput {
   capabilities?: string[];
   crew_size?: number | null;
   contact_phone?: string | null;
+  /** A responder who operates this unit (see `responderDirectory`). */
+  operator_id?: string | null;
 }
 
 /** Only supplied fields are changed. Latitude and longitude go together. */
 export type UpdateResourceInput = Partial<
   Omit<CreateResourceInput, "call_sign"> & { is_active: boolean }
 >;
+
+export interface CreateHospitalInput {
+  code: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  address?: string | null;
+  contact_phone?: string | null;
+  total_beds?: number;
+  available_beds?: number;
+  icu_total?: number;
+  icu_available?: number;
+  specialties?: string[];
+  /** The hospital operator who maintains its capacity and sees its notices. */
+  managed_by_id?: string | null;
+}
 
 export interface NearbyResource {
   id: string;

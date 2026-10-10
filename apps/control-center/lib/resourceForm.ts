@@ -15,6 +15,8 @@ export interface ResourceFormValues {
   capabilities: string;
   crew_size: string;
   contact_phone: string;
+  /** Empty means no crew member linked. */
+  operator_id: string;
 }
 
 export type ResourceFormErrors = Partial<Record<keyof ResourceFormValues, string>>;
@@ -29,6 +31,7 @@ export const EMPTY_RESOURCE_FORM: ResourceFormValues = {
   capabilities: "",
   crew_size: "",
   contact_phone: "",
+  operator_id: "",
 };
 
 export function formFromResource(resource: Resource): ResourceFormValues {
@@ -42,6 +45,7 @@ export function formFromResource(resource: Resource): ResourceFormValues {
     capabilities: resource.capabilities.join(", "),
     crew_size: resource.crew_size === null ? "" : String(resource.crew_size),
     contact_phone: resource.contact_phone ?? "",
+    operator_id: resource.operator?.id ?? "",
   };
 }
 
@@ -114,6 +118,7 @@ export function validateResourceForm(
       capabilities,
       crew_size: crew,
       contact_phone: values.contact_phone.trim() || null,
+      operator_id: values.operator_id || null,
     },
   };
 }
@@ -138,6 +143,9 @@ export function changesFrom(resource: Resource, input: CreateResourceInput): Upd
   if ((input.crew_size ?? null) !== resource.crew_size) changes.crew_size = input.crew_size ?? null;
   if ((input.contact_phone ?? null) !== resource.contact_phone) {
     changes.contact_phone = input.contact_phone ?? null;
+  }
+  if ((input.operator_id ?? null) !== (resource.operator?.id ?? null)) {
+    changes.operator_id = input.operator_id ?? null;
   }
   return changes;
 }

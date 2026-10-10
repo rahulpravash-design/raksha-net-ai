@@ -128,7 +128,8 @@ and returns `401`.
 |---|---|---|---|
 | GET | `/users/me` | any | Own profile |
 | PATCH | `/users/me` | any | Update own `full_name`, `phone` |
-| GET | `/users` | ADMIN, SUPER_ADMIN | List users (filter `role`, `is_active`, `q`) |
+| GET | `/users` | ADMIN, SUPER_ADMIN | List users (filter `role`, `is_active`, `q`). Includes `locked_until` and `failed_login_attempts`, which the self view (`/users/me`) does not |
+| GET | `/users/directory` | DISPATCH roles | Active responders only — `id`, `full_name`, `role` and nothing else. For linking a crew member to a unit |
 | POST | `/users` | ADMIN, SUPER_ADMIN | Create a user with any role |
 | GET | `/users/{id}` | ADMIN, SUPER_ADMIN | Read a user |
 | PATCH | `/users/{id}` | ADMIN, SUPER_ADMIN | Update role / active flag |

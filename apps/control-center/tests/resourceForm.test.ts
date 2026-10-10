@@ -97,6 +97,16 @@ describe("changesFrom", () => {
     });
   });
 
+  it("detects linking and unlinking a crew member", () => {
+    const linked = { ...resource, operator: { id: "r-1", full_name: "Crew", role: "RESPONDER" } } as Resource;
+    const link = validateResourceForm({ ...formFromResource(resource), operator_id: "r-1" }, "edit").input!;
+    expect(changesFrom(resource, link)).toEqual({ operator_id: "r-1" });
+    const unlink = validateResourceForm({ ...formFromResource(linked), operator_id: "" }, "edit").input!;
+    expect(changesFrom(linked, unlink)).toEqual({ operator_id: null });
+    const same = validateResourceForm(formFromResource(linked), "edit").input!;
+    expect(changesFrom(linked, same)).toEqual({});
+  });
+
   it("can clear an optional field", () => {
     const withPhone = { ...resource, contact_phone: "555" } as Resource;
     const { input } = validateResourceForm({ ...formFromResource(withPhone), contact_phone: "" }, "edit");

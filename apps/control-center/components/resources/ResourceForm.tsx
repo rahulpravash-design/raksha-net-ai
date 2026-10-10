@@ -1,10 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { RESOURCE_TYPES, resourceTypeLabel, type CreateResourceInput } from "@raksha/api-client";
+import {
+  RESOURCE_TYPES,
+  resourceTypeLabel,
+  type CreateResourceInput,
+  type UserSummary,
+} from "@raksha/api-client";
 
 import { Button, ErrorBanner, Field, TextInput } from "@/components/ui";
+import { getApiClient } from "@/lib/api";
 import {
   validateResourceForm,
   type ResourceFormErrors,
@@ -32,6 +38,21 @@ export function ResourceForm({
   const [errors, setErrors] = useState<ResourceFormErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [crew, setCrew] = useState<UserSummary[]>([]);
+
+  useEffect(() => {
+    // Best effort: without the directory the unit is simply created unlinked.
+    let cancelled = false;
+    getApiClient()
+      .responderDirectory()
+      .then((rows) => {
+        if (!cancelled) setCrew(rows);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const set = (key: keyof ResourceFormValues) => (value: string) =>
     setValues((current) => ({ ...current, [key]: value }));
@@ -103,6 +124,24 @@ export function ResourceForm({
       </Field>
       <Field label="Capabilities" hint="Comma separated, e.g. als, oxygen, heavy_rescue." error={errors.capabilities}>
         <TextInput value={values.capabilities} onChange={(e) => set("capabilities")(e.target.value)} />
+      </Field>
+      <Field label="Crew member" hint="The responder who operates this unit and sees its assignments.">
+        <select
+          aria-label="Crew member"
+          className="surface w-full rounded-lg px-3 py-2.5 text-sm"
+          value={values.operator_id}
+          onChange={(e) => set("operator_id")(e.target.value)}
+        >
+          <option value="">Not linked</option>
+          {crew.map((member) => (
+            <option key={member.id} value={member.id}>
+              {member.full_name}
+            </option>
+          ))}
+          {values.operator_id && !crew.some((m) => m.id === values.operator_id) && (
+            <option value={values.operator_id}>Currently linked crew member</option>
+          )}
+        </select>
       </Field>
       <Field label="Contact phone">
         <TextInput value={values.contact_phone} onChange={(e) => set("contact_phone")(e.target.value)} />

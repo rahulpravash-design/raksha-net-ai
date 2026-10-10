@@ -93,6 +93,14 @@ class UserRead(ORMModel):
     last_login_at: datetime | None
 
 
+class UserAdminRead(UserRead):
+    """What an administrator sees: the self view plus the lockout state, so a
+    locked account can be recognised and unlocked."""
+
+    locked_until: datetime | None
+    failed_login_attempts: int
+
+
 class UserSummary(ORMModel):
     """The reduced view embedded in incident responses."""
 

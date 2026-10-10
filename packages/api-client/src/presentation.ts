@@ -147,6 +147,30 @@ export const NEXT_NOTICE_STATUSES: Record<HospitalNoticeStatus, HospitalNoticeSt
   CANCELLED: [],
 };
 
+const ROLE_LABELS: Record<UserRole, string> = {
+  CITIZEN: "Citizen",
+  RESPONDER: "Responder",
+  DISPATCHER: "Dispatcher",
+  HOSPITAL_OPERATOR: "Hospital operator",
+  ADMIN: "Administrator",
+  SUPER_ADMIN: "Super administrator",
+};
+
+export function roleLabel(role: UserRole): string {
+  return ROLE_LABELS[role] ?? role;
+}
+
+/** True while an account is inside a lockout window. */
+export function isLockedNow(user: { locked_until: string | null }, now = Date.now()): boolean {
+  if (!user.locked_until) return false;
+  const until = new Date(user.locked_until).getTime();
+  return !Number.isNaN(until) && until > now;
+}
+
+export function isAdminRole(role: UserRole): boolean {
+  return role === "ADMIN" || role === "SUPER_ADMIN";
+}
+
 export function isOperationalRole(role: UserRole): boolean {
   return OPERATIONAL_ROLES.includes(role);
 }

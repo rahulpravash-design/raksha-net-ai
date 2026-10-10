@@ -11,7 +11,8 @@ import { EMPTY_RESOURCE_FORM } from "@/lib/resourceForm";
 
 const setResourceStatus = vi.fn();
 const updateResource = vi.fn();
-const client = { setResourceStatus, updateResource };
+const responderDirectory = vi.fn();
+const client = { setResourceStatus, updateResource, responderDirectory };
 vi.mock("@/lib/api", () => ({ getApiClient: () => client }));
 
 function unit(overrides: Partial<Resource> = {}): Resource {
@@ -37,6 +38,7 @@ function unit(overrides: Partial<Resource> = {}): Resource {
 }
 
 beforeEach(() => {
+  responderDirectory.mockReset().mockResolvedValue([{ id: "r-1", full_name: "Crew One", role: "RESPONDER" }]);
   setResourceStatus.mockReset().mockResolvedValue(unit({ status: "OUT_OF_SERVICE" }));
   updateResource.mockReset().mockResolvedValue(unit());
 });
@@ -133,6 +135,26 @@ describe("ResourceForm", () => {
       ),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(/call sign already exists/i);
+  });
+});
+
+describe("ResourceForm crew picker", () => {
+  it("offers active responders and sends the chosen one", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(null);
+    render(<ResourceForm mode="create" initial={EMPTY_RESOURCE_FORM} onSubmit={onSubmit} onCancel={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText(/call sign/i), "amb-7");
+    await userEvent.type(screen.getByLabelText(/^name/i), "Ambulance Seven");
+    await userEvent.type(screen.getByLabelText(/latitude/i), "13.1");
+    await userEvent.type(screen.getByLabelText(/longitude/i), "80.2");
+    await userEvent.selectOptions(await screen.findByLabelText("Crew member"), "r-1");
+    await userEvent.click(screen.getByRole("button", { name: /register resource/i }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ operator_id: "r-1" })));
+  });
+
+  it("still works when the directory cannot be loaded", async () => {
+    responderDirectory.mockRejectedValue(new Error("down"));
+    render(<ResourceForm mode="create" initial={EMPTY_RESOURCE_FORM} onSubmit={vi.fn()} onCancel={vi.fn()} />);
+    expect(await screen.findByLabelText("Crew member")).toHaveValue("");
   });
 });
 

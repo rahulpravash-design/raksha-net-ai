@@ -1,4 +1,4 @@
-import type { Hospital, HospitalCapacityInput } from "@raksha/api-client";
+import type { CreateHospitalInput, Hospital, HospitalCapacityInput } from "@raksha/api-client";
 
 import { parseCapabilities } from "./resourceForm";
 
@@ -105,4 +105,86 @@ export function buildCapacityUpdate(
 /** True when the report changes nothing (a note alone does not count). */
 export function isEmptyUpdate(input: HospitalCapacityInput): boolean {
   return Object.keys(input).filter((key) => key !== "note").length === 0;
+}
+
+export interface HospitalFormValues {
+  code: string;
+  name: string;
+  latitude: string;
+  longitude: string;
+  address: string;
+  contact_phone: string;
+  total_beds: string;
+  available_beds: string;
+  icu_total: string;
+  icu_available: string;
+  specialties: string;
+  managed_by_id: string;
+}
+
+export type HospitalFormErrors = Partial<Record<keyof HospitalFormValues, string>>;
+
+export const EMPTY_HOSPITAL_FORM: HospitalFormValues = {
+  code: "",
+  name: "",
+  latitude: "",
+  longitude: "",
+  address: "",
+  contact_phone: "",
+  total_beds: "0",
+  available_beds: "0",
+  icu_total: "0",
+  icu_available: "0",
+  specialties: "",
+  managed_by_id: "",
+};
+
+function coordinate(text: string, limit: number): number {
+  if (text.trim() === "") return Number.NaN;
+  const value = Number(text);
+  return Number.isFinite(value) && Math.abs(value) <= limit ? value : Number.NaN;
+}
+
+/** Typing-mistake checks for registering a hospital; the server stays authoritative. */
+export function validateHospitalForm(values: HospitalFormValues): {
+  errors: HospitalFormErrors;
+  input: CreateHospitalInput | null;
+} {
+  const errors: HospitalFormErrors = {};
+  if (values.code.trim().length < 2) errors.code = "Enter a code of at least 2 characters.";
+  if (values.name.trim().length < 2) errors.name = "Enter a name of at least 2 characters.";
+  const latitude = coordinate(values.latitude, 90);
+  const longitude = coordinate(values.longitude, 180);
+  if (Number.isNaN(latitude)) errors.latitude = "Latitude must be a number between -90 and 90.";
+  if (Number.isNaN(longitude)) errors.longitude = "Longitude must be a number between -180 and 180.";
+
+  const fields = ["total_beds", "available_beds", "icu_total", "icu_available"] as const;
+  const parsed = {} as Record<(typeof fields)[number], number>;
+  for (const field of fields) {
+    const value = count(values[field]);
+    if (Number.isNaN(value) || value > 100_000) errors[field] = "Enter a whole number from 0 to 100000.";
+    else parsed[field] = value;
+  }
+  if (!errors.available_beds && !errors.total_beds && parsed.available_beds > parsed.total_beds) {
+    errors.available_beds = "Free beds cannot exceed total beds.";
+  }
+  if (!errors.icu_available && !errors.icu_total && parsed.icu_available > parsed.icu_total) {
+    errors.icu_available = "Free ICU beds cannot exceed total ICU beds.";
+  }
+  if (Object.keys(errors).length > 0) return { errors, input: null };
+
+  return {
+    errors,
+    input: {
+      code: values.code.trim(),
+      name: values.name.trim(),
+      latitude,
+      longitude,
+      address: values.address.trim() || null,
+      contact_phone: values.contact_phone.trim() || null,
+      ...parsed,
+      specialties: parseCapabilities(values.specialties),
+      managed_by_id: values.managed_by_id || null,
+    },
+  };
 }

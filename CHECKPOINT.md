@@ -155,7 +155,7 @@ of it is the responder app's assignments list (`api.myAssignments`).
 | ~~Notification inbox (+ unread badge)~~ **BUILT** (`packages/ui` `NotificationBell`, all three headers; browser-verified for the responder) | — | — |
 | Analytics (response/resolution time, categories, utilisation, hotspot map) | Dispatcher/admin | `/analytics/*` |
 | MFA enrolment (QR/URI, confirm, disable) | Everyone with MFA | `/auth/mfa/*` |
-| Admin: unlock / reset MFA / create operators | Admin | `/users/*` |
+| ~~Admin: unlock / reset MFA / create operators~~ **BUILT** (`/admin/users`; also hospital registration and a crew picker). Open: **no password-change endpoint exists** — see `docs/FRONTEND.md` §4 | — | — |
 
 The dispatch workflow — the product's core human-in-the-loop action — is now built
 (§3a). Remaining, in order:

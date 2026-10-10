@@ -3,12 +3,14 @@ import { describe, expect, it } from "vitest";
 import type { Hospital } from "@raksha/api-client";
 
 import {
+  EMPTY_HOSPITAL_FORM,
   buildCapacityUpdate,
   capacityAgeHours,
   capacityFormFrom,
   freeShare,
   isCapacityStale,
   isEmptyUpdate,
+  validateHospitalForm,
 } from "@/lib/hospital";
 import { homeFor, seesIncidents } from "@/lib/routes";
 
@@ -83,5 +85,26 @@ describe("homeFor", () => {
     expect(homeFor("DISPATCHER")).toBe("/dashboard");
     expect(seesIncidents("HOSPITAL_OPERATOR")).toBe(false);
     expect(seesIncidents("RESPONDER")).toBe(true);
+  });
+});
+
+describe("validateHospitalForm", () => {
+  const valid = { ...EMPTY_HOSPITAL_FORM, code: "gh-9", name: "General", latitude: "13.1", longitude: "80.2" };
+  it("builds a payload with counts, specialties and the linked operator", () => {
+    const { errors, input } = validateHospitalForm({
+      ...valid, total_beds: "50", available_beds: "10", icu_total: "5", icu_available: "1",
+      specialties: "Trauma, BURNS", managed_by_id: "op-1",
+    });
+    expect(errors).toEqual({});
+    expect(input).toMatchObject({ code: "gh-9", total_beds: 50, available_beds: 10, specialties: ["trauma", "burns"], managed_by_id: "op-1" });
+  });
+  it("flags missing coordinates and impossible capacity", () => {
+    const { errors, input } = validateHospitalForm({ ...valid, latitude: "", available_beds: "5", total_beds: "1" });
+    expect(input).toBeNull();
+    expect(errors.latitude).toBeDefined();
+    expect(errors.available_beds).toMatch(/cannot exceed/i);
+  });
+  it("leaves the operator unlinked by default", () => {
+    expect(validateHospitalForm(valid).input?.managed_by_id).toBeNull();
   });
 });

@@ -19,6 +19,9 @@ apps keep their existing look; they share only the notification bell
 | Incident quick-view drawer | `components/command-center/IncidentDrawer.tsx` | Modal slide-over from the dashboard: focus moves in, Escape/backdrop closes, focus returns to the opener. |
 | Hospitals | `app/(console)/hospitals`, `components/hospitals/` | Capacity cards (beds/ICU in words, accepting status, how old the report is — flagged after 6 h, a display convention), detail, capacity report form (only changes sent), inbound-patient notices with role-appropriate actions. A hospital operator lands here and sees only hospitals and their own inbound notices. |
 | Hospital notice from an incident | `components/hospitals/HospitalNoticePanel.tsx`, `NotifyHospital.tsx` | Notices for the incident; dispatchers pick a nearby hospital with free beds, fill count/ETA/severity/clinical notes, review what will and will not travel, then send. |
+| Accounts (admin) | `app/(console)/admin/users`, `components/admin/` | Search/filter/paginate accounts; see role, active, 2FA and lockout state; create an account (generated or typed initial password, shown once); edit profile; change role and deactivate/reactivate (confirmations); unlock; reset a lost second factor (confirmation). Hides what the server refuses: no self role/active change or self MFA reset; a plain administrator cannot manage or grant super administrator. |
+| Hospital registration | `components/hospitals/HospitalRegisterForm.tsx` | Administrators register a hospital and pick its operator from active hospital-operator accounts. |
+| Crew picker | `components/resources/ResourceForm.tsx` | Dispatchers link a responder to a unit via `/users/directory` (no email, phone or other roles). |
 | Resource inventory | `app/(console)/resources`, `components/resources/` | Stats from `/resources/stats/summary`, search + type/status filters + pagination, cards, detail panel, register/edit forms, availability and deactivate controls. |
 
 ## 2. Rules the visuals follow
@@ -58,20 +61,23 @@ Stated plainly, so this is not mistaken for a finished redesign:
 * The **AI analysis panel** was not given the processing-step animation. The
   backend runs analysis synchronously, so there are no intermediate steps to show
   truthfully; adding them would be simulation.
-* **Resource screen limits:** no operator picker (the API has no user-lookup
-  endpoint a dispatcher can use, so a crew member cannot be linked to a unit from
-  here), no "current assignment" (no per-resource dispatch endpoint), and manual
+* **Resource screen limits:** no "current assignment" (no per-resource dispatch endpoint), and manual
   availability is limited to Available / Out of service because committed states
   follow the dispatch. The backend itself would accept any status on that
   endpoint; the UI deliberately does not offer it.
+* **No password change anywhere.** The API has no change-password or
+  force-change-on-first-login endpoint, so an account's password is whatever the
+  administrator set. The create form says so. This is the most important thing to
+  build before real operators are onboarded.
+* Accounts: no email change, no audit-log viewer, no bulk actions.
 * Incident detail has no inline map and no attachment lightbox.
 * **Responder and hospital apps** have no new visual identity; there is no
   hospital app.
 * **Hospitals on the operational map** and **geographic search**: hospitals have a
   screen but no map layer; there is no geocoder.
-* **Hospital screen limits:** no hospital registration or editing screen (admin-only
-  on the API, and it needs a manager user id that no endpoint lets the UI look up);
-  notices are not linked to a specific dispatch (the API supports it; the form does
+* **Hospital screen limits:** administrators can register a hospital but not edit one
+  afterwards (the API has no hospital edit endpoint, so the operator link cannot be
+  changed); notices are not linked to a specific dispatch (the API supports it; the form does
   not ask); no map of hospital positions.
 * **Who may act on a notice:** the receiving hospital acknowledges, confirms
   arrival or diverts (a reason is required); the dispatch side may only withdraw.
@@ -108,6 +114,12 @@ Stated plainly, so this is not mistaken for a finished redesign:
   /dashboard bounces back, their notices show ETA and clinical notes but never the
   report text or reporter, divert needs a reason, API refuses them incident reads,
   dispatcher sees the acknowledgement and withdraws; mobile overflow.
+* `admin.mjs` — non-admins cannot reach Accounts (UI and API); a really-locked
+  account is shown Locked and Unlock lets it sign in; MFA reset (needs confirmation,
+  then sign-in without a code); role change; deactivate/reactivate (inactive login
+  refused); own-row protections; create an operator and prove the shown password
+  works; duplicate email refused; register a hospital linked to that operator who
+  can then report capacity; crew picker links a responder; mobile overflow.
 * `dispatch.mjs` — the dispatch workflow (see CHECKPOINT).
 
 Chromium ran WebGL through software rendering (SwiftShader). That proves the

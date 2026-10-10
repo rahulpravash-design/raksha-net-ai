@@ -7,14 +7,23 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, status
 
-from app.api.deps import AdminUser, AppSettings, Context, CurrentUser, DbSession
+from app.api.deps import (
+    AdminUser,
+    AppSettings,
+    Context,
+    CurrentUser,
+    DbSession,
+    DispatchUser,
+)
 from app.core.errors import ForbiddenError, NotFoundError, ValidationError
 from app.models.enums import UserRole
 from app.repositories.user_repository import UserRepository
 from app.schemas.common import Page
 from app.schemas.user import (
+    UserAdminRead,
     UserCreate,
     UserRead,
+    UserSummary,
     UserUpdateAdmin,
     UserUpdateSelf,
 )
@@ -47,7 +56,25 @@ def update_me(payload: UserUpdateSelf, user: CurrentUser, session: DbSession) ->
     return UserRead.model_validate(user)
 
 
-@router.get("", response_model=Page[UserRead], summary="List users")
+@router.get(
+    "/directory",
+    response_model=list[UserSummary],
+    summary="Active responders, for linking a crew member to a unit",
+)
+def responder_directory(
+    _: DispatchUser,
+    session: DbSession,
+    q: Annotated[str | None, Query(max_length=120)] = None,
+) -> list[UserSummary]:
+    """A deliberately narrow lookup for dispatchers: id, name and role of active
+    responders only. No email, phone, status or any other role."""
+    rows, _total = UserRepository(session).list_paginated(
+        offset=0, limit=100, role=UserRole.RESPONDER, is_active=True, query=q
+    )
+    return [UserSummary.model_validate(row) for row in rows]
+
+
+@router.get("", response_model=Page[UserAdminRead], summary="List users")
 def list_users(
     _: AdminUser,
     session: DbSession,
@@ -56,7 +83,7 @@ def list_users(
     role: UserRole | None = None,
     is_active: bool | None = None,
     q: Annotated[str | None, Query(max_length=120)] = None,
-) -> Page[UserRead]:
+) -> Page[UserAdminRead]:
     rows, total = UserRepository(session).list_paginated(
         offset=(page - 1) * page_size,
         limit=page_size,
@@ -65,13 +92,13 @@ def list_users(
         query=q,
     )
     return Page.build(
-        [UserRead.model_validate(row) for row in rows], total, page, page_size
+        [UserAdminRead.model_validate(row) for row in rows], total, page, page_size
     )
 
 
 @router.post(
     "",
-    response_model=UserRead,
+    response_model=UserAdminRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a user with a role",
 )
@@ -81,29 +108,29 @@ def create_user(
     session: DbSession,
     settings: AppSettings,
     context: Context,
-) -> UserRead:
+) -> UserAdminRead:
     user = AuthService(session, settings).create_user(
         payload, actor=admin, context=context
     )
-    return UserRead.model_validate(user)
+    return UserAdminRead.model_validate(user)
 
 
-@router.get("/{user_id}", response_model=UserRead, summary="Read a user")
-def read_user(user_id: uuid.UUID, _: AdminUser, session: DbSession) -> UserRead:
+@router.get("/{user_id}", response_model=UserAdminRead, summary="Read a user")
+def read_user(user_id: uuid.UUID, _: AdminUser, session: DbSession) -> UserAdminRead:
     user = UserRepository(session).get(user_id)
     if user is None:
         raise NotFoundError("User not found.")
-    return UserRead.model_validate(user)
+    return UserAdminRead.model_validate(user)
 
 
-@router.patch("/{user_id}", response_model=UserRead, summary="Update a user")
+@router.patch("/{user_id}", response_model=UserAdminRead, summary="Update a user")
 def update_user(
     user_id: uuid.UUID,
     payload: UserUpdateAdmin,
     admin: AdminUser,
     session: DbSession,
     context: Context,
-) -> UserRead:
+) -> UserAdminRead:
     """Update another user's profile, role or active flag.
 
     An administrator cannot change their own role or deactivate themselves —
@@ -167,29 +194,29 @@ def update_user(
 
     session.commit()
     session.refresh(target)
-    return UserRead.model_validate(target)
+    return UserAdminRead.model_validate(target)
 
 
-@router.post("/{user_id}/unlock", response_model=UserRead, summary="Clear a lockout")
+@router.post("/{user_id}/unlock", response_model=UserAdminRead, summary="Clear a lockout")
 def unlock_user(
     user_id: uuid.UUID,
     admin: AdminUser,
     session: DbSession,
     settings: AppSettings,
     context: Context,
-) -> UserRead:
+) -> UserAdminRead:
     target = UserRepository(session).get(user_id)
     if target is None:
         raise NotFoundError("User not found.")
     unlocked = AuthService(session, settings).unlock_account(
         target, actor=admin, context=context
     )
-    return UserRead.model_validate(unlocked)
+    return UserAdminRead.model_validate(unlocked)
 
 
 @router.post(
     "/{user_id}/reset-mfa",
-    response_model=UserRead,
+    response_model=UserAdminRead,
     summary="Remove a user's second factor and end their sessions",
 )
 def reset_user_mfa(
@@ -198,9 +225,9 @@ def reset_user_mfa(
     session: DbSession,
     settings: AppSettings,
     context: Context,
-) -> UserRead:
+) -> UserAdminRead:
     target = UserRepository(session).get(user_id)
     if target is None:
         raise NotFoundError("User not found.")
     reset = AuthService(session, settings).reset_mfa(target, actor=admin, context=context)
-    return UserRead.model_validate(reset)
+    return UserAdminRead.model_validate(reset)
