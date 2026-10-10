@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   ApiError,
+  OPEN_STATUSES,
   canDispatch,
   categoryLabel,
   formatCoordinates,
@@ -19,6 +20,7 @@ import {
 
 import { AIAnalysisPanel } from "@/components/AIAnalysisPanel";
 import { useAuth } from "@/components/AuthProvider";
+import { DispatchPanel } from "@/components/DispatchPanel";
 import { MediaGallery } from "@/components/MediaGallery";
 import { PriorityExplanation } from "@/components/PriorityExplanation";
 import {
@@ -250,6 +252,13 @@ export default function IncidentConsolePage() {
 
         <aside className="space-y-4">
           <PriorityExplanation incident={incident} />
+
+          <DispatchPanel
+            incidentId={incident.id}
+            incidentOpen={OPEN_STATUSES.includes(incident.status)}
+            canDispatch={mayDispatch}
+            onChanged={() => void load()}
+          />
 
           {mayDispatch ? (
             <>
