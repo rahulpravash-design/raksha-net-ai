@@ -30,6 +30,11 @@ run "backend: mypy"       bash -c "cd backend && .venv/bin/mypy app"
 run "backend: pytest"     bash -c "cd backend && .venv/bin/pytest -q"
 run "ai: pytest"          bash -c "PYTHONPATH=. backend/.venv/bin/pytest ai/tests -q"
 
+# Dependency audit. Needs network access. Gates on what ships: dev-only tooling
+# is reported by `npm audit` but does not fail the build (docs/SECURITY.md s.11).
+run "backend: pip-audit"  backend/.venv/bin/pip-audit -r backend/requirements.txt --strict
+run "frontend: npm audit" npm audit --omit=dev --audit-level=high
+
 for app in citizen-web control-center responder-web; do
   run "$app: eslint"    npm run lint --silent --workspace "@raksha/$app"
   run "$app: tsc"       npm run typecheck --silent --workspace "@raksha/$app"

@@ -13,7 +13,7 @@ psycopg[binary]==3.3.5
 GeoAlchemy2==0.20.0
 
 bcrypt==5.0.0
-PyJWT==2.14.0
+PyJWT==2.15.0
 python-multipart==0.0.32
 # Phase 16. cryptography: Fernet (authenticated AES) for column-level
 # encryption of contact details — hand-rolling this would be the real risk.

@@ -153,7 +153,9 @@ jobs:
       - name: Audit npm dependencies
         run: |
           npm ci
-          npm audit --audit-level=high
+          # Production dependencies only: dev tooling is never shipped
+          # (docs/SECURITY.md section 11).
+          npm audit --omit=dev --audit-level=high
 
       - name: Check that no .env file is committed
         run: |
