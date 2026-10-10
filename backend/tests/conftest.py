@@ -176,3 +176,18 @@ def _isolate_media_storage(tmp_path, monkeypatch):
 
 def unused(_: object) -> None:  # pragma: no cover - silences unused-import linters
     return None
+
+
+@pytest.fixture(autouse=True)
+def _stay_clear_of_the_rate_limit_window_edge(request: pytest.FixtureRequest) -> None:
+    """Rate limiting is fixed-window (docs/SECURITY.md): counters reset at each
+    minute boundary, so a test that counts requests across the boundary sees the
+    count restart and fails about once in a dozen runs. Rate-limit tests wait out
+    the last few seconds of a window instead of racing it."""
+    if "rate_limit" not in request.node.nodeid:
+        return
+    import time
+
+    remaining = 60 - (time.time() % 60)
+    if remaining < 6:
+        time.sleep(remaining + 0.2)
