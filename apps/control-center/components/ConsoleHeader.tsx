@@ -1,12 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+import { NotificationBell } from "@raksha/ui";
+
+import { getApiClient } from "@/lib/api";
 
 import { useAuth } from "./AuthProvider";
 import { Button } from "./ui";
 
 export function ConsoleHeader() {
   const { user, loading, signOut } = useAuth();
+  const router = useRouter();
 
   return (
     <header className="surface border-x-0 border-t-0">
@@ -20,6 +26,11 @@ export function ConsoleHeader() {
             <span className="muted hidden sm:inline">
               {user.full_name} · {user.role.replace(/_/g, " ").toLowerCase()}
             </span>
+            <NotificationBell
+              api={getApiClient()}
+              hrefFor={(n) => n.incident_id ? `/incidents/${n.incident_id}` : null}
+              navigate={(href) => router.push(href)}
+            />
             <Button variant="secondary" onClick={() => void signOut()}>
               Sign out
             </Button>

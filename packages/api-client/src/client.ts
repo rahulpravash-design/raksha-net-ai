@@ -11,6 +11,7 @@
 import type {
   AnalysisReviewInput,
   ApiErrorBody,
+  AppNotification,
   Dispatch,
   DispatchStatus,
   CreateIncidentInput,
@@ -353,6 +354,34 @@ export class ApiClient {
     return this.request<Dispatch[]>(
       `/api/v1/incidents/${incidentId}/dispatches`,
     );
+  }
+
+  // --- notifications ---------------------------------------------------------
+  async notifications(
+    query: { page?: number; page_size?: number; unread_only?: boolean } = {},
+  ): Promise<Page<AppNotification>> {
+    return this.request<Page<AppNotification>>("/api/v1/notifications", {
+      query: { ...query },
+    });
+  }
+
+  async unreadNotificationCount(): Promise<number> {
+    const body = await this.request<{ unread: number }>(
+      "/api/v1/notifications/unread-count",
+    );
+    return body.unread;
+  }
+
+  async markNotificationRead(id: string): Promise<AppNotification> {
+    return this.request<AppNotification>(`/api/v1/notifications/${id}/read`, {
+      method: "POST",
+    });
+  }
+
+  async markAllNotificationsRead(): Promise<void> {
+    await this.request<{ message: string }>("/api/v1/notifications/read-all", {
+      method: "POST",
+    });
   }
 
   async myAssignments(openOnly = true): Promise<ResponderAssignment[]> {

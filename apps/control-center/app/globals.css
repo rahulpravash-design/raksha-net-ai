@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Class names used by components in the shared UI package. */
+@source "../../../packages/ui/src";
 
 @theme {
   --color-brand-50: #eef6ff;

@@ -1,12 +1,18 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+import { NotificationBell } from "@raksha/ui";
+
+import { getApiClient } from "@/lib/api";
 
 import { useAuth } from "./AuthProvider";
 import { Button } from "./ui";
 
 export function SiteHeader() {
   const { user, loading, signOut } = useAuth();
+  const router = useRouter();
 
   return (
     <header className="surface border-x-0 border-t-0">
@@ -19,6 +25,11 @@ export function SiteHeader() {
           {loading ? null : user ? (
             <>
               <span className="muted hidden sm:inline">{user.full_name}</span>
+              <NotificationBell
+              api={getApiClient()}
+              hrefFor={(n) => n.dispatch_id ? `/assignments/${n.dispatch_id}` : null}
+              navigate={(href) => router.push(href)}
+            />
               <Button variant="secondary" onClick={() => void signOut()}>
                 Sign out
               </Button>

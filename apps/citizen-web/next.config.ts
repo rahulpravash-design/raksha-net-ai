@@ -38,7 +38,7 @@ function contentSecurityPolicy(): string {
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // The shared client ships as TypeScript source, so Next compiles it with the app.
-  transpilePackages: ["@raksha/api-client"],
+  transpilePackages: ["@raksha/api-client", "@raksha/ui"],
   // Standalone output keeps the production image small (see docs/DEPLOYMENT.md).
   output: "standalone",
   outputFileTracingRoot: new URL("../../", import.meta.url).pathname,

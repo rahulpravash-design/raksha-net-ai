@@ -411,6 +411,40 @@ export interface ResponderAssignment extends Dispatch {
   incident: DispatchIncidentBrief;
 }
 
+export const NOTIFICATION_KINDS = [
+  "INCIDENT_STATUS_CHANGED",
+  "INCIDENT_RECEIVED",
+  "DISPATCH_ASSIGNED",
+  "DISPATCH_CANCELLED",
+  "HOSPITAL_NOTICE",
+  "SYSTEM",
+] as const;
+export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
+
+export type NotificationChannel = "IN_APP" | "SMS" | "EMAIL" | "PUSH";
+export type DeliveryStatus = "PENDING" | "DELIVERED" | "FAILED" | "UNAVAILABLE";
+
+export interface NotificationDelivery {
+  channel: NotificationChannel;
+  status: DeliveryStatus;
+  attempts: number;
+  detail: string | null;
+  delivered_at: string | null;
+}
+
+export interface AppNotification {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  incident_id: string | null;
+  dispatch_id: string | null;
+  context: Record<string, string> | null;
+  read_at: string | null;
+  created_at: string;
+  deliveries: NotificationDelivery[];
+}
+
 /** The backend's error envelope, as documented in `docs/API.md`. */
 export interface ApiErrorBody {
   error: {
