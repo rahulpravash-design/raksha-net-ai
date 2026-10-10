@@ -11,7 +11,7 @@ import secrets
 from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, SecretStr, computed_field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -102,6 +102,9 @@ class Settings(BaseSettings):
     max_concurrent_requests: int = 24
     max_concurrent_wait_seconds: float = 3.0
 
+    #: ``memory`` counts per process (development, tests, one process); ``redis``
+    #: shares counters through ``redis_url`` so the limit holds across processes.
+    rate_limit_backend: Literal["memory", "redis"] = "memory"
     rate_limit_enabled: bool = True
     rate_limit_default_per_minute: int = 120
     rate_limit_auth_per_minute: int = 10

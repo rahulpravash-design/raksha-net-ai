@@ -47,6 +47,19 @@ def _build_lifespan(
         # Refuse to serve with a development-grade configuration in production.
         settings.assert_safe_for_environment()
 
+        if (
+            settings.is_production_like
+            and settings.rate_limit_enabled
+            and settings.rate_limit_backend == "memory"
+        ):
+            logger.warning(
+                "rate_limit_is_per_process",
+                extra={
+                    "detail": "RAKSHA_RATE_LIMIT_BACKEND=memory: with several API "
+                    "processes the effective limit is multiplied by their number."
+                },
+            )
+
         if settings.media_storage_backend == "local":
             settings.media_storage_path.mkdir(parents=True, exist_ok=True)
 

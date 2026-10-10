@@ -54,6 +54,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-raksha_net_ai}
       RAKSHA_REDIS_URL: redis://redis:6379/0
+      RAKSHA_RATE_LIMIT_BACKEND: redis
       RAKSHA_SECRET_KEY: ${RAKSHA_SECRET_KEY:?set RAKSHA_SECRET_KEY in .env}
       RAKSHA_CORS_ORIGINS: http://localhost:3000,http://localhost:3001
       # The V2 analyzer is a local rule-based heuristic (ai/nlp/text_analyzer.py):

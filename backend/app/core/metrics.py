@@ -57,6 +57,13 @@ DB_POOL_EXHAUSTED = Counter(
     registry=REGISTRY,
 )
 
+RATE_LIMIT_BACKEND_ERRORS = Counter(
+    "raksha_rate_limit_backend_errors_total",
+    "Times the shared rate-limit store (Redis) failed and counting fell back to "
+    "this process alone. Limits are weaker while this is rising.",
+    registry=REGISTRY,
+)
+
 # Gauges refreshed at scrape time.
 DATABASE_UP = Gauge(
     "raksha_database_up",

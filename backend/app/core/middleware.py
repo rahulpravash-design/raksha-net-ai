@@ -15,7 +15,7 @@ from app.core import metrics
 from app.core.config import Settings
 from app.core.errors import RateLimitedError, ServiceBusyError
 from app.core.logging import get_logger, request_id_var
-from app.core.rate_limit import get_rate_limiter
+from app.core.rate_limit import get_rate_limiter, stable_key
 
 logger = get_logger("app.access")
 
@@ -215,7 +215,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         identity = request.headers.get("authorization") or (
             request.client.host if request.client else "unknown"
         )
-        key = f"api:{hash(identity) & 0xFFFFFFFF}"
+        key = f"api:{stable_key(identity)}"
         decision = get_rate_limiter().check(
             key, self.settings.rate_limit_default_per_minute
         )
