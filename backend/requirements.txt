@@ -15,5 +15,10 @@ GeoAlchemy2==0.20.0
 bcrypt==5.0.0
 PyJWT==2.14.0
 python-multipart==0.0.32
+# Phase 16. cryptography: Fernet (authenticated AES) for column-level
+# encryption of contact details — hand-rolling this would be the real risk.
+# pyotp: RFC 6238 TOTP for MFA, small and dependency-free.
+cryptography==50.0.2
+pyotp==2.10.0
 
 redis==8.1.0

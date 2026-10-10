@@ -32,6 +32,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.types import EncryptedString
 from app.models.enums import (
     HospitalNoticeStatus,
     IncidentCategory,
@@ -54,7 +55,7 @@ class Hospital(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Geography(geometry_type="POINT", srid=4326, spatial_index=False), nullable=False
     )
     address: Mapped[str | None] = mapped_column(String(400), nullable=True)
-    contact_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    contact_phone: Mapped[str | None] = mapped_column(EncryptedString(255), nullable=True)
 
     total_beds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     available_beds: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

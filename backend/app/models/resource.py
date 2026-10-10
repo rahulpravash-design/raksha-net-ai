@@ -30,6 +30,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.types import EncryptedString
 from app.models.enums import ResourceStatus, ResourceType
 from app.models.user import User
 
@@ -71,7 +72,7 @@ class Resource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     #: unit they judge right.
     capabilities: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     crew_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    contact_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    contact_phone: Mapped[str | None] = mapped_column(EncryptedString(255), nullable=True)
 
     #: The responder account that operates this unit, if any. This is how the
     #: responder application finds the assignments that belong to its user.

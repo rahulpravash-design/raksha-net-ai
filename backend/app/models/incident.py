@@ -26,6 +26,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.types import EncryptedString
 from app.models.enums import (
     IncidentCategory,
     IncidentStatus,
@@ -104,7 +105,7 @@ class Incident(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     people_trapped: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     medical_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     immediate_danger: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    contact_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    contact_phone: Mapped[str | None] = mapped_column(EncryptedString(255), nullable=True)
 
     assigned_to_id: Mapped[uuid.UUID | None] = mapped_column(
         PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True

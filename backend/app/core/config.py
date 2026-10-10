@@ -6,6 +6,7 @@ imports :func:`get_settings`. See ``CLAUDE.md`` section 4, rule 8.
 
 from __future__ import annotations
 
+import base64
 import secrets
 from enum import StrEnum
 from functools import lru_cache
@@ -71,6 +72,12 @@ class Settings(BaseSettings):
 
     # --- Security ----------------------------------------------------------
     secret_key: SecretStr = SecretStr(PLACEHOLDER_SECRET)
+    #: Fernet key(s) for column-level encryption of contact details. Separate
+    #: from ``secret_key`` on purpose: rotating the token-signing secret must
+    #: never make stored phone numbers unreadable. Comma-separate several to
+    #: rotate — the first encrypts, all decrypt. Unset in development and test,
+    #: where a key is derived from ``secret_key`` instead; required elsewhere.
+    encryption_key: SecretStr | None = None
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 14
@@ -195,6 +202,8 @@ class Settings(BaseSettings):
             problems.append("RAKSHA_SECRET_KEY is still the placeholder value")
         if len(self.secret_key.get_secret_value()) < 32:
             problems.append("RAKSHA_SECRET_KEY must be at least 32 characters")
+        if self.encryption_key is None:
+            problems.append("RAKSHA_ENCRYPTION_KEY must be set outside development")
         if "*" in self.cors_origins:
             problems.append("RAKSHA_CORS_ORIGINS must not contain '*'")
         if not self.cors_origins:
@@ -218,3 +227,8 @@ def get_settings() -> Settings:
 def generate_secret_key() -> str:
     """Helper used by ``scripts/`` to mint a development secret."""
     return secrets.token_urlsafe(64)
+
+
+def generate_encryption_key() -> str:
+    """A fresh Fernet key (urlsafe base64 of 32 random bytes)."""
+    return base64.urlsafe_b64encode(secrets.token_bytes(32)).decode("ascii")

@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
+from app.core.crypto import decrypt_value
 from app.models.enums import HospitalNoticeStatus
 from app.models.hospital import Hospital, InboundPatientNotice
 from app.utils.geo import Coordinates, to_ewkt
@@ -106,7 +107,10 @@ class HospitalRepository:
                 "limit": limit,
             },
         ).mappings()
-        return [dict(row) for row in rows]
+        # Raw SQL bypasses ``EncryptedString``, so decrypt by hand here.
+        return [
+            {**row, "contact_phone": decrypt_value(row["contact_phone"])} for row in rows
+        ]
 
     # -- notices ------------------------------------------------------------
     def add_notice(self, notice: InboundPatientNotice) -> InboundPatientNotice:
