@@ -162,6 +162,7 @@ latency > 2 s, database connection saturation, disk > 85%.
   worker-thread count. Above it requests queue for up to 3 s, then receive
   `503 SERVICE_BUSY` with `Retry-After`; the proxy and clients should honour it.
 - Rate limiting is per process unless `RAKSHA_RATE_LIMIT_BACKEND=redis`; behind several processes set it (see `SECURITY.md` §7).
+- **The front ends render every page per request** (each carries a fresh CSP nonce, `SECURITY.md` §6). Do not put a CDN or proxy cache in front of their HTML — a cached page would serve one visitor's nonce to everyone and its scripts would be refused. Static assets under `/_next/static/` are fine to cache. Size the Node processes for server rendering on every page view, not for serving prerendered files; this was not load-tested.
 
 ## 11. Production readiness status
 

@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { connection } from "next/server";
 
 import { AuthProvider } from "@/components/AuthProvider";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -17,9 +18,12 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Every page is rendered per request so it can carry this request's CSP nonce
+  // (proxy.ts); a prerendered page would have no nonce and its scripts would not run.
+  await connection();
   return (
     <html lang="en">
       <body className="min-h-screen">

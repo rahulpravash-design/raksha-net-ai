@@ -23,17 +23,20 @@ const disp = await login("dispatcher@raksha.example");
 const resp = await login("responder@raksha.example");
 const cit = await login("citizen@raksha.example");
 
-// Two ambulances near Delhi, one far, one inactive-type decoy.
+// Two ambulances near a point picked per run (so units left by earlier runs are not
+// equally close), one about 0.7 km away and one about 5.7 km away.
+const [BLAT, BLON] = [26 + Math.random() * 4, 74 + Math.random() * 6];
+const near = (dLat, dLon) => [+(BLAT + dLat).toFixed(4), +(BLON + dLon).toFixed(4)];
 const mk = (call_sign, name, resource_type, latitude, longitude, operator_id) =>
   call("POST", "/resources", { call_sign, name, resource_type, latitude, longitude, crew_size: 3, capabilities: ["als"], operator_id }, disp.access_token);
 const tag = Date.now().toString(36).slice(-4).toUpperCase();
-const a1 = await mk(`E2E-A1-${tag}`, "Ambulance One", "AMBULANCE", 28.6200, 77.2100, resp.user.id);
-const a2 = await mk(`E2E-A2-${tag}`, "Ambulance Two", "AMBULANCE", 28.6500, 77.2500);
+const a1 = await mk(`E2E-A1-${tag}`, "Ambulance One", "AMBULANCE", ...near(0.0061, 0.001), resp.user.id);
+const a2 = await mk(`E2E-A2-${tag}`, "Ambulance Two", "AMBULANCE", ...near(0.0361, 0.041));
 out.push(`resources created: ${a1.status}, ${a2.status}`);
 
 const inc = await call("POST", "/incidents", {
   category: "MEDICAL", description: `Person collapsed in the market, not breathing normally (e2e ${tag})`,
-  latitude: 28.6139, longitude: 77.2090, people_affected: 1, medical_required: true, immediate_danger: true,
+  latitude: +BLAT.toFixed(4), longitude: +BLON.toFixed(4), people_affected: 1, medical_required: true, immediate_danger: true,
 }, cit.access_token);
 out.push(`incident created: ${inc.status} ${inc.body.reference_code}`);
 const incId = inc.body.id;
@@ -63,7 +66,8 @@ check("no approver input", (await panel.getByLabel(/approv/i).count()) === 0);
 await page.screenshot({ path: `${SHOT_DIR}/dispatch-1-recs.png`, fullPage: true });
 
 // Step 1: choose. Nothing must exist yet.
-await panel.getByRole("button", { name: "Dispatch…" }).first().click();
+// Choose this run's unit (earlier runs may have left equally close units behind).
+await panel.getByRole("list", { name: "Suggested units" }).locator(":scope > li").filter({ hasText: `E2E-A1-${tag}` }).getByRole("button", { name: "Dispatch…" }).click();
 check("confirmation step shown", await panel.getByText(/recorded as the approving dispatcher/i).isVisible());
 let list = await call("GET", `/incidents/${incId}/dispatches`, null, disp.access_token);
 check("no dispatch exists before confirming", Array.isArray(list.body) ? list.body.length === 0 : (list.body.items ?? []).length === 0);

@@ -430,7 +430,7 @@ items below are done by people.
   exists.
 - **Acceptance of residual risk by an operating authority.**
 - MFA recovery codes are built (migration 0016) along with the enrolment screen in all three apps; a user who loses both the device and the codes still needs an administrator.
-- Front-end CSP without `'unsafe-inline'` (needs per-request nonces).
+- Front-end CSP without `'unsafe-inline'` for scripts — **built**: per-request nonces in each app's `proxy.ts` (styles keep `'unsafe-inline'`; see `docs/SECURITY.md` section 6).
 - The ClamAV client has not been run against a real ClamAV.
 - Dev-tooling advisories (`braces`, in the ESLint chain) are reported, not gating.
 

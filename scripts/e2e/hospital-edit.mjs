@@ -76,7 +76,7 @@ check("name saved (server agrees)", saved.name === "Renamed Hospital " + tag);
 check("phone and address saved", saved.contact_phone === "+91 44 2222 3333" && saved.address === "1 Test Road, Chennai");
 check("position moved", Number(saved.latitude) === 13.06 && Number(saved.longitude) === 80.26);
 check("capacity untouched", saved.available_beds === 10 && saved.icu_total === 6);
-check("the edit form closed and the card shows the new name", await a.page.getByRole("heading", { name: "Renamed Hospital " + tag }).first().isVisible());
+check("the edit form closed and the card shows the new name", await a.page.getByRole("heading", { name: "Renamed Hospital " + tag }).first().waitFor({ timeout: 8000 }).then(() => true, () => false));
 
 // ---- relink the operator -----------------------------------------------------------------------
 await detail.getByRole("button", { name: "Edit details" }).click();

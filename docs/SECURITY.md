@@ -248,17 +248,34 @@ frames. The interactive docs (`/docs`, development only) are exempt, since
 Swagger UI loads its own script. `Strict-Transport-Security` is sent in a
 production-like environment.
 
-**The three Next.js apps** each send a CSP built from the origins they really
-need: `connect-src` is the API origin, `img-src` adds the map tile host,
-`object-src 'none'`, `frame-ancestors 'none'`, `base-uri` and `form-action`
-`'self'`.
+**The three Next.js apps** send a Content-Security-Policy built **per request** in each
+app's `proxy.ts`, from one shared builder (`packages/ui/src/csp.ts`):
 
-Known weakening: the front-end policy allows `'unsafe-inline'` for script and
-style. Next.js emits inline bootstrap scripts and Tailwind/Leaflet set inline
-styles; dropping it needs per-request nonces, which is not done. The CSP still
-limits where data can be sent and what can be framed or embedded, but it does
-**not** contain an XSS that injects inline script. Output escaping (section 4)
-remains the primary defence.
+- `script-src 'self' 'nonce-<fresh>' 'strict-dynamic'` — a new 128-bit nonce for every
+  page request. Next.js reads it from the request's CSP header and puts it on every script
+  it renders; nothing else runs. There is **no `'unsafe-inline'`** for scripts, so markup
+  an attacker gets into a page — a `<script>` in server-rendered HTML, an `onerror=`
+  attribute — does not execute (`scripts/e2e/csp.mjs` injects both into all three apps and
+  checks that neither runs, and that the browser reports refusing them). `'unsafe-eval'` is
+  added only in development, for React's debugging aids.
+- `connect-src` is the API origin, `img-src` adds the map tile host, `object-src 'none'`,
+  `frame-ancestors 'none'`, `base-uri` and `form-action` `'self'`.
+
+To carry a per-request nonce every page is rendered per request (`await connection()` in
+each root layout); the builds show every route as dynamic. The cost is server rendering on
+each page view instead of prerendered HTML — acceptable for operator consoles and a
+reporting form, and recorded in `docs/DEPLOYMENT.md`.
+
+What remains, stated plainly:
+
+- **Styles keep `'unsafe-inline'`.** React renders `style` props as HTML attributes (the
+  map, motion and the 3D overlays use them), and a nonce cannot cover an attribute. Injected
+  CSS can restyle a page; it cannot run code.
+- **`'strict-dynamic'` trusts what trusted code loads.** A script already running on the page
+  (for example a compromised dependency) can still add more script. The policy defends
+  against injected *markup*, not against code that is already executing; dependency
+  auditing (section 11) is the control for that.
+- Output escaping (section 4) remains the primary defence; the CSP is the second line.
 
 CORS uses an explicit origin allow-list. `*` is rejected at startup in any
 non-development environment, together with a default `SECRET_KEY`,
@@ -393,7 +410,7 @@ dependency-audit gating.
   having survived an adversary.
 - **No operating authority has accepted the residual risk.**
 - **The malware scanner has not been run against a real ClamAV.**
-- **The front-end CSP allows `'unsafe-inline'`** (section 6).
+- **The front-end CSP keeps `'unsafe-inline'` for styles only** (section 6); scripts need a per-request nonce.
 - **MFA recovery codes are built** (section 2); a user who loses both the device and the codes still needs an administrator. Enrolment, password change and turn-off are
   built in all three apps from one shared component (`packages/ui` `AccountSecurity`);
   before it existed the responder app had no way to enrol, so enforcing two-factor would

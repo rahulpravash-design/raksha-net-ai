@@ -49,7 +49,7 @@ measured and fixed in a development environment only.**
   chain + drift check, AI pytest, pip-audit, npm audit, then eslint + tsc + vitest +
   build for all three front ends). Read from its actual final line.
 - **634 backend tests** (none skipped, including those that start a real
-  `redis-server`), **31 AI tests**, **329 frontend tests** (45 citizen, 274 control centre, 10 responder). 994 total, all passing.
+  `redis-server`), **31 AI tests**, **335 frontend tests** (45 citizen, 280 control centre, 10 responder). 1000 total, all passing.
 - Migrations `0001 → 0016`; the gate upgrades to head, fails on model/migration
   drift and downgrades to base on every run (and cleans up even if it fails).
 - Backup → restore → compare, on a 100k-incident database: all checks pass; each
@@ -410,7 +410,7 @@ Everything below is committed. Nothing is staged or modified.
     only ever sent to a local test mailbox.
 13. **Phase 16 is not finished by its code.** No penetration test, no operating
     authority acceptance. `docs/SECURITY.md` §12 lists every other gap: no MFA
-    recovery-code storage is the user's own responsibility; front-end CSP keeps `'unsafe-inline'`;
+    recovery-code storage is the user's own responsibility; front-end CSP keeps `'unsafe-inline'` for styles only (scripts are nonce-based);
     ClamAV client untested against a real ClamAV; MFA enforcement off by default;
     dev-tooling advisory (`braces`) not gating.
 14. **The browser end-to-end scripts are in `scripts/e2e/` but not in the gate.** They need
@@ -545,7 +545,7 @@ or a decision:
 3. **Try a real mail provider** (`RAKSHA_SMTP_HOST`) — recovery email has only met a
    local test mailbox — and decide whether SMS/push (stubbed behind `NullNotifier`) are
    needed, which needs provider accounts.
-4. Optional hardening: nonce-based CSP, a CI job for the browser
+4. Optional hardening: a CI job for the browser
    scripts, dispatch arcs (unit to incident) on the live landing globe, a read-only
    supervisor role if a pilot needs one (`docs/SECURITY.md` §3).
 
