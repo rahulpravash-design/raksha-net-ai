@@ -1,0 +1,88 @@
+# Front-end design system and 3D layer
+
+Scope: the control centre (`apps/control-center`). The citizen and responder
+apps keep their existing look; they share only the notification bell
+(`packages/ui`).
+
+## 1. What exists
+
+| Piece | Where | Notes |
+|---|---|---|
+| Dark "mission control" theme | `app/globals.css` | Tokens `--background #050914`, `--surface #0e192a`, accent cyan `#00e5ff`, priority colours in `lib/theme.ts`. `dark:` variants are keyed to a `dark` class on `<html>`, always set. |
+| Landing page | `app/(landing)/page.tsx`, `components/landing/` | Cinematic globe, the specified copy, two buttons that lead to real routes (`/dashboard`; the citizen app's `/report` via `NEXT_PUBLIC_CITIZEN_APP_URL`). |
+| Globe | `components/3d/` | React Three Fiber scene: land from real Natural Earth data, graticule, atmosphere shader, markers, great-circle arcs, drag to rotate, pointer parallax. Lazy-loaded; WebGL check; error boundary; static SVG fallback. |
+| Command centre | `app/(console)/dashboard/page.tsx`, `components/command-center/` | Sidebar, connection/freshness strip, priority tiles, Map ⇄ Globe switch, selected-incident panel, activity timeline, animated queue. |
+| Operational map | `components/IncidentMap.tsx`, `components/maps/` | Leaflet + OSM tiles. Grid clustering (`lib/cluster.ts`), per-priority marker shapes, resource layer, legend, selected-incident pulse. |
+| Motion | `components/animations/` | `MotionConfig reducedMotion="user"` once, shared timing; `Reveal` entrance. |
+| Notification inbox | `packages/ui` | Bell, unread badge, panel; used in all three apps. |
+
+## 2. Rules the visuals follow
+
+* **The globe is decoration; the map is operational.** The globe never carries
+  routing or distance meaning. Operational geography stays on the Leaflet map and
+  in the backend.
+* **No fabricated data.** The landing page is public and has no session, so its
+  markers are real city coordinates with *illustrative* priorities, labelled
+  "Demonstration markers — not live incidents" in the page itself
+  (`components/landing/demoData.ts`). Signed-in views draw real incidents.
+* **Priority is never colour alone.** Each band has a silhouette (triangle,
+  diamond, square, circle), a word and a colour. Map markers carry a `title`/`alt`.
+* **AI stays visibly separate.** The selected-incident panel labels the AI
+  proposal "not verified", shows model name/version and review state, and has no
+  dispatch control. Dispatch remains in the incident console, behind a confirmation.
+* **Motion is restrained.** One slow ring on critical/selected markers (no
+  flashing); entrance animations under 400 ms; no animation under
+  `prefers-reduced-motion` (rotation, rings, grid drift, arc lights all stop).
+
+## 3. Dependencies added (control centre) and why
+
+| Package | Why | Cost |
+|---|---|---|
+| `three`, `@react-three/fiber` | The 3D scene. | Loaded only on the landing page and the Globe tab (dynamic import). |
+| `motion` | Entrance, layout and reduced-motion handling in one place. | ~tens of KB. |
+| `world-atlas` (data), `topojson-client` | Real coastlines for the globe instead of an invented planet. 55 KB Natural Earth 1:110m, public domain. | Part of the lazy chunk. |
+| `@types/three`, `@types/topojson-client` (dev) | Types. | — |
+
+`@react-three/drei` was deliberately not added: drag rotation, parallax and DOM
+overlays are small enough to write directly.
+
+## 4. Not done (from the original design brief)
+
+Stated plainly, so this is not mistaken for a finished redesign:
+
+* Incident **list/detail screens** were re-themed (dark) but not redesigned: no
+  detail drawer, no expandable panels, no skeleton loaders.
+* The **AI analysis panel** was not given the processing-step animation. The
+  backend runs analysis synchronously, so there are no intermediate steps to show
+  truthfully; adding them would be simulation.
+* **Resource coordination** has no dedicated screen (inventory, assignment review
+  beyond the existing dispatch panel).
+* **Responder and hospital apps** have no new visual identity; there is no
+  hospital app.
+* **Hospitals layer** on the map and **geographic search**: the API client has no
+  hospital methods yet, and there is no geocoder.
+* **Route visualisation** is absent because no route data exists (ETA is a
+  straight-line estimate).
+* **Performance** was not profiled beyond a headless software-rendered run
+  (see §5). No frame-rate figures exist; do not quote any.
+* OpenStreetMap tiles are not reachable from the build sandbox, so the map's
+  base layer was never seen rendered with real tiles here — only markers on a
+  blank background.
+
+## 5. Verification actually run
+
+`scripts/e2e/*.mjs` (need a running stack and `playwright-core`; not in the gate):
+
+* `landing.mjs` — desktop, mobile (390 px), reduced motion, and WebGL disabled:
+  canvas present or fallback shown, heading present, links correct, no horizontal
+  overflow, no CSP/console errors.
+* `command.mjs` — sign in, markers labelled, select an incident, panel contents,
+  timeline, resource layer toggle, Map ⇄ Globe, inbox opens, markers focusable,
+  mobile overflow, reduced-motion animations stopped.
+* `bell.mjs` — a real dispatch raises the responder's unread count; the responder
+  app's bell lists it, opens it, the server-side count drops; another user's
+  attempt to mark it read is a 404.
+* `dispatch.mjs` — the dispatch workflow (see CHECKPOINT).
+
+Chromium ran WebGL through software rendering (SwiftShader). That proves the
+scene initialises and draws; it says nothing about GPU performance.

@@ -44,7 +44,7 @@ accepted the residual risk. See `docs/SECURITY.md` §12.
   and an append-only history of every change with its actor.
 - PostGIS spatial queries: incidents within a radius, and a GeoJSON viewport
   feed for the map.
-- A control centre with priority counts, a filterable queue, a live Leaflet map
+- A control centre (dark, with a 3D globe landing page and Map ⇄ Globe views — `docs/FRONTEND.md`) with priority counts, a filterable queue, a live Leaflet map
   and an incident console for status changes and priority override.
 - An append-only audit log of every sensitive action.
 
@@ -230,6 +230,7 @@ holds the full strategy and the quality gate.
 | [`docs/TESTING.md`](docs/TESTING.md) | Test strategy and the quality gate |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Environments, CI/CD, observability, backups |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Every phase, with completion criteria |
+| [`docs/FRONTEND.md`](docs/FRONTEND.md) | Design system, 3D layer, dependencies, what is and is not built |
 
 ## Contributing
 

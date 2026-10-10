@@ -48,7 +48,7 @@ measured and fixed in a development environment only.**
   chain + drift check, AI pytest, pip-audit, npm audit, then eslint + tsc + vitest +
   build for all three front ends). Read from its actual final line.
 - **452 backend tests** (none skipped, including those that start a real
-  `redis-server`), **31 AI tests**, **102 frontend tests**. 585 total, all passing.
+  `redis-server`), **31 AI tests**, **132 frontend tests** (45 citizen, 82 control centre, 5 responder). 615 total, all passing.
 - Migrations `0001 → 0013`; the gate upgrades to head, fails on model/migration
   drift and downgrades to base on every run (and cleans up even if it fails).
 - Backup → restore → compare, on a 100k-incident database: all checks pass; each
@@ -152,7 +152,7 @@ of it is the responder app's assignments list (`api.myAssignments`).
 | ~~Ranked recommendations, confirm-to-dispatch, dispatches on an incident, stand down~~ **BUILT** (`DispatchPanel`, §3a) | Dispatcher | — |
 | Resource inventory screen (list, create, set status, base location) | Dispatcher/admin | `/resources` |
 | Hospital capacity, nearby hospitals, send/track an inbound notice | Dispatcher, hospital operator | `/hospitals*`, `/hospital-notices*` |
-| **Notification inbox** (+ unread badge) | Citizen, responder, dispatcher (all three apps) | `/notifications*` |
+| ~~Notification inbox (+ unread badge)~~ **BUILT** (`packages/ui` `NotificationBell`, all three headers; browser-verified for the responder) | — | — |
 | Analytics (response/resolution time, categories, utilisation, hotspot map) | Dispatcher/admin | `/analytics/*` |
 | MFA enrolment (QR/URI, confirm, disable) | Everyone with MFA | `/auth/mfa/*` |
 | Admin: unlock / reset MFA / create operators | Admin | `/users/*` |
@@ -161,12 +161,23 @@ of it is the responder app's assignments list (`api.myAssignments`).
 The dispatch workflow — the product's core human-in-the-loop action — is now built
 (§3a). Remaining, in order:
 
-3. A shared notification inbox component for the three apps.
-4. Then analytics (coarsened hotspots only — never request or display raw
+4. Analytics (coarsened hotspots only — never request or display raw
    coordinates), hospital notices, MFA enrolment.
 5. Follow the existing patterns (vitest component tests per screen; `check.sh`).
    **Verify in a real browser**, as the Phase 16 sign-in run did — type checks and
    unit tests do not show that a dispatch actually works.
+
+### 3b. 3D redesign (control centre) — partial, see `docs/FRONTEND.md`
+
+Built and browser-verified: dark design system, cinematic Earth landing page (real
+coastlines, labelled demonstration markers, WebGL fallback, reduced motion),
+command-centre dashboard (sidebar, connection/freshness strip, Map ⇄ Globe,
+selected-incident panel with AI kept separate, activity timeline), and an upgraded
+operational map (clustering, priority shapes, resource layer, legend). **Not built**
+(listed in `docs/FRONTEND.md` §4): incident detail drawers/skeletons, AI step
+animation (no real steps exist), resource screens, responder/hospital visual
+identity, hospitals layer, geographic search, performance profiling. The OSM tile
+layer could not be seen rendered here (no outbound access to the tile server).
 
 ### 3a. Dispatch workflow (built, browser-verified)
 
