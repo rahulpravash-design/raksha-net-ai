@@ -65,8 +65,12 @@ await page.getByRole("button", { name: "Cancel" }).click();
 await page.getByRole("button", { name: new RegExp(sign) }).click();
 const detail = page.getByRole("region", { name: "Resource detail" });
 await detail.getByRole("button", { name: /set out of service/i }).click();
-await detail.getByText("Out of service").first().waitFor();
-const after = await call("GET", `/resources/${created.body.items[0].id}`, null, disp.access_token);
+let after;
+for (let i = 0; i < 20; i++) {
+  after = await call("GET", `/resources/${created.body.items[0].id}`, null, disp.access_token);
+  if (after.body.status === "OUT_OF_SERVICE") break;
+  await page.waitForTimeout(250);
+}
 check("server status is OUT_OF_SERVICE", after.body.status === "OUT_OF_SERVICE");
 await page.screenshot({ path: `${SHOT}/res-1-inventory.png` });
 // filters

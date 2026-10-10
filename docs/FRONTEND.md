@@ -17,6 +17,8 @@ apps keep their existing look; they share only the notification bell
 | Notification inbox | `packages/ui` | Bell, unread badge, panel; used in all three apps. |
 | Incident detail | `app/(console)/incidents/[id]`, `components/incident/` | Header with key-fact chips (urgent facts in words + glyph), collapsible panels (`aria-expanded`), status timeline marking the current state, skeleton loader, error state with retry. Move/override actions extracted to `IncidentActions`. |
 | Incident quick-view drawer | `components/command-center/IncidentDrawer.tsx` | Modal slide-over from the dashboard: focus moves in, Escape/backdrop closes, focus returns to the opener. |
+| Hospitals | `app/(console)/hospitals`, `components/hospitals/` | Capacity cards (beds/ICU in words, accepting status, how old the report is — flagged after 6 h, a display convention), detail, capacity report form (only changes sent), inbound-patient notices with role-appropriate actions. A hospital operator lands here and sees only hospitals and their own inbound notices. |
+| Hospital notice from an incident | `components/hospitals/HospitalNoticePanel.tsx`, `NotifyHospital.tsx` | Notices for the incident; dispatchers pick a nearby hospital with free beds, fill count/ETA/severity/clinical notes, review what will and will not travel, then send. |
 | Resource inventory | `app/(console)/resources`, `components/resources/` | Stats from `/resources/stats/summary`, search + type/status filters + pagination, cards, detail panel, register/edit forms, availability and deactivate controls. |
 
 ## 2. Rules the visuals follow
@@ -65,8 +67,16 @@ Stated plainly, so this is not mistaken for a finished redesign:
 * Incident detail has no inline map and no attachment lightbox.
 * **Responder and hospital apps** have no new visual identity; there is no
   hospital app.
-* **Hospitals layer** on the map and **geographic search**: the API client has no
-  hospital methods yet, and there is no geocoder.
+* **Hospitals on the operational map** and **geographic search**: hospitals have a
+  screen but no map layer; there is no geocoder.
+* **Hospital screen limits:** no hospital registration or editing screen (admin-only
+  on the API, and it needs a manager user id that no endpoint lets the UI look up);
+  notices are not linked to a specific dispatch (the API supports it; the form does
+  not ask); no map of hospital positions.
+* **Who may act on a notice:** the receiving hospital acknowledges, confirms
+  arrival or diverts (a reason is required); the dispatch side may only withdraw.
+  The API would let a dispatcher mark a notice acknowledged on the hospital's
+  behalf; the UI deliberately does not offer it.
 * **Route visualisation** is absent because no route data exists (ETA is a
   straight-line estimate).
 * **Performance** was not profiled beyond a headless software-rendered run
@@ -92,6 +102,12 @@ Stated plainly, so this is not mistaken for a finished redesign:
   of service, filters, edit, two-step deactivate, role limits), the quick-view
   drawer (focus in/out, Escape), incident-detail header/collapsibles, and that
   the extracted status move still records history with its note; mobile overflow.
+* `hospitals.mjs` — capacity report (validation, server state), notify from an
+  incident (nothing sent before confirmation; payload has no reporter/text/location),
+  hospital-operator sign-in lands on /hospitals with no incident or resource nav,
+  /dashboard bounces back, their notices show ETA and clinical notes but never the
+  report text or reporter, divert needs a reason, API refuses them incident reads,
+  dispatcher sees the acknowledgement and withdraws; mobile overflow.
 * `dispatch.mjs` — the dispatch workflow (see CHECKPOINT).
 
 Chromium ran WebGL through software rendering (SwiftShader). That proves the

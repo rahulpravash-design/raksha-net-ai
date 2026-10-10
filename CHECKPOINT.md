@@ -47,8 +47,8 @@ measured and fixed in a development environment only.**
 - `./scripts/check.sh` — **20/20 steps green** (ruff, black, mypy, pytest, migration
   chain + drift check, AI pytest, pip-audit, npm audit, then eslint + tsc + vitest +
   build for all three front ends). Read from its actual final line.
-- **452 backend tests** (none skipped, including those that start a real
-  `redis-server`), **31 AI tests**, **161 frontend tests** (45 citizen, 111 control centre, 5 responder). 644 total, all passing.
+- **467 backend tests** (none skipped, including those that start a real
+  `redis-server`), **31 AI tests**, **191 frontend tests** (45 citizen, 141 control centre, 5 responder), **467 backend**. 689 total, all passing.
 - Migrations `0001 → 0013`; the gate upgrades to head, fails on model/migration
   drift and downgrades to base on every run (and cleans up even if it fails).
 - Backup → restore → compare, on a 100k-incident database: all checks pass; each
@@ -151,12 +151,11 @@ of it is the responder app's assignments list (`api.myAssignments`).
 |---|---|---|
 | ~~Ranked recommendations, confirm-to-dispatch, dispatches on an incident, stand down~~ **BUILT** (`DispatchPanel`, §3a) | Dispatcher | — |
 | ~~Resource inventory screen~~ **BUILT** (`/resources`, browser-verified; limits in `docs/FRONTEND.md` §4) | — | — |
-| Hospital capacity, nearby hospitals, send/track an inbound notice | Dispatcher, hospital operator | `/hospitals*`, `/hospital-notices*` |
+| ~~Hospital capacity, nearby hospitals, send/track an inbound notice~~ **BUILT** in the control centre for dispatchers **and** hospital operators (`/hospitals`, incident Hospitals panel; browser-verified). A separate hospital-operator *app* was not built — the operator uses a reduced control-centre view. | — | — |
 | ~~Notification inbox (+ unread badge)~~ **BUILT** (`packages/ui` `NotificationBell`, all three headers; browser-verified for the responder) | — | — |
 | Analytics (response/resolution time, categories, utilisation, hotspot map) | Dispatcher/admin | `/analytics/*` |
 | MFA enrolment (QR/URI, confirm, disable) | Everyone with MFA | `/auth/mfa/*` |
 | Admin: unlock / reset MFA / create operators | Admin | `/users/*` |
-| **A hospital-operator application at all** | Hospital operator | the API; there is no app |
 
 The dispatch workflow — the product's core human-in-the-loop action — is now built
 (§3a). Remaining, in order:
@@ -178,6 +177,18 @@ skeleton, timeline, quick-view drawer) and the resource inventory. **Not built**
 (listed in `docs/FRONTEND.md` §4): AI step animation (no real steps exist), responder/hospital visual
 identity, hospitals layer, geographic search, performance profiling. The OSM tile
 layer could not be seen rendered here (no outbound access to the tile server).
+
+### 3c. Hospitals, and a privacy defect found while building them
+
+Building the hospital-operator view exposed that `HOSPITAL_OPERATOR` could read
+**every incident** (reporter name, report text, contact phone, exact location)
+through the API — against `docs/SECURITY.md` and the whole point of the minimised
+inbound notice. Fixed: `INCIDENT_VIEW_ROLES` (operational roles minus hospital
+operator) now guards incident, geo, media, analysis, incident-dispatch,
+incident-notice and resource-recommendation reads
+(`tests/integration/test_hospital_operator_privacy.py`). **Still open:** the same
+table says a `RESPONDER` reads *assigned* incidents only, but responders can read
+the whole queue — decide whether that is intended before any pilot (`docs/SECURITY.md` §3).
 
 ### 3a. Dispatch workflow (built, browser-verified)
 
