@@ -22,6 +22,7 @@ apps keep their existing look; they share only the notification bell
 | Accounts (admin) | `app/(console)/admin/users`, `components/admin/` | Search/filter/paginate accounts; see role, active, 2FA and lockout state; create an account (generated or typed initial password, shown once); edit profile; change role and deactivate/reactivate (confirmations); unlock; reset a lost second factor (confirmation). Hides what the server refuses: no self role/active change or self MFA reset; a plain administrator cannot manage or grant super administrator. |
 | Hospital registration | `components/hospitals/HospitalRegisterForm.tsx` | Administrators register a hospital and pick its operator from active hospital-operator accounts. |
 | Crew picker | `components/resources/ResourceForm.tsx` | Dispatchers link a responder to a unit via `/users/directory` (no email, phone or other roles). |
+| Account security | `app/(console)/account/security`, `components/MfaSettings.tsx`, `QrCode.tsx` | Two-factor enrolment for the signed-in user: QR code (drawn as an SVG path from the `qrcode` module matrix — no HTML injection) plus a typeable setup key, confirm with a code, turn off with password + code. Under `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL` the API client's `onMfaEnrolmentRequired` hook sends an unenrolled user here instead of showing failed requests. |
 | Resource inventory | `app/(console)/resources`, `components/resources/` | Stats from `/resources/stats/summary`, search + type/status filters + pagination, cards, detail panel, register/edit forms, availability and deactivate controls. |
 
 ## 2. Rules the visuals follow
@@ -48,6 +49,7 @@ apps keep their existing look; they share only the notification bell
 |---|---|---|
 | `three`, `@react-three/fiber` | The 3D scene. | Loaded only on the landing page and the Globe tab (dynamic import). |
 | `motion` | Entrance, layout and reduced-motion handling in one place. | ~tens of KB. |
+| `qrcode` (+ `@types/qrcode`) | The MFA enrolment QR. Authenticator apps are normally enrolled by scanning; the setup key is shown too as a fallback. Used only for its module matrix. | Small; loaded with the security page. |
 | `world-atlas` (data), `topojson-client` | Real coastlines for the globe instead of an invented planet. 55 KB Natural Earth 1:110m, public domain. | Part of the lazy chunk. |
 | `@types/three`, `@types/topojson-client` (dev) | Types. | — |
 
@@ -69,6 +71,10 @@ Stated plainly, so this is not mistaken for a finished redesign:
   force-change-on-first-login endpoint, so an account's password is whatever the
   administrator set. The create form says so. This is the most important thing to
   build before real operators are onboarded.
+* **MFA has no recovery codes** (the backend has none). A user who loses the device
+  needs an administrator to reset it, and an administrator cannot reset their own.
+  The enrolment screen says this before the user relies on it. A user can also turn
+  MFA off while policy requires it; the next request then sends them back to enrol.
 * Accounts: no email change, no audit-log viewer, no bulk actions.
 * Incident detail has no inline map and no attachment lightbox.
 * **Responder and hospital apps** have no new visual identity; there is no
@@ -120,6 +126,12 @@ Stated plainly, so this is not mistaken for a finished redesign:
   refused); own-row protections; create an operator and prove the shown password
   works; duplicate email refused; register a hospital linked to that operator who
   can then report capacity; crew picker links a responder; mobile overflow.
+* `mfa.mjs` — enrolment with an independently computed TOTP: the QR is screenshotted
+  and **decoded with OpenCV** to confirm it carries the setup key; a wrong code is
+  refused; sign-in then asks for a code; turn-off needs the right password. Run again
+  with `MFA_ENFORCED=1` against an API started with
+  `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL=true` to prove an unenrolled operator is sent
+  to the security screen and the console works after enrolling.
 * `dispatch.mjs` — the dispatch workflow (see CHECKPOINT).
 
 Chromium ran WebGL through software rendering (SwiftShader). That proves the

@@ -103,6 +103,12 @@ export interface ApiClientOptions {
   tokens?: TokenStore;
   /** Called when the session ends irrecoverably, so the UI can redirect. */
   onUnauthenticated?: () => void;
+  /**
+   * Called when the backend says this account must set up two-factor
+   * authentication before it can do anything else, so the UI can send the user
+   * to the enrolment screen instead of showing a wall of failed requests.
+   */
+  onMfaEnrolmentRequired?: () => void;
   fetchImpl?: typeof fetch;
 }
 
@@ -119,6 +125,7 @@ export class ApiClient {
   private readonly baseUrl: string;
   private readonly tokens: TokenStore | undefined;
   private readonly onUnauthenticated: (() => void) | undefined;
+  private readonly onMfaEnrolmentRequired: (() => void) | undefined;
   private readonly fetchImpl: typeof fetch;
   /** Shared so simultaneous 401s trigger exactly one token rotation. */
   private refreshInFlight: Promise<boolean> | null = null;
@@ -127,6 +134,7 @@ export class ApiClient {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
     this.tokens = options.tokens;
     this.onUnauthenticated = options.onUnauthenticated;
+    this.onMfaEnrolmentRequired = options.onMfaEnrolmentRequired;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch.bind(globalThis);
   }
 
@@ -633,15 +641,21 @@ export class ApiClient {
       ? await this.fetchImpl(url, init)
       : await this.authorisedFetch(url, init);
 
-    if (!response.ok) throw await this.toError(response);
+    if (!response.ok) throw await this.failure(response);
     if (response.status === 204) return undefined as T;
     return (await response.json()) as T;
   }
 
   private async requestRaw<T>(path: string, init: RequestInit): Promise<T> {
     const response = await this.authorisedFetch(this.buildUrl(path), init);
-    if (!response.ok) throw await this.toError(response);
+    if (!response.ok) throw await this.failure(response);
     return (await response.json()) as T;
+  }
+
+  private async failure(response: Response): Promise<ApiError> {
+    const error = await this.toError(response);
+    if (error.code === "MFA_ENROLLMENT_REQUIRED") this.onMfaEnrolmentRequired?.();
+    return error;
   }
 
   /** Send with the access token, refreshing once on a 401. */

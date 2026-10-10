@@ -15,12 +15,16 @@ export const tokenStore = new BrowserTokenStore();
 
 let client: ApiClient | null = null;
 
-export function getApiClient(onUnauthenticated?: () => void): ApiClient {
+export function getApiClient(
+  onUnauthenticated?: () => void,
+  onMfaEnrolmentRequired?: () => void,
+): ApiClient {
   if (!client) {
     client = new ApiClient({
       baseUrl: API_BASE_URL,
       tokens: tokenStore,
       ...(onUnauthenticated ? { onUnauthenticated } : {}),
+      ...(onMfaEnrolmentRequired ? { onMfaEnrolmentRequired } : {}),
     });
   }
   return client;

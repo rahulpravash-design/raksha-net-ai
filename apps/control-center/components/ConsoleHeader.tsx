@@ -33,6 +33,9 @@ export function ConsoleHeader() {
               hrefFor={(n) => n.incident_id ? `/incidents/${n.incident_id}` : null}
               navigate={(href) => router.push(href)}
             />
+            <Link href="/account/security" className="text-sm font-semibold underline-offset-4 hover:underline">
+              Security
+            </Link>
             <Button variant="secondary" onClick={() => void signOut()}>
               Sign out
             </Button>

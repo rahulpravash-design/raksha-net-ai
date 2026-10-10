@@ -154,7 +154,7 @@ of it is the responder app's assignments list (`api.myAssignments`).
 | ~~Hospital capacity, nearby hospitals, send/track an inbound notice~~ **BUILT** in the control centre for dispatchers **and** hospital operators (`/hospitals`, incident Hospitals panel; browser-verified). A separate hospital-operator *app* was not built — the operator uses a reduced control-centre view. | — | — |
 | ~~Notification inbox (+ unread badge)~~ **BUILT** (`packages/ui` `NotificationBell`, all three headers; browser-verified for the responder) | — | — |
 | Analytics (response/resolution time, categories, utilisation, hotspot map) | Dispatcher/admin | `/analytics/*` |
-| MFA enrolment (QR/URI, confirm, disable) | Everyone with MFA | `/auth/mfa/*` |
+| ~~MFA enrolment (QR/URI, confirm, disable)~~ **BUILT** in the control centre (`/account/security`; browser-verified, QR decoded with OpenCV, enforced-policy redirect proven). Not built in the citizen and responder apps. | — | — |
 | ~~Admin: unlock / reset MFA / create operators~~ **BUILT** (`/admin/users`; also hospital registration and a crew picker). Open: **no password-change endpoint exists** — see `docs/FRONTEND.md` §4 | — | — |
 
 The dispatch workflow — the product's core human-in-the-loop action — is now built
