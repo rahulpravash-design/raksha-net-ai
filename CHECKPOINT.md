@@ -1,8 +1,8 @@
 # CONTINUE FROM HERE
 
-**Checkpoint date:** 2026-09-19
+**Checkpoint date:** 2026-10-10
 **Branch:** `claude/raksha-net-ai-development-5uyq42`
-**Last commit:** `7d42dd7 feat(analytics): add response-time, resolution, category and resource metrics with coarsened hotspots`
+**Last commit:** see `git log -1` (Phase 16 security hardening, then its documentation)
 **State:** Clean. Working tree empty, every check green, everything pushed.
 
 > Read this file, then `docs/ROADMAP.md`, then `CLAUDE.md`. Do not redesign
@@ -12,7 +12,8 @@
 
 ## 1. Where the project stands
 
-**Phases 0–14 are implemented, except Phases 8 and 9.**
+**Phases 0–14 are implemented, except Phases 8 and 9. Phase 16 is code-complete,
+but its penetration test and risk acceptance have NOT happened.**
 
 | Phase | State |
 |---|---|
@@ -32,122 +33,99 @@
 | 13 Notifications | ⚠️ partial — in-app complete, SMS/email/push stubbed |
 | 14 Analytics | ✅ complete |
 | 15 Prediction | ⬜ deliberately skipped — no historical dataset exists |
-| 16 Security hardening | ⬜ **next** |
-| 17 Performance & scale | ⬜ not started |
+| 16 Security hardening | ⚠️ **code-complete; pen test + authority acceptance NOT done** |
+| 17 Performance & scale | ⬜ **next** |
 | 18 Production readiness | ⬜ not started |
 
 **Verification at checkpoint time** — all of this was run, not assumed:
 
-- `./scripts/check.sh` — **18/18 steps green** (ruff, black, mypy, pytest, AI
-  pytest, then eslint + tsc + vitest + build for all three front ends). Read
-  from its actual final line (`All checks passed.`), not by tailing
-  individual step output.
-- **336 backend tests** (327 + 9 new for analytics), **31 AI tests**, **89
-  frontend tests** (44 citizen, 40 control centre, 5 responder). 456 total,
-  all passing.
-- No migration was needed for Phase 14 — every query reads existing tables.
-  The Alembic chain is unchanged since the last checkpoint (`0001 → 0008`,
-  previously verified down to base and back up with no orphaned enum types).
-- 254 tracked files (253 plus this checkpoint update), 27 commits, 63 API
-  endpoints (58 + 5 analytics), 8 migrations.
+- `./scripts/check.sh` — **19/19 steps green** (ruff, black, mypy, pytest, AI
+  pytest, pip-audit, npm audit, then eslint + tsc + vitest + build for all three
+  front ends). Read from its actual final line (`All checks passed.`).
+- **407 backend tests**, **31 AI tests**, **90 frontend tests** (45 citizen, 40
+  control centre, 5 responder). 528 total, all passing.
+- Migrations `0001 → 0012`. Each new one (0009–0012) was applied, rolled back
+  and re-applied; `0010` (which rewrites data) was proven on a planted
+  plaintext row in both directions.
+- **A live end-to-end run** in a real Chromium against the running API and the
+  built front ends: a dispatcher and a citizen sign in through the UI (dashboard
+  stats and the Leaflet map render), and the full MFA path — enrol, API login
+  demands a code, UI reveals the code field, sign in with a code from an
+  *independent* TOTP implementation, admin resets MFA — with zero CSP violations.
+  These scripts lived in the scratchpad and are **not** in the repository (see
+  §5, item 14).
+- 267 tracked files, 12 migrations, 68 API operations.
 
 ---
 
 ## 2. Current working feature — finished, nothing half-done
 
-Phase 14 (analytics) was the last thing built and it is **committed and
-complete**. There is no partially-written code anywhere.
+Phase 16 (security hardening) was the last thing built. Everything is committed;
+there is no partially-written code. Details and limits: `docs/SECURITY.md`.
 
-What it delivered: five read-only endpoints under `/api/v1/analytics`,
-restricted to dispatch-capable roles (`DISPATCHER`, `ADMIN`, `SUPER_ADMIN`):
+- **Account lockout** — 5 failures → 15 min, doubling per further failure,
+  capped at 24 h; only a successful login resets it. Audited. Admin unlock:
+  `POST /users/{id}/unlock`.
+- **TOTP MFA** — `/auth/mfa/{enroll,enable,disable}`; replay protection; wrong
+  codes count toward lockout; secret encrypted at rest;
+  `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL` blocks un-enrolled non-citizens (in the
+  default current-user dependency, so new endpoints inherit it); admin
+  `POST /users/{id}/reset-mfa` (also revokes sessions; not allowed on yourself).
+  All three sign-in pages accept a code.
+- **Encryption at rest** — `contact_phone` on incidents/resources/hospitals and
+  `users.mfa_secret`, via `EncryptedString`; dedicated, rotatable
+  `RAKSHA_ENCRYPTION_KEY`. Raw SQL bypasses the type (the hospital nearby query
+  decrypts by hand) — remember this for any new raw query touching these columns.
+- **Headers/CSP** — API (`default-src 'none'`) and all three Next.js apps.
+- **Malware scanning** — `Scanner` interface; `NullScanner` records `UNSCANNED`;
+  ClamAV `INSTREAM` client when `RAKSHA_CLAMAV_HOST` is set.
+- **Audit gating** — pip-audit and `npm audit --omit=dev` in CI and `check.sh`.
+  The first run found real advisories (PyJWT; Next.js incl. a critical), fixed:
+  PyJWT 2.15.0, Next/eslint-config-next 16.3.8.
+- Docs brought current: `API.md` (it still listed phases 10–14 as "planned"),
+  `DATABASE.md`, `SECURITY.md`, `RUNBOOK.md`, `.env.example`.
 
-- `GET /analytics/response-time` — minutes from report to first dispatch
-  (sample size, mean, median, min, max), filterable by `since`/`until`/`category`.
-- `GET /analytics/resolution-time` — minutes from report to resolved, same shape.
-- `GET /analytics/category-breakdown` — counts and average priority score per category.
-- `GET /analytics/resource-utilization` — active/available counts and
-  dispatches-in-period, per resource type.
-- `GET /analytics/hotspots` — incident clustering on a **coarsened ~0.01°
-  (~1.1 km) grid**, never a raw incident coordinate.
+Two lessons, in case the pattern recurs:
 
-**The rule the hotspot endpoint exists to enforce** (`CLAUDE.md` section 5:
-"analytics surfaces aggregated or coarsened location") is implemented at the
-SQL layer, not just documented: coordinates are rounded in PostgreSQL
-`numeric` (exact decimal) space — `ROUND(latitude / 0.01) * 0.01` — before
-the row ever leaves `AnalyticsRepository.hotspots()`, so no code path can
-accidentally forward a precise coordinate. A test
-(`test_hotspots_never_return_a_raw_incident_coordinate`) reports two
-incidents at different points inside the same grid cell and asserts the
-single returned hotspot's coordinates equal neither report's own position.
-
-Two non-obvious things fixed along the way, in case a similar query is
-written later:
-
-1. **Never alias a computed column with the same name as the source table's
-   real column** (I used `AS latitude`/`AS longitude` for the rounded value,
-   which collides with `incidents.latitude`/`longitude`). `GROUP BY` then
-   resolved the alias back to the *raw* input column instead of the rounded
-   expression, silently defeating the coarsening. Fixed by grouping on the
-   grid-index expression directly and wrapping the returned coordinate in
-   `MIN(...)` (safe, since every row in a group has an identical computed
-   value).
-2. Ruff's `S608` (SQL-injection heuristic) flagged an f-string used only to
-   splice together two *static* SQL fragments — a false positive, since
-   nothing interpolated was ever request-derived. Fixed by inlining the
-   shared fragment instead of leaving an f-string for a human to reread and
-   wonder about; there is no `# noqa` in this codebase for something that
-   can just as easily be made unambiguous.
+1. **`ruff S608` flags any f-string passed to `text()`**, even over static
+   fragments. Don't suppress it; write static SQL (done in analytics, the
+   encryption tests and migration 0010).
+2. **A SQL alias that shares a column's name makes `GROUP BY` bind the raw
+   column** (the Phase 14 hotspot bug). Group on the expression.
 
 ---
 
 ## 3. The exact next step
 
-**Start Phase 16 — Security hardening.** (Phase 15/prediction stays skipped
-— see `docs/ROADMAP.md`'s own gate: no real historical dataset exists.) From
-`docs/ROADMAP.md`:
+**Start Phase 17 — Performance & scalability.** From `docs/ROADMAP.md`: load
+testing against the NFR targets, query tuning, caching, partitioning,
+connection-pool tuning, read replicas.
 
-> MFA for operational roles, upload antivirus scanning, column-level
-> encryption of contact details, account lockout, full security headers and
-> CSP, dependency audit gating, penetration test and remediation.
->
-> **This phase gates any real-world pilot.**
+Be honest about what an agent session can show. A load test run against a
+single sandbox machine proves nothing about production capacity; it can find
+algorithmic problems (N+1 queries, missing indexes, slow endpoints) and give a
+reproducible number. Read the NFR targets in `docs/PRD.md` first, then, in order:
 
-**Read this carefully before starting:** a real penetration test and formal
-sign-off by an operating authority (this phase's own gate, and Phase 18's)
-are human acts. An agent session cannot perform or claim either. What *can*
-be honestly built this phase:
+1. **A runnable load-test script** (`scripts/loadtest.*`, e.g. Locust or k6 if
+   you can justify the dependency per `CLAUDE.md` §3 — or a small asyncio/httpx
+   script with none) against the local stack, covering report submission, the
+   queue, the map bbox feed and analytics. Seed enough rows (thousands) to make
+   the numbers mean something; `database/seeds` makes ~12 incidents.
+2. **Measure before changing anything.** Use `EXPLAIN (ANALYZE, BUFFERS)` on the
+   hot queries (queue, bbox, nearby, the Phase 14 aggregations — the latter scan
+   `incidents` with no supporting index on `created_at`). Record the baseline in
+   `docs/` so improvement is evidence.
+3. **Index review** — likely candidates: `incidents(created_at)`,
+   `dispatches(created_at)`; confirm with the plans, don't guess. Needs a migration
+   (`0013`), applied/rolled back.
+4. **Redis caching on hot reads** (Redis is already a dependency, used by rate
+   limiting). Decide invalidation first; the queue and map must never show stale
+   data during an incident — prefer a short TTL on aggregates (analytics), none on
+   the live queue unless measured to matter.
+5. Connection-pool tuning (`db_pool_size`, `db_max_overflow` exist in config).
+   Partitioning and read replicas are deployment decisions; document, don't build.
 
-1. **Account lockout** — extend `app/services/auth_service.py` /
-   `app/repositories/user_repository.py` with a failed-attempt counter and a
-   time-boxed lock, audited via `AuditAction` the same way login events
-   already are. Migration needed (new columns on `users`).
-2. **TOTP MFA for operational roles** — a `mfa_secret` column (encrypted, see
-   next item), enrollment and verification endpoints, and a login flow that
-   requires a second factor for `DISPATCH_ROLES`/`OPERATIONAL_ROLES`.
-   Migration needed.
-3. **Column-level encryption of contact details** — `Incident.contact_phone`,
-   `Resource.contact_phone`, `Hospital.contact_phone` are plaintext today.
-   Decide an approach (application-level AES via a new `app/core/crypto.py`
-   keyed from `RAKSHA_SECRET_KEY` or a dedicated key, vs. `pgcrypto`) and
-   write it down before touching the schema — this is exactly the kind of
-   decision `CLAUDE.md` section 9 asks to plan before implementing.
-4. **Security headers & CSP** — middleware in `app/main.py`, no migration.
-   Should be fast to add and easy to verify with a direct HTTP test.
-5. **Dependency audit gating** — add `pip-audit` (backend) and `npm audit`
-   (frontends) to `scripts/check.sh` and CI, failing the gate on a known-high
-   vulnerability. Check current dependencies aren't already flagged before
-   wiring the gate, or the very first run fails on pre-existing debt that
-   isn't this phase's to fix blind.
-6. **What to explicitly *not* claim done**: write a short, honest section in
-   `docs/SECURITY.md` (or update the existing one) stating that a real
-   penetration test has not been performed and this deployment has not been
-   accepted by an operating authority — mirroring how `docs/ROADMAP.md`
-   already handles Phase 15. Do not let the presence of MFA/lockout/CSP code
-   imply otherwise.
-
-Write tests for every new endpoint (happy path, validation failure,
-unauthenticated, wrong-role) exactly as every prior phase did, plus the
-account-lockout and MFA-bypass-attempt cases specifically.
+Do **not** claim the NFR targets are met on the strength of a sandbox run.
 
 ---
 
@@ -203,6 +181,26 @@ Everything below is committed. Nothing is staged or modified.
 - `backend/tests/integration/test_analytics_api.py` (new)
 - No migration — reads existing tables only.
 
+**Phase 16 — security hardening**
+- `backend/app/core/crypto.py`, `totp.py`; `backend/app/db/types.py` (new)
+- `backend/app/services/scanners.py` (new); `auth_service.py`, `media_service.py`,
+  `audit_service.py` (extended); `api/deps.py` (MFA policy), `api/v1/endpoints/auth.py`,
+  `users.py`, `core/middleware.py`, `core/config.py`, `core/errors.py`, `core/logging.py`
+- Models `user.py`, `incident.py`, `resource.py`, `hospital.py`; schemas `auth.py`,
+  `user.py`, `media.py`; `repositories/hospital_repository.py` (decrypts raw SQL)
+- Migrations `0009_account_lockout`, `0010_encrypt_contact_details`, `0011_mfa`,
+  `0012_media_scan_status`
+- Tests: `test_totp.py`, `test_crypto.py`, `test_scanners.py`, `test_mfa_api.py`,
+  `test_account_recovery.py`, `test_contact_encryption.py`, and additions to
+  `test_auth_api.py`, `test_media_api.py`, `test_health.py`
+- Front ends: `packages/api-client` (`login(…, mfaCode?)`, `User.mfa_enabled`,
+  `MediaItem.scan_status`), the three `AuthProvider`s and login pages, the three
+  `next.config.ts` (CSP)
+- `scripts/check.sh`, `.github/workflows/ci.yml`, `backend/requirements*.txt`
+  (cryptography, pyotp, pip-audit; PyJWT bumped), `package-lock.json`
+- Docs: `API.md`, `DATABASE.md`, `SECURITY.md`, `ROADMAP.md`, `RUNBOOK.md`,
+  `.env.example`
+
 ---
 
 ## 5. Known issues, gaps and honest limits
@@ -253,11 +251,27 @@ Everything below is committed. Nothing is staged or modified.
     incidents only — **no resources, hospitals or dispatches**. Demoing
     Phases 10–14 needs those created through the API first, and analytics
     will read as empty/zero until some dispatches and resolutions exist.
-12. **No analytics endpoint has been smoke-tested against a live server** —
-    only through the integration test suite (real PostgreSQL, but via
-    `TestClient`, not an actual running `uvicorn` process). Low risk, since
-    the pattern is identical to every prior phase's endpoints, but flagged
-    for completeness.
+12. ~~No endpoint smoke-tested against a live server.~~ Partly addressed: sign-in,
+    dashboard, map and the MFA path were run in a real browser against the live
+    stack (§1). **Resources, dispatch, hospitals, notifications and analytics
+    were still only exercised through the test suite**, not through a UI/live run.
+13. **Phase 16 is not finished by its code.** No penetration test, no operating
+    authority acceptance. `docs/SECURITY.md` §12 lists every other gap: no MFA
+    enrolment UI or recovery codes; front-end CSP keeps `'unsafe-inline'`;
+    ClamAV client untested against a real ClamAV; MFA enforcement off by default;
+    dev-tooling advisory (`braces`) not gating.
+14. **The browser end-to-end scripts are not in the repository.** They were
+    throwaway scratchpad files (`playwright-core` + the sandbox Chromium at
+    `/opt/pw-browsers/chromium`). A committed `scripts/smoke` would turn a
+    one-off check into a regression guard; it needs a decision on the browser
+    dependency.
+15. **Seeded dev accounts are not MFA-enrolled and `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL`
+    is false in development**, so the shipped dev stack does not exercise the
+    enforcement path. Turn it on in staging and enrol the accounts.
+16. **The `npm audit` gate needs network access**, as does `pip-audit`. Offline,
+    `./scripts/check.sh` fails on those two steps for a reason unrelated to the code.
+17. **Lockout reveals that an account exists** (`403 ACCOUNT_LOCKED`) and can be
+    triggered on purpose against a victim; the cap and admin unlock bound it.
 
 ---
 
@@ -269,7 +283,8 @@ cd /home/user/raksha-net-ai
 # 1. Postgres (the sandbox container stops it on restart)
 sudo pg_ctlcluster 16 main start && pg_isready
 
-# 2. Environment for any backend command
+# 2. Environment for any backend command (development derives the encryption
+#    key from the secret; staging/production need RAKSHA_ENCRYPTION_KEY)
 export RAKSHA_ENVIRONMENT=development \
        RAKSHA_SECRET_KEY=dev-secret-key-at-least-32-chars-long-xxxx \
        RAKSHA_AI_ENABLED=true \
@@ -292,7 +307,7 @@ npm run dev --workspace @raksha/responder-web      # :3002
 
 ```bash
 ./scripts/check.sh            # the full gate — read the LAST line
-cd backend && .venv/bin/pytest -q          # 336 backend tests
+cd backend && .venv/bin/pytest -q          # 407 backend tests
 cd .. && PYTHONPATH=. backend/.venv/bin/pytest ai/tests -q   # 31 AI tests
 ```
 
@@ -346,15 +361,16 @@ you to confirm which Netlify account/team to use.
 
 ## 8. Suggested order when you return
 
-1. **Phase 16 (Security hardening)** — the natural next step; see §3 for the
-   concrete breakdown and what cannot honestly be claimed done by an agent
-   (a real penetration test, operating-authority acceptance).
-2. **Phase 17 (Performance)** — Redis caching on hot reads, index review, and a
-   load-test script that can actually be run against the local stack.
-3. **Phase 18 (Production readiness artifacts)** — metrics endpoint,
-   backup/restore scripts, deployment docs, without claiming actual cloud
-   deployment.
-4. **Deployment** — once §7 is decided.
+1. **Phase 17 (Performance)** — §3. Measure first; be honest about what a sandbox shows.
+2. **Phase 18 (Production readiness artifacts)** — a `/metrics` endpoint,
+   backup/restore scripts, deployment docs. Without claiming a cloud deployment
+   happened.
+3. **Decide Netlify (§7)** and deploy.
+4. **The human half of Phase 16** — commission a penetration test; get the
+   residual risk accepted; then (optionally) add the MFA enrolment UI, recovery
+   codes, and a nonce-based CSP. None of that is a substitute for the first two.
+5. A committed browser smoke test (§5, item 14), and a live pass over resources,
+   dispatch, hospitals, notifications and analytics.
 
 Phases 8, 9 and 15 stay blocked on inputs that do not exist (a labelled photo
 dataset, an ASR provider, a real historical dataset). Do not fake any of them.

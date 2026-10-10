@@ -67,6 +67,48 @@ Rotating `RAKSHA_SECRET_KEY` invalidates access tokens within their 30-minute
 TTL. Refresh tokens survive, because they are opaque random values stored as
 hashes rather than signed — so a rotation does not sign everyone out.
 
+## Rotating the encryption key
+
+`RAKSHA_ENCRYPTION_KEY` protects contact numbers and MFA secrets at rest. It is
+independent of `RAKSHA_SECRET_KEY`, so the two rotate separately.
+
+1. Generate a new key (see `.env.example`).
+2. Set `RAKSHA_ENCRYPTION_KEY=<new>,<old>` and redeploy. New writes use the
+   first key; every existing value still decrypts with the second.
+3. Existing rows are re-encrypted lazily, only when next written. To force it,
+   re-save them; there is no bulk re-encryption job yet.
+4. Only when no row still depends on `<old>` may it be dropped. **Dropping it
+   early makes those values unreadable and the application will raise on them
+   rather than show garbage.** Back up before step 4.
+
+Losing the key loses the data in those columns. Keep it in the secret manager,
+never in the repository or beside the database backups.
+
+## Someone is locked out
+
+- **Locked by failed sign-ins** (`403 ACCOUNT_LOCKED`; the response says how
+  long): wait, or an administrator calls `POST /api/v1/users/{id}/unlock`.
+  Repeated locks of the same account from unfamiliar addresses are worth a look
+  in `audit_logs` (`auth.account_locked`) — it may be someone locking a
+  dispatcher out on purpose.
+- **Lost or replaced phone (MFA)**: an administrator calls
+  `POST /api/v1/users/{id}/reset-mfa`. This also ends that user's sessions. The
+  user then enrols again. An administrator cannot reset their own; if the only
+  administrator loses their device, another administrator (or the database) is
+  the only way back — there are no recovery codes.
+- Verify the person first. An MFA reset is a password-only account for as long
+  as it takes them to re-enrol.
+
+## Malware scanning
+
+Run a ClamAV daemon reachable from the API and set `RAKSHA_CLAMAV_HOST`. Until
+then uploads are stored as `UNSCANNED`: the field is visible on every file and
+means no scan happened. Decide deliberately whether an unreachable scanner should
+refuse uploads (`RAKSHA_CLAMAV_REQUIRED=true`) or keep them as `UNSCANNED` (the
+default, so an outage in an optional tool cannot stop a report being completed).
+The scanner client has been tested against a stand-in daemon only; confirm it
+against your ClamAV (send the EICAR test string) before relying on it.
+
 ## Suspected compromise of an operator account
 
 1. `PATCH /api/v1/users/{id}` with `{"is_active": false}`. Access is checked

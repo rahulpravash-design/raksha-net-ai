@@ -69,7 +69,10 @@ Returns **503** with `"status": "degraded"` if the database is unreachable.
 | POST | `/auth/login` | none | Exchange credentials for tokens |
 | POST | `/auth/refresh` | refresh token | Rotate tokens |
 | POST | `/auth/logout` | refresh token | Revoke a refresh token |
-| GET | `/auth/me` | access token | Current user profile |
+| GET | `/auth/me` | access token | Current user profile (exempt from the MFA policy) |
+| POST | `/auth/mfa/enroll` | access token | Begin TOTP enrolment; returns the shared secret and an `otpauth://` URI |
+| POST | `/auth/mfa/enable` | access token | Confirm enrolment with a code; MFA is on from here |
+| POST | `/auth/mfa/disable` | access token | Turn MFA off; needs the password **and** a current code |
 
 Rate limit: `RAKSHA_RATE_LIMIT_AUTH_PER_MINUTE` (default 10/min per IP).
 
@@ -83,8 +86,9 @@ an administrator; a `role` field in this request body is ignored.
 
 ### `POST /auth/login`
 ```json
-{"email": "asha@example.com", "password": "correct horse battery"}
+{"email": "asha@example.com", "password": "correct horse battery", "mfa_code": "123456"}
 ```
+`mfa_code` (six digits) is required only for an account with MFA enabled.
 `200`:
 ```json
 {
@@ -94,6 +98,22 @@ an administrator; a `role` field in this request body is ignored.
 ```
 `401 INVALID_CREDENTIALS` for both unknown email and wrong password — the
 responses are indistinguishable by design.
+
+Further sign-in outcomes:
+
+| Status | Code | Meaning |
+|---|---|---|
+| 401 | `MFA_REQUIRED` | The password was right and the account has MFA on; repeat the request with `mfa_code`. Does not count toward lockout. |
+| 401 | `INVALID_MFA_CODE` | Wrong, expired, or already-used code. **Counts toward lockout.** |
+| 403 | `ACCOUNT_LOCKED` | Too many failures. `details.retry_after_seconds` says how long. The correct password is refused too until the lock expires. |
+| 403 | `ACCOUNT_INACTIVE` | The account is deactivated. |
+| 403 | `MFA_ENROLLMENT_REQUIRED` | Returned by any endpoint other than `/auth/me` and `/auth/mfa/*` when `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL` is on and a non-citizen account has not enrolled. |
+
+Five consecutive failures lock the account for 15 minutes (configurable); each
+further failure doubles the lock, capped at 24 hours. Only a successful sign-in
+resets the count. The MFA management endpoints answer a wrong code with
+`400 INVALID_MFA_CODE` rather than 401, so a client does not mistake it for an
+expired session.
 
 ### `POST /auth/refresh`
 `{"refresh_token": "8f2b…"}` -> new access **and** refresh token; the presented
@@ -112,6 +132,8 @@ and returns `401`.
 | POST | `/users` | ADMIN, SUPER_ADMIN | Create a user with any role |
 | GET | `/users/{id}` | ADMIN, SUPER_ADMIN | Read a user |
 | PATCH | `/users/{id}` | ADMIN, SUPER_ADMIN | Update role / active flag |
+| POST | `/users/{id}/unlock` | ADMIN, SUPER_ADMIN | Clear an account lockout |
+| POST | `/users/{id}/reset-mfa` | ADMIN, SUPER_ADMIN | Remove a user's second factor and revoke their sessions. Not permitted on yourself. |
 
 Only `SUPER_ADMIN` may create or modify a `SUPER_ADMIN`. No role may modify
 its own `role` or `is_active` field.
@@ -230,6 +252,14 @@ Validation: size <= `RAKSHA_MEDIA_MAX_BYTES`, declared MIME in the allow-list,
 **and** magic-byte sniffing that must agree with the declared type. The stored
 key is generated; the client filename is never used as a path component.
 
+Malware scanning: with `RAKSHA_CLAMAV_HOST` set, content is scanned before it
+is stored. A flagged file is refused with `422 MEDIA_INFECTED` and never
+written. Every stored item carries `scan_status`: `CLEAN`, or `UNSCANNED` when no
+scanner is configured (or it was unreachable and `RAKSHA_CLAMAV_REQUIRED` is
+off). `UNSCANNED` is a statement that no scan happened, not that the file is safe.
+With `RAKSHA_CLAMAV_REQUIRED=true`, an unreachable scanner yields
+`503 MEDIA_SCAN_UNAVAILABLE` instead.
+
 ---
 
 ## 7. Geo
@@ -253,19 +283,73 @@ incident summary used by the map.
 
 ---
 
-## 8. Planned endpoints (not implemented)
+## 8. Resources, dispatch, hospitals, notifications and analytics (Phases 10–14)
+
+### Resources and dispatch
+
+| Method | Path | Access | Description |
+|---|---|---|---|
+| POST | `/resources` | DISPATCH roles | Register a resource |
+| GET | `/resources` | operational | Resource inventory |
+| GET | `/resources/stats/summary` | operational | Counts by status and type |
+| GET | `/resources/nearby` | operational | Resources within a radius of a point |
+| GET | `/resources/{id}` | operational | Resource detail |
+| PATCH | `/resources/{id}` | DISPATCH roles | Update a resource |
+| POST | `/resources/{id}/status` | DISPATCH roles, or the unit's own operator | Set operational status |
+| GET | `/incidents/{id}/resource-recommendations` | operational | Ranked suggestions, with reasons. Never dispatches. |
+| POST | `/incidents/{id}/dispatches` | DISPATCH roles | Dispatch a resource. The approver is the authenticated caller; the body cannot name one. |
+| GET | `/incidents/{id}/dispatches` | operational | Resources sent to an incident |
+| GET | `/dispatches/mine` | operational | The caller's own assignments |
+| GET | `/dispatches/{id}` | DISPATCH roles, or the unit's operator | Dispatch detail |
+| POST | `/dispatches/{id}/status` | DISPATCH roles, or the unit's operator | Progress; a legal-transition table applies |
+
+### Hospitals
+
+| Method | Path | Access | Description |
+|---|---|---|---|
+| POST | `/hospitals` | ADMIN | Register a hospital |
+| GET | `/hospitals` | operational | Hospitals |
+| GET | `/hospitals/nearby` | operational | Hospitals that can take a patient now |
+| GET | `/hospitals/{id}` | operational | Hospital detail |
+| POST | `/hospitals/{id}/capacity` | the hospital's operator, or DISPATCH roles | Report capacity |
+| GET | `/hospitals/{id}/notices` | the hospital's operator, or DISPATCH roles | Inbound patients |
+| POST | `/incidents/{id}/hospital-notices` | DISPATCH roles | Tell a hospital what is coming |
+| GET | `/incidents/{id}/hospital-notices` | operational | Hospitals notified for an incident |
+| POST | `/hospital-notices/{id}/status` | the hospital's operator, or DISPATCH roles | Acknowledge, divert or close |
+
+A notice carries no reporter identity, contact detail, description or
+coordinate: the record has no column for them.
+
+### Notifications
+
+| Method | Path | Access | Description |
+|---|---|---|---|
+| GET | `/notifications` | the recipient | Own inbox, with per-channel delivery records |
+| GET | `/notifications/unread-count` | the recipient | Badge count |
+| POST | `/notifications/{id}/read` | the recipient | Mark one read (someone else's reads as 404) |
+| POST | `/notifications/read-all` | the recipient | Mark everything read |
+
+Only the in-app channel delivers. SMS, email and push are recorded as
+`UNAVAILABLE` with a reason.
+
+### Analytics
+
+All five are read-only and restricted to DISPATCH roles. Each accepts `since`
+and `until`; the time metrics and hotspots also accept `category`.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/analytics/response-time` | Report to first dispatch, in minutes |
+| GET | `/analytics/resolution-time` | Report to resolved, in minutes |
+| GET | `/analytics/category-breakdown` | Counts and average priority by category |
+| GET | `/analytics/resource-utilization` | Dispatches per resource type |
+| GET | `/analytics/hotspots` | Incident counts per ~1.1 km grid cell. Coordinates are cell centres, never an incident's own. |
+
+---
+
+## 9. Planned endpoints (not implemented)
 
 | Phase | Endpoint | Purpose |
 |---|---|---|
 | 5 | `WS /api/v1/ws/incidents` | Live incident stream for the control centre |
 | 9 | `POST /reports/voice` | Voice report upload and transcription |
-| 10 | `GET /resources`, `GET /geo/resources/nearby` | Resource inventory and search |
-| 11 | `POST /incidents/{id}/dispatch` | Human-approved dispatch |
-| 11 | `POST /assignments/{id}/status` | Responder progress |
-| 12 | `GET /hospitals/{id}/capacity` | Hospital capacity |
-| 13 | `GET /notifications` | Notification inbox |
-| 14 | `GET /analytics/*` | Aggregated metrics |
-
-All planned endpoints follow the conventions above. `POST /incidents/{id}/dispatch`
-always requires an authenticated human dispatcher; there is no service-account
-path to it.

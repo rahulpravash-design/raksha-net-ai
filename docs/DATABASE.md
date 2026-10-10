@@ -32,6 +32,11 @@ Engine: **PostgreSQL 16 + PostGIS 3** · Migrations: **Alembic**
 | `is_active` | boolean, default true | |
 | `is_verified` | boolean, default false | email/phone verification (Phase 13) |
 | `last_login_at` | timestamptz null | |
+| `failed_login_attempts` | integer, default 0 | consecutive failures since the last success (Phase 16) |
+| `locked_until` | timestamptz null | set when the threshold is reached; refused until it passes |
+| `mfa_enabled` | boolean, default false | TOTP second factor is active |
+| `mfa_secret` | varchar(255) null | TOTP shared secret, **encrypted at rest** (Fernet); present while enrolment is pending and once enabled |
+| `mfa_last_step` | bigint null | 30-second step of the last accepted code, to refuse a replay |
 | `created_at` / `updated_at` | timestamptz | |
 
 `user_role`: `CITIZEN`, `RESPONDER`, `DISPATCHER`, `HOSPITAL_OPERATOR`,
@@ -111,6 +116,7 @@ serves the control-centre queue.
 | `size_bytes` | integer | |
 | `checksum_sha256` | varchar(64) | duplicate detection |
 | `original_filename` | varchar(255) null | retained for display only |
+| `scan_status` | enum `scan_status` | `CLEAN` or `UNSCANNED`. `UNSCANNED` means no scan happened, never "safe". Existing rows are `UNSCANNED`. (Phase 16) |
 | `created_at` | timestamptz | |
 
 ### `incident_status_history`
@@ -142,42 +148,39 @@ Append-only record of every transition.
 
 Append-only: no update or delete path exists in application code.
 
-## 3. Future tables (specified, not implemented)
+## 3. Tables added after V1 (implemented)
 
-### `incident_analyses` (Phase 6)
+Column lists below are read from the migrated schema. A trailing `?` means
+nullable; every table also has `id` and timestamps.
 
-Stores AI output **separately from facts**.
+| Table | Phase | Columns | Notes |
+|---|---|---|---|
+| `incident_analyses` | 6 | `incident_id`, `model_name`, `model_version`, `provider?`, `processing_ms?`, `proposed_category?`, `type_confidence?`, `proposed_severity?`, `severity_confidence?`, `people_affected?`, `people_trapped?`, `medical_support_required?`, `immediate_rescue_required?`, `entities`, `observations`, `reasoning_factors`, `review_decision?`, `reviewed_by_id?`, `reviewed_at?`, `review_note?`, `applied_fields?` | AI output, stored apart from `incidents`. `review_decision IS NULL` means pending. |
+| `resources` | 10 | `call_sign` (unique), `name`, `resource_type`, `status`, `latitude`, `longitude`, `geom` (GIST), `base_address?`, `capabilities` (jsonb), `crew_size?`, `contact_phone?` (**encrypted**), `operator_id?`, `is_active`, `status_changed_at?` | |
+| `dispatches` | 11 | `incident_id`, `resource_id`, `approved_by_id` (**NOT NULL**), `status`, `distance_km?`, `estimated_minutes?`, `note?`, `cancel_reason?`, `acknowledged_at?`, `en_route_at?`, `on_scene_at?`, `closed_at?` | The NOT NULL approver is the schema-level guarantee that no dispatch exists without a named human. |
+| `hospitals` | 12 | `code` (unique), `name`, `latitude`, `longitude`, `geom` (GIST), `address?`, `contact_phone?` (**encrypted**), `total_beds`, `available_beds`, `icu_total`, `icu_available`, `accepting_emergencies`, `specialties` (jsonb), `managed_by_id?`, `is_active`, `capacity_updated_at?` | CHECKs keep available <= total. |
+| `inbound_patient_notices` | 12 | `hospital_id`, `incident_id`, `dispatch_id?`, `created_by_id`, `status`, `patient_count`, `category`, `severity?`, `eta_minutes?`, `clinical_notes?`, `response_note?`, `acknowledged_at?`, `closed_at?` | Deliberately has no reporter, contact, description or coordinate column. |
+| `notifications` | 13 | `user_id`, `kind`, `title`, `body`, `incident_id?`, `dispatch_id?`, `context?`, `read_at?` | |
+| `notification_deliveries` | 13 | `notification_id`, `channel`, `status`, `attempts`, `detail?`, `delivered_at?` | One row per channel attempted; `UNAVAILABLE` records an unconfigured channel. |
 
-```
-id, incident_id, analysis_type (TEXT|IMAGE|AUDIO),
-model_name, model_version, provider,
-incident_type, severity, people_count, entities jsonb,
-observations jsonb, confidence numeric(4,3),
-reasoning_factors jsonb, raw_output jsonb,
-reviewed_by_id, review_decision (ACCEPTED|EDITED|REJECTED), reviewed_at,
-processing_ms, created_at
-```
+`incidents` also gained `priority_engine_version` (Phase 7), recording which
+configuration produced each score; it is null for rows scored before Phase 7.
 
-### `resources`, `ambulances`, `rescue_teams`, `hospitals`, `shelters` (Phase 10)
+### Encryption at rest
 
-A shared `resources` supertype (code, type, home station, `geom`, status,
-capabilities jsonb) with per-type detail tables. Resource status:
-`AVAILABLE`, `ASSIGNED`, `EN_ROUTE`, `ON_SCENE`, `UNAVAILABLE`, `MAINTENANCE`.
+`incidents.contact_phone`, `resources.contact_phone`, `hospitals.contact_phone`
+and `users.mfa_secret` hold Fernet ciphertext (`gAAAA…`, about 100 characters
+for a phone number). The ORM encrypts and decrypts transparently
+(`app/db/types.py`); anything that reads these columns with raw SQL must call
+`app.core.crypto.decrypt_value` itself. `users.phone` is **not** encrypted: it
+is unique and looked up, and randomised ciphertext supports neither.
 
-### `resource_assignments`, `dispatches` (Phase 11)
+### Not yet specified in migrations
 
-Links incident to resource with `recommended_by` (engine/AI),
-`approved_by_id` (**mandatory human**), timestamps for each lifecycle step,
-and the distance/ETA at recommendation time.
+`roles` / `permissions` / `user_roles` (multi-role support) and `alerts` remain
+unbuilt. `resource_assignments` was not needed: `dispatches` is the assignment.
 
-### `notifications`, `alerts` (Phase 13)
-
-Channel (`IN_APP`, `PUSH`, `SMS`, `EMAIL`), recipient, template, payload,
-delivery state, provider message id.
-
-### `roles`, `permissions`, `user_roles` (Phase 10)
-
-Multi-role support; additive to the existing `users.role` column.
+---
 
 ## 4. Entity relationships
 
@@ -188,8 +191,12 @@ users 1───* refresh_tokens
 incidents 1───* incident_media
 incidents 1───* incident_status_history
 incidents 1───* incident_analyses          (Phase 6)
-incidents 1───* resource_assignments       (Phase 11)
-resources 1───* resource_assignments       (Phase 11)
+incidents 1───* dispatches                 (Phase 11)
+resources 1───* dispatches                 (Phase 11)
+hospitals 1───* inbound_patient_notices    (Phase 12)
+incidents 1───* inbound_patient_notices    (Phase 12)
+users     1───* notifications              (Phase 13)
+notifications 1───* notification_deliveries (Phase 13)
 incidents 0..1───1 incidents               (duplicate_of)
 ```
 
@@ -201,6 +208,15 @@ incidents 0..1───1 incidents               (duplicate_of)
   revision (Postgres cannot remove enum values — plan additively).
 - No destructive migration without an explicit, reviewed data-migration step.
 - Extensions (`postgis`) are created in the initial revision and are idempotent.
+- A migration that rewrites data (`0010`, which encrypts existing contact
+  numbers) must be re-runnable and must reverse cleanly; it skips a value
+  already in the target form.
+
+Current chain: `0001_enable_postgis` -> `0002_create_core_schema` ->
+`0003_incident_analyses` -> `0004_priority_engine_version` -> `0005_resources`
+-> `0006_dispatches` -> `0007_hospitals` -> `0008_notifications` ->
+`0009_account_lockout` -> `0010_encrypt_contact_details` -> `0011_mfa` ->
+`0012_media_scan_status`.
 
 ## 6. Data retention
 

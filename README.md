@@ -24,13 +24,13 @@ live map and queue to triage from.
 | V4 — Resources & dispatch | 10–11 | **Implemented.** Resource inventory with ranked recommendations, human-approved dispatch, and the responder application |
 | V5 — Hospitals & notifications | 12–13 | Phase 12 **implemented**. Phase 13 in-app only; SMS/email/push are stubbed |
 | V6 — Analytics | 14 | **Implemented.** Response/resolution time, category and resource breakdowns, hotspots on coarsened coordinates |
-| V7 | 15–18 | Phase 15 skipped deliberately. 16–18 specified, not implemented |
+| V7 | 15–18 | Phase 15 skipped deliberately. **16 code-complete** (lockout, MFA, encryption, CSP, scanning, audit gating) — its penetration test and risk acceptance are **not** done. 17–18 not implemented |
 
 `docs/ROADMAP.md` holds the phase definitions and completion criteria.
 
-**This platform must not carry real emergency traffic** until the Phase 16
-security work is complete and an operating authority has accepted the residual
-risk. See `docs/SECURITY.md` §12.
+**This platform must not carry real emergency traffic.** Phase 16's code is in,
+but no penetration test has been performed and no operating authority has
+accepted the residual risk. See `docs/SECURITY.md` §12.
 
 ## What V1 does
 

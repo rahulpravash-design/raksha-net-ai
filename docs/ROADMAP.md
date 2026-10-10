@@ -1,7 +1,9 @@
 # RAKSHA NET AI — Development Roadmap
 
-> **Current phase marker: Phases 0–14 complete, except Phases 8 and 9.**
-> **Next: Phase 16 (Security hardening). Phase 15 is deliberately skipped.
+> **Current phase marker: Phases 0–14 complete, except Phases 8 and 9.
+> Phase 16 is code-complete; the penetration test and operating-authority
+> acceptance it requires cannot be done by software and are NOT done.**
+> **Next: Phase 17 (Performance). Phase 15 is deliberately skipped.
 > See `CHECKPOINT.md` for the exact resume point.**
 >
 > Do not implement a future phase unless explicitly requested.
@@ -351,13 +353,45 @@ on purpose, not for lack of time.
 
 ---
 
-## Phase 16 — Security Hardening ⬜ NOT STARTED
+## Phase 16 — Security Hardening ⚠️ CODE COMPLETE — pen test and acceptance NOT done
 
 MFA for operational roles, upload antivirus scanning, column-level encryption of
 contact details, account lockout, full security headers and CSP, dependency
 audit gating, penetration test and remediation.
 
-**This phase gates any real-world pilot.**
+**This phase gates any real-world pilot.** It is not finished until the last two
+items below are done by people.
+
+**What shipped** (details and limits in `docs/SECURITY.md`):
+
+- **Account lockout** with progressive backoff (5 failures, then 15 min,
+  doubling, capped at 24 h), audited, clearable by an administrator.
+- **TOTP MFA**: enrol/enable/disable, replay protection, wrong codes counted
+  toward lockout, optional enforcement for every non-citizen role
+  (`RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL`, required in production-like
+  environments), administrator MFA reset that also revokes sessions, and a code
+  field on all three sign-in pages. Verified in a real browser against the
+  running stack, with an independently implemented TOTP.
+- **Column-level encryption** of the three `contact_phone` columns and the MFA
+  secret (Fernet, dedicated rotatable `RAKSHA_ENCRYPTION_KEY`). The migration
+  encrypts existing rows and reverses cleanly.
+- **Security headers and CSP** on the API and on all three Next.js apps.
+- **Malware scanning** of uploads behind a `Scanner` interface (ClamAV client +
+  honest `UNSCANNED` when absent).
+- **Dependency-audit gating** (pip-audit, npm audit) in CI and the local gate.
+  Its first run found real advisories (PyJWT, Next.js including a critical),
+  which were fixed.
+
+**Not done:**
+
+- **Penetration test and remediation.** A human, independent act. No pen test
+  has been performed; do not treat this phase as complete because the code
+  exists.
+- **Acceptance of residual risk by an operating authority.**
+- MFA enrolment UI and recovery codes.
+- Front-end CSP without `'unsafe-inline'` (needs per-request nonces).
+- The ClamAV client has not been run against a real ClamAV.
+- Dev-tooling advisories (`braces`, in the ESLint chain) are reported, not gating.
 
 ---
 
