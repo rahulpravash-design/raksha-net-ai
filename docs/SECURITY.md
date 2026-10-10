@@ -129,11 +129,26 @@ code — so a typo can never lock a person out of their own account.
   administrator cannot reset their own — that would let a hijacked admin
   session strip its own factor without the password-and-code check.
 
-Gaps, stated plainly: there are **no recovery codes**, so a lost device needs an
-administrator (and a lost device for the *only* administrator needs database
-access). Enrolment has **no user interface** yet — it is API-only, and the sign-in
-pages only *accept* a code. A QR code is not rendered; the `otpauth://` URI is
-returned for the client to render.
+**Recovery codes (migration 0016).** Turning two-factor on returns ten one-time recovery
+codes, in the response to `POST /auth/mfa/enable` and nowhere else — they cannot be shown
+again. A code is twelve letters (`ABCD-EFGH-JKMN`, about 54 bits, no I/L/O), so it can never be
+mistaken for a six-digit authenticator code, and is accepted *instead of* one wherever a
+second factor is asked for: sign-in, changing the password, turning two-factor off, and
+replacing the set. Only an HMAC-SHA256 of each code is stored, keyed from the server secret
+with its own domain separator, so a copied table cannot be used to test guesses. A code is
+spent by a conditional `UPDATE ... WHERE used_at IS NULL`, so two simultaneous requests
+cannot both use it. A wrong code counts toward lockout like a wrong password. Using one is
+audited (the remaining count, never the code) and the owner is emailed when email is
+configured — the signal that the *account*, not just the device, may be in someone else's
+hands. Regenerating needs the password and a current code and ends every earlier code;
+turning two-factor off and an administrator's reset delete them. This is what lets a lone
+administrator, who cannot be reset by anyone else, recover from a lost phone.
+
+Gaps, stated plainly: recovery codes are only as safe as where the user keeps them — the
+screen says to store them like a password, and nothing can stop a user keeping them next to
+the phone. A user who has lost both the device and the codes still needs an administrator;
+the only administrator in that position needs database access. The `otpauth://` URI is
+rendered as a QR code in the apps (section 12).
 
 ## 3. Authorisation
 
@@ -379,7 +394,7 @@ dependency-audit gating.
 - **No operating authority has accepted the residual risk.**
 - **The malware scanner has not been run against a real ClamAV.**
 - **The front-end CSP allows `'unsafe-inline'`** (section 6).
-- **MFA has no recovery codes** (section 2). Enrolment, password change and turn-off are
+- **MFA recovery codes are built** (section 2); a user who loses both the device and the codes still needs an administrator. Enrolment, password change and turn-off are
   built in all three apps from one shared component (`packages/ui` `AccountSecurity`);
   before it existed the responder app had no way to enrol, so enforcing two-factor would
   have locked every responder out of their own application (now proven the other way:

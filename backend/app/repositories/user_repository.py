@@ -8,11 +8,11 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.models.enums import UserRole
-from app.models.user import PasswordResetToken, RefreshToken, User
+from app.models.user import MfaRecoveryCode, PasswordResetToken, RefreshToken, User
 
 
 class UserRepository:
@@ -150,3 +150,45 @@ class PasswordResetRepository:
         for token in tokens:
             token.used_at = now
         return len(tokens)
+
+
+class MfaRecoveryRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def replace_all(self, user_id: uuid.UUID, code_hashes: list[str]) -> None:
+        """Make ``code_hashes`` the user's whole set: any earlier code stops working."""
+        self.delete_all(user_id)
+        for code_hash in code_hashes:
+            self.session.add(MfaRecoveryCode(user_id=user_id, code_hash=code_hash))
+        self.session.flush()
+
+    def delete_all(self, user_id: uuid.UUID) -> None:
+        self.session.execute(
+            delete(MfaRecoveryCode).where(MfaRecoveryCode.user_id == user_id)
+        )
+
+    def consume(self, user_id: uuid.UUID, code_hash: str, now: datetime) -> bool:
+        """Spend a code, once. The conditional UPDATE is the single-use guarantee:
+        two requests presenting the same code cannot both succeed."""
+        result = self.session.execute(
+            update(MfaRecoveryCode)
+            .where(
+                MfaRecoveryCode.user_id == user_id,
+                MfaRecoveryCode.code_hash == code_hash,
+                MfaRecoveryCode.used_at.is_(None),
+            )
+            .values(used_at=now)
+        )
+        return bool(getattr(result, "rowcount", 0))
+
+    def remaining(self, user_id: uuid.UUID) -> int:
+        stmt = (
+            select(func.count())
+            .select_from(MfaRecoveryCode)
+            .where(
+                MfaRecoveryCode.user_id == user_id,
+                MfaRecoveryCode.used_at.is_(None),
+            )
+        )
+        return self.session.scalar(stmt) or 0

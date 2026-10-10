@@ -22,6 +22,8 @@ class AuditAction:
     MFA_ENROLLMENT_STARTED = "auth.mfa_enrollment_started"
     MFA_ENABLED = "auth.mfa_enabled"
     MFA_DISABLED = "auth.mfa_disabled"
+    MFA_RECOVERY_CODE_USED = "auth.mfa_recovery_code_used"
+    MFA_RECOVERY_CODES_REGENERATED = "auth.mfa_recovery_codes_regenerated"
     MFA_RESET = "auth.mfa_reset"
     ACCOUNT_UNLOCKED = "auth.account_unlocked"
     PASSWORD_CHANGED = "auth.password_changed"  # noqa: S105 - an action name

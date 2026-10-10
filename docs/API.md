@@ -87,8 +87,10 @@ Returns **503** with `"status": "degraded"` if the database is unreachable.
 | POST | `/auth/reset-password` | none | `{token, new_password}`: spend a recovery link. Does not sign anyone in. One `400 INVALID_RESET_TOKEN` for unknown, expired, used and replaced links; a weak password (`400 WEAK_PASSWORD`) does not spend the link |
 | POST | `/auth/password` | access token | Change your own password. Needs `current_password` (and `mfa_code` when MFA is on). Ends every other session and returns a fresh token pair. Exempt from the account policies, so a user who must change an administrator-set password can reach it |
 | POST | `/auth/mfa/enroll` | access token | Begin TOTP enrolment; returns the shared secret and an `otpauth://` URI |
-| POST | `/auth/mfa/enable` | access token | Confirm enrolment with a code; MFA is on from here |
-| POST | `/auth/mfa/disable` | access token | Turn MFA off; needs the password **and** a current code |
+| POST | `/auth/mfa/enable` | access token | Confirm enrolment with an authenticator code; MFA is on from here. The response is the user **plus `recovery_codes`** (ten one-time codes, shown only here) |
+| GET | `/auth/mfa/recovery-codes` | access token | `{"remaining": n}` — a count, never the codes (0 when MFA is off) |
+| POST | `/auth/mfa/recovery-codes` | access token | Replace the whole set; needs `password` and a current `code`. Returns the new codes once. `409 MFA_NOT_ENABLED` without MFA |
+| POST | `/auth/mfa/disable` | access token | Turn MFA off; needs the password **and** a current code (authenticator or recovery) |
 
 Rate limit: `RAKSHA_RATE_LIMIT_AUTH_PER_MINUTE` (default 10/min per IP).
 
@@ -104,7 +106,7 @@ an administrator; a `role` field in this request body is ignored.
 ```json
 {"email": "asha@example.com", "password": "correct horse battery", "mfa_code": "123456"}
 ```
-`mfa_code` (six digits) is required only for an account with MFA enabled.
+`mfa_code` is required only for an account with MFA enabled: a six-digit authenticator code, or a one-time recovery code (`ABCD-EFGH-JKMN`; case, spaces and dashes are ignored). A recovery code is spent by use; the owner is emailed and the use is audited.
 `200`:
 ```json
 {

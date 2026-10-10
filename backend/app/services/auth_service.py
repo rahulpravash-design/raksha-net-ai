@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
-from app.core import totp
+from app.core import recovery_codes, totp
 from app.core.config import Settings, get_settings
 from app.core.errors import (
     AccountLockedError,
@@ -38,6 +38,7 @@ from app.core.security import (
 from app.models.enums import UserRole
 from app.models.user import PasswordResetToken, RefreshToken, User
 from app.repositories.user_repository import (
+    MfaRecoveryRepository,
     PasswordResetRepository,
     RefreshTokenRepository,
     UserRepository,
@@ -49,6 +50,7 @@ from app.services.email_messages import (
     OutgoingEmail,
     password_changed_email,
     password_reset_email,
+    recovery_code_used_email,
 )
 from app.utils.time import utcnow
 
@@ -73,6 +75,10 @@ class IssuedTokens:
     expires_in: int
     refresh_token: str
     user: User
+    #: Set when a one-time recovery code, not an authenticator code, completed the
+    #: sign-in. Not part of the API response; the endpoint uses it to send a notice.
+    used_recovery_code: bool = False
+    recovery_codes_remaining: int = 0
 
 
 class AuthService:
@@ -82,6 +88,7 @@ class AuthService:
         self.users = UserRepository(session)
         self.tokens = RefreshTokenRepository(session)
         self.reset_tokens = PasswordResetRepository(session)
+        self.recovery = MfaRecoveryRepository(session)
         self.audit = AuditService(session)
 
     # -- registration -------------------------------------------------------
@@ -197,13 +204,20 @@ class AuthService:
             self._record_failed_login(payload.email, context, user_id=user.id)
             raise InactiveAccountError()
 
+        used_recovery = False
         if user.mfa_enabled:
-            self._check_mfa_at_login(user, payload.mfa_code, context)
+            used_recovery = self._check_mfa_at_login(user, payload.mfa_code, context)
 
         user.failed_login_attempts = 0
         user.locked_until = None
         user.last_login_at = utcnow()
         tokens = self._issue_tokens(user, context)
+        if used_recovery:
+            tokens = replace(
+                tokens,
+                used_recovery_code=True,
+                recovery_codes_remaining=self.recovery.remaining(user.id),
+            )
         self.audit.record(
             AuditAction.LOGIN_SUCCESS,
             actor_id=user.id,
@@ -218,21 +232,68 @@ class AuthService:
 
     def _check_mfa_at_login(
         self, user: User, code: str | None, context: RequestContext
-    ) -> None:
-        """Second factor, reached only after the password was right.
+    ) -> bool:
+        """Second factor, reached only after the password was right. Returns whether
+        a recovery code (not an authenticator code) was what got the user in.
 
         A wrong code counts toward lockout exactly as a wrong password does:
-        with the password known, a six-digit code is the only thing left to
+        with the password known, the second factor is the only thing left to
         guess, and it must not be guessable without limit.
         """
         if code is None:
             raise MfaRequiredError()
-        step = totp.verify(user.mfa_secret or "", code, last_step=user.mfa_last_step)
-        if step is None:
+        factor = self._accept_second_factor(user, code, context)
+        if factor is None:
             self._record_failed_login(user.email, context, user_id=user.id)
             self._register_failed_attempt(user, context)
             raise InvalidMfaCodeError()
-        user.mfa_last_step = step
+        return factor == "recovery"
+
+    def _accept_second_factor(
+        self, user: User, code: str | None, context: RequestContext
+    ) -> str | None:
+        """Check an authenticator code or a one-time recovery code.
+
+        The two cannot be confused: an authenticator code is six digits, a recovery
+        code is letters. Returns ``"totp"``, ``"recovery"`` or ``None``. An
+        authenticator code is accepted once per time step; a recovery code once, ever
+        (the single-use guarantee is a conditional UPDATE, so two simultaneous
+        requests cannot both spend it).
+        """
+        if not code:
+            return None
+        if recovery_codes.is_totp_shaped(code):
+            step = totp.verify(user.mfa_secret or "", code, last_step=user.mfa_last_step)
+            if step is None:
+                return None
+            user.mfa_last_step = step
+            return "totp"
+        if not recovery_codes.looks_like_recovery_code(code):
+            return None
+        hashed = recovery_codes.hash_code(code, self.settings)
+        if not self.recovery.consume(user.id, hashed, utcnow()):
+            return None
+        self.audit.record(
+            AuditAction.MFA_RECOVERY_CODE_USED,
+            actor_id=user.id,
+            actor_role=user.role,
+            entity_type="user",
+            entity_id=user.id,
+            ip_address=context.ip_address,
+            user_agent=context.user_agent,
+            metadata={"remaining": self.recovery.remaining(user.id)},
+        )
+        return "recovery"
+
+    def _fail_second_factor(
+        self, user: User, context: RequestContext, *, status_code: int = 400
+    ) -> InvalidMfaCodeError:
+        """Count a wrong code toward lockout (these endpoints would otherwise be a
+        guessing oracle for whoever holds a session) and build the error."""
+        self._record_failed_login(user.email, context, user_id=user.id)
+        self._register_failed_attempt(user, context)
+        self.session.commit()
+        return InvalidMfaCodeError(status_code=status_code)
 
     # -- MFA management -----------------------------------------------------
     def begin_mfa_enrollment(
@@ -252,7 +313,9 @@ class AuthService:
 
     def enable_mfa(
         self, user: User, code: str, context: RequestContext | None = None
-    ) -> User:
+    ) -> tuple[User, list[str]]:
+        """Confirm enrolment. Returns the user and ten recovery codes, which exist in
+        plain form only in this return value: the database keeps their hashes."""
         context = context or RequestContext()
         if user.mfa_enabled:
             raise ConflictError("MFA is already enabled.", code="MFA_ALREADY_ENABLED")
@@ -266,9 +329,44 @@ class AuthService:
             raise InvalidMfaCodeError(status_code=400)
         user.mfa_enabled = True
         user.mfa_last_step = step
+        codes = self._issue_recovery_codes(user)
         self._audit_mfa(AuditAction.MFA_ENABLED, user, context)
         self.session.commit()
-        return user
+        return user, codes
+
+    def _issue_recovery_codes(self, user: User) -> list[str]:
+        codes = recovery_codes.generate_codes()
+        self.recovery.replace_all(
+            user.id, [recovery_codes.hash_code(c, self.settings) for c in codes]
+        )
+        return codes
+
+    def recovery_codes_remaining(self, user: User) -> int:
+        return self.recovery.remaining(user.id) if user.mfa_enabled else 0
+
+    def regenerate_recovery_codes(
+        self,
+        user: User,
+        password: str,
+        code: str,
+        context: RequestContext | None = None,
+    ) -> list[str]:
+        """Replace the whole set (every earlier code stops working). Needs the same
+        proof as turning two-factor off: the password and a current code."""
+        context = context or RequestContext()
+        if not user.mfa_enabled:
+            raise ConflictError("MFA is not enabled.", code="MFA_NOT_ENABLED")
+        if not verify_password(password, user.hashed_password):
+            self._record_failed_login(user.email, context, user_id=user.id)
+            self._register_failed_attempt(user, context)
+            self.session.commit()
+            raise InvalidCredentialsError(status_code=400)
+        if self._accept_second_factor(user, code, context) is None:
+            raise self._fail_second_factor(user, context)
+        codes = self._issue_recovery_codes(user)
+        self._audit_mfa(AuditAction.MFA_RECOVERY_CODES_REGENERATED, user, context)
+        self.session.commit()
+        return codes
 
     def disable_mfa(
         self,
@@ -284,12 +382,12 @@ class AuthService:
             raise ConflictError("MFA is not enabled.", code="MFA_NOT_ENABLED")
         if not verify_password(password, user.hashed_password):
             raise InvalidCredentialsError(status_code=400)
-        step = totp.verify(user.mfa_secret or "", code, last_step=user.mfa_last_step)
-        if step is None:
+        if self._accept_second_factor(user, code, context) is None:
             raise InvalidMfaCodeError(status_code=400)
         user.mfa_enabled = False
         user.mfa_secret = None
         user.mfa_last_step = None
+        self.recovery.delete_all(user.id)
         self._audit_mfa(AuditAction.MFA_DISABLED, user, context)
         self.session.commit()
         return user
@@ -320,18 +418,11 @@ class AuthService:
             self.session.commit()
             raise InvalidCredentialsError(status_code=400)
 
-        if user.mfa_enabled:
-            step = (
-                totp.verify(user.mfa_secret or "", mfa_code, last_step=user.mfa_last_step)
-                if mfa_code
-                else None
-            )
-            if step is None:
-                self._record_failed_login(user.email, context, user_id=user.id)
-                self._register_failed_attempt(user, context)
-                self.session.commit()
-                raise InvalidMfaCodeError(status_code=400)
-            user.mfa_last_step = step
+        if (
+            user.mfa_enabled
+            and self._accept_second_factor(user, mfa_code, context) is None
+        ):
+            raise self._fail_second_factor(user, context)
 
         validate_password_strength(new_password, self.settings)
         if verify_password(new_password, user.hashed_password):
@@ -461,6 +552,15 @@ class AuthService:
         return password_changed_email(recipient=user.email, name=user.full_name)
 
     @staticmethod
+    def recovery_used_notice(tokens: IssuedTokens) -> OutgoingEmail:
+        """The security notice sent when a recovery code completed a sign-in."""
+        return recovery_code_used_email(
+            recipient=tokens.user.email,
+            name=tokens.user.full_name,
+            remaining=tokens.recovery_codes_remaining,
+        )
+
+    @staticmethod
     def changed_notice(user: User) -> OutgoingEmail:
         """The security notice sent after a password change."""
         return password_changed_email(recipient=user.email, name=user.full_name)
@@ -496,6 +596,7 @@ class AuthService:
         target.mfa_enabled = False
         target.mfa_secret = None
         target.mfa_last_step = None
+        self.recovery.delete_all(target.id)
         self.tokens.revoke_all_for_user(target.id, utcnow())
         self._audit_admin(AuditAction.MFA_RESET, target, actor, context)
         self.session.commit()

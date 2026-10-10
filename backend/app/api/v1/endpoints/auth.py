@@ -12,7 +12,11 @@ from app.schemas.auth import (
     LoginRequest,
     MfaCodeRequest,
     MfaDisableRequest,
+    MfaEnabledResponse,
     MfaEnrollResponse,
+    MfaRecoveryCodesResponse,
+    MfaRecoveryRegenerateRequest,
+    MfaRecoveryStatus,
     PasswordChangeRequest,
     RecoveryStatus,
     RefreshRequest,
@@ -73,12 +77,18 @@ def register(
 @router.post("/login", response_model=TokenResponse, summary="Sign in")
 def login(
     payload: LoginRequest,
+    background: BackgroundTasks,
     session: DbSession,
     settings: AppSettings,
     context: Context,
 ) -> TokenResponse:
     _enforce_auth_rate_limit(context, settings)
-    return _to_response(AuthService(session, settings).login(payload, context))
+    tokens = AuthService(session, settings).login(payload, context)
+    if tokens.used_recovery_code:
+        # A recovery code is what someone who has taken the device would not have,
+        # and what someone who has taken the *account* might: tell the owner.
+        background.add_task(deliver, settings, AuthService.recovery_used_notice(tokens))
+    return _to_response(tokens)
 
 
 @router.post("/refresh", response_model=TokenResponse, summary="Rotate tokens")
@@ -214,17 +224,62 @@ def mfa_enroll(
     return MfaEnrollResponse(secret=secret, provisioning_uri=uri)
 
 
-@router.post("/mfa/enable", response_model=UserRead, summary="Confirm and enable MFA")
+@router.post(
+    "/mfa/enable",
+    response_model=MfaEnabledResponse,
+    summary="Confirm and enable MFA",
+)
 def mfa_enable(
     payload: MfaCodeRequest,
     user: AuthenticatedUser,
     session: DbSession,
     settings: AppSettings,
     context: Context,
-) -> UserRead:
+) -> MfaEnabledResponse:
+    """Turns two-factor on and returns the user together with ten one-time recovery
+    codes. This response is the only time they exist in plain form."""
     _enforce_auth_rate_limit(context, settings)
-    enabled = AuthService(session, settings).enable_mfa(user, payload.code, context)
-    return UserRead.model_validate(enabled)
+    enabled, codes = AuthService(session, settings).enable_mfa(
+        user, payload.code, context
+    )
+    return MfaEnabledResponse(
+        **UserRead.model_validate(enabled).model_dump(), recovery_codes=codes
+    )
+
+
+@router.get(
+    "/mfa/recovery-codes",
+    response_model=MfaRecoveryStatus,
+    summary="How many recovery codes are left",
+)
+def mfa_recovery_status(
+    user: AuthenticatedUser, session: DbSession, settings: AppSettings
+) -> MfaRecoveryStatus:
+    """A count, never the codes: they cannot be shown again."""
+    return MfaRecoveryStatus(
+        remaining=AuthService(session, settings).recovery_codes_remaining(user)
+    )
+
+
+@router.post(
+    "/mfa/recovery-codes",
+    response_model=MfaRecoveryCodesResponse,
+    summary="Replace the recovery codes",
+)
+def mfa_regenerate_recovery_codes(
+    payload: MfaRecoveryRegenerateRequest,
+    user: AuthenticatedUser,
+    session: DbSession,
+    settings: AppSettings,
+    context: Context,
+) -> MfaRecoveryCodesResponse:
+    """Needs the password and a current code (authenticator or recovery). Every
+    earlier code stops working; the new ones are shown once, here."""
+    _enforce_auth_rate_limit(context, settings)
+    codes = AuthService(session, settings).regenerate_recovery_codes(
+        user, payload.password, payload.code, context
+    )
+    return MfaRecoveryCodesResponse(recovery_codes=codes)
 
 
 @router.post("/mfa/disable", response_model=UserRead, summary="Disable MFA")

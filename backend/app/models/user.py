@@ -158,3 +158,30 @@ class PasswordResetToken(UUIDPrimaryKeyMixin, Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class MfaRecoveryCode(UUIDPrimaryKeyMixin, Base):
+    """One single-use recovery code for an account with two-factor enabled.
+
+    Only a keyed hash is stored (``app/core/recovery_codes.py``). ``used_at`` makes
+    a code single-use; regenerating the set, disabling two-factor or an
+    administrator's reset deletes every row for the user.
+    """
+
+    __tablename__ = "mfa_recovery_codes"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PGUUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    code_hash: Mapped[str] = mapped_column(
+        String(64), unique=True, nullable=False, index=True
+    )
+    used_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

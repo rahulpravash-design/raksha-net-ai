@@ -62,3 +62,26 @@ def password_changed_email(*, recipient: str, name: str) -> OutgoingEmail:
             "administrator to reset your password and your second factor straight away.\n"
         ),
     )
+
+
+def recovery_code_used_email(
+    *, recipient: str, name: str, remaining: int
+) -> OutgoingEmail:
+    left = (
+        "That was your last unused recovery code. Set up new ones from your account "
+        "security page before you need them again."
+        if remaining == 0
+        else f"You have {remaining} unused recovery code{'s' if remaining != 1 else ''} left."
+    )
+    return OutgoingEmail(
+        recipient=recipient,
+        subject="A recovery code was used to sign in to RAKSHA NET AI",
+        body=(
+            f"Hello {name},\n\n"
+            "Someone signed in to your RAKSHA NET AI account using one of your "
+            "two-factor recovery codes instead of an authenticator code. "
+            f"{left}\n\n"
+            "If this was you, there is nothing to do. If it was not, ask an "
+            "administrator to reset your password and your second factor straight away.\n"
+        ),
+    )
