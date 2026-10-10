@@ -15,6 +15,9 @@ apps keep their existing look; they share only the notification bell
 | Operational map | `components/IncidentMap.tsx`, `components/maps/` | Leaflet + OSM tiles. Grid clustering (`lib/cluster.ts`), per-priority marker shapes, resource layer, legend, selected-incident pulse. |
 | Motion | `components/animations/` | `MotionConfig reducedMotion="user"` once, shared timing; `Reveal` entrance. |
 | Notification inbox | `packages/ui` | Bell, unread badge, panel; used in all three apps. |
+| Incident detail | `app/(console)/incidents/[id]`, `components/incident/` | Header with key-fact chips (urgent facts in words + glyph), collapsible panels (`aria-expanded`), status timeline marking the current state, skeleton loader, error state with retry. Move/override actions extracted to `IncidentActions`. |
+| Incident quick-view drawer | `components/command-center/IncidentDrawer.tsx` | Modal slide-over from the dashboard: focus moves in, Escape/backdrop closes, focus returns to the opener. |
+| Resource inventory | `app/(console)/resources`, `components/resources/` | Stats from `/resources/stats/summary`, search + type/status filters + pagination, cards, detail panel, register/edit forms, availability and deactivate controls. |
 
 ## 2. Rules the visuals follow
 
@@ -50,13 +53,16 @@ overlays are small enough to write directly.
 
 Stated plainly, so this is not mistaken for a finished redesign:
 
-* Incident **list/detail screens** were re-themed (dark) but not redesigned: no
-  detail drawer, no expandable panels, no skeleton loaders.
 * The **AI analysis panel** was not given the processing-step animation. The
   backend runs analysis synchronously, so there are no intermediate steps to show
   truthfully; adding them would be simulation.
-* **Resource coordination** has no dedicated screen (inventory, assignment review
-  beyond the existing dispatch panel).
+* **Resource screen limits:** no operator picker (the API has no user-lookup
+  endpoint a dispatcher can use, so a crew member cannot be linked to a unit from
+  here), no "current assignment" (no per-resource dispatch endpoint), and manual
+  availability is limited to Available / Out of service because committed states
+  follow the dispatch. The backend itself would accept any status on that
+  endpoint; the UI deliberately does not offer it.
+* Incident detail has no inline map and no attachment lightbox.
 * **Responder and hospital apps** have no new visual identity; there is no
   hospital app.
 * **Hospitals layer** on the map and **geographic search**: the API client has no
@@ -82,6 +88,10 @@ Stated plainly, so this is not mistaken for a finished redesign:
 * `bell.mjs` — a real dispatch raises the responder's unread count; the responder
   app's bell lists it, opens it, the server-side count drops; another user's
   attempt to mark it read is a 404.
+* `resources.mjs` — inventory (register, validation, duplicate call sign, set out
+  of service, filters, edit, two-step deactivate, role limits), the quick-view
+  drawer (focus in/out, Escape), incident-detail header/collapsibles, and that
+  the extracted status move still records history with its note; mobile overflow.
 * `dispatch.mjs` — the dispatch workflow (see CHECKPOINT).
 
 Chromium ran WebGL through software rendering (SwiftShader). That proves the

@@ -48,7 +48,7 @@ measured and fixed in a development environment only.**
   chain + drift check, AI pytest, pip-audit, npm audit, then eslint + tsc + vitest +
   build for all three front ends). Read from its actual final line.
 - **452 backend tests** (none skipped, including those that start a real
-  `redis-server`), **31 AI tests**, **132 frontend tests** (45 citizen, 82 control centre, 5 responder). 615 total, all passing.
+  `redis-server`), **31 AI tests**, **161 frontend tests** (45 citizen, 111 control centre, 5 responder). 644 total, all passing.
 - Migrations `0001 → 0013`; the gate upgrades to head, fails on model/migration
   drift and downgrades to base on every run (and cleans up even if it fails).
 - Backup → restore → compare, on a 100k-incident database: all checks pass; each
@@ -150,7 +150,7 @@ of it is the responder app's assignments list (`api.myAssignments`).
 | Missing screen | Who needs it | Backend ready |
 |---|---|---|
 | ~~Ranked recommendations, confirm-to-dispatch, dispatches on an incident, stand down~~ **BUILT** (`DispatchPanel`, §3a) | Dispatcher | — |
-| Resource inventory screen (list, create, set status, base location) | Dispatcher/admin | `/resources` |
+| ~~Resource inventory screen~~ **BUILT** (`/resources`, browser-verified; limits in `docs/FRONTEND.md` §4) | — | — |
 | Hospital capacity, nearby hospitals, send/track an inbound notice | Dispatcher, hospital operator | `/hospitals*`, `/hospital-notices*` |
 | ~~Notification inbox (+ unread badge)~~ **BUILT** (`packages/ui` `NotificationBell`, all three headers; browser-verified for the responder) | — | — |
 | Analytics (response/resolution time, categories, utilisation, hotspot map) | Dispatcher/admin | `/analytics/*` |
@@ -173,9 +173,9 @@ Built and browser-verified: dark design system, cinematic Earth landing page (re
 coastlines, labelled demonstration markers, WebGL fallback, reduced motion),
 command-centre dashboard (sidebar, connection/freshness strip, Map ⇄ Globe,
 selected-incident panel with AI kept separate, activity timeline), and an upgraded
-operational map (clustering, priority shapes, resource layer, legend). **Not built**
-(listed in `docs/FRONTEND.md` §4): incident detail drawers/skeletons, AI step
-animation (no real steps exist), resource screens, responder/hospital visual
+operational map (clustering, priority shapes, resource layer, legend). Since then also built: incident-detail redesign (header chips, collapsibles,
+skeleton, timeline, quick-view drawer) and the resource inventory. **Not built**
+(listed in `docs/FRONTEND.md` §4): AI step animation (no real steps exist), responder/hospital visual
 identity, hospitals layer, geographic search, performance profiling. The OSM tile
 layer could not be seen rendered here (no outbound access to the tile server).
 
@@ -192,7 +192,7 @@ A `RESOURCE_ALREADY_DISPATCHED` conflict shows the server's message and refreshe
 the ranking. The panel states that dispatching does **not** move the incident's
 status — the dispatcher still does that in "Move this incident" (the backend
 forbids REPORTED→ASSIGNED, so auto-advancing is not available).
-Not built here: a resource inventory screen, and progress updates beyond what the
+Not built here: progress updates beyond what the
 dispatch list already shows (the crew reports those in the responder app).
 
 Tests: 12 vitest component tests (`tests/DispatchPanel.test.tsx`).
