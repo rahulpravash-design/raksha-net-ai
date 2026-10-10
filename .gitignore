@@ -59,3 +59,6 @@ logs/
 
 # Database and media backups (scripts/backup.sh) hold every report in plaintext.
 /backups/
+
+# Netlify CLI link state
+.netlify

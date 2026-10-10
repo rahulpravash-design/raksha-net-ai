@@ -207,3 +207,38 @@ without recovery email: the sign-in screens say so and point to an administrator
   lands in the directory as JSON.
 * Verified against that mailbox only. **No real mail provider has been tried**, and the
   STARTTLS/SSL paths are covered by selection logic, not against a live TLS server.
+
+---
+
+## 13. Netlify (front ends) and the backend host
+
+Netlify hosts the three Next.js apps; it cannot host the backend (a long-running FastAPI
+process with PostgreSQL + PostGIS, Redis and a media volume). The backend runs elsewhere —
+any host that can run `backend/Dockerfile` with a PostGIS database.
+
+**Front ends.** One Netlify project per app, each building from the repository with
+**Base directory** set to the app's folder (`apps/control-center`, `apps/citizen-web`,
+`apps/responder-web`). Each folder's `netlify.toml` sets `npm run build` / `.next` and Node
+22; npm installs the workspace from the root. `output: "standalone"` is switched off when
+`NETLIFY` is set, because Netlify's Next.js runtime packages the app itself. Every page is
+rendered per request (CSP nonce, `SECURITY.md` §6), which Netlify runs as functions; the
+`proxy.ts` that issues the nonce runs as Netlify middleware.
+
+| Variable (per site, build scope) | Value |
+|---|---|
+| `NEXT_PUBLIC_API_BASE_URL` | The backend's public HTTPS URL. Inlined at build time — **redeploy after changing it** |
+| `NEXT_PUBLIC_CITIZEN_APP_URL` (control centre) | The citizen site's URL, for "Report an emergency" |
+| `NEXT_PUBLIC_MAP_TILE_URL` (optional) | A tile server, if not OpenStreetMap |
+
+**Backend** (on its host, see section 4 for the full list): `RAKSHA_ENVIRONMENT=production`,
+`RAKSHA_SECRET_KEY`, `RAKSHA_ENCRYPTION_KEY`, `POSTGRES_*`, `RAKSHA_REDIS_URL` with
+`RAKSHA_RATE_LIMIT_BACKEND=redis`, `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL=true`,
+`RAKSHA_CORS_ORIGINS` = the three Netlify origins (https only), and `RAKSHA_CITIZEN_APP_URL`,
+`RAKSHA_CONTROL_CENTER_URL`, `RAKSHA_RESPONDER_APP_URL` = the same three, so recovery emails
+link to the right app. Run `alembic upgrade head` before the first start (the compose
+command shows how). A production-like environment refuses to start with any of these unsafe.
+
+**Order:** backend first (so its URL exists), then set `NEXT_PUBLIC_API_BASE_URL` on the three
+sites and deploy them, then smoke-test sign-in on each.
+
+Status of this deployment: `CHECKPOINT.md` §7.

@@ -5,7 +5,8 @@ const nextConfig: NextConfig = {
   // The shared client ships as TypeScript source, so Next compiles it with the app.
   transpilePackages: ["@raksha/api-client", "@raksha/ui"],
   // Standalone output keeps the production image small (see docs/DEPLOYMENT.md).
-  output: "standalone",
+  // Netlify's Next.js runtime packages the app itself, so it is not used there.
+  ...(process.env.NETLIFY ? {} : { output: "standalone" as const }),
   outputFileTracingRoot: new URL("../../", import.meta.url).pathname,
   // The Content-Security-Policy is set per request, with a nonce, in proxy.ts.
   async headers() {

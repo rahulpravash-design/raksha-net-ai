@@ -518,29 +518,36 @@ restart, recreate it with
 
 ---
 
-## 7. Outstanding request: Netlify deployment
+## 7. Netlify deployment — decided, set up, upload blocked (2026-10-10)
 
-You asked for this and it is **still not done**, because it needs a decision
-only you can make. Unchanged since the last checkpoint.
+**Decision (yours):** front ends on Netlify, backend on a separate host with PostGIS.
 
-**Netlify can host the three Next.js front ends. It cannot host this backend.**
-Netlify runs static sites and short-lived serverless functions — not a
-long-running FastAPI process with a persistent PostgreSQL + PostGIS database,
-Redis, and a media volume. Deploying only the front ends gives you three apps
-that load and then fail every API call, unless the backend is hosted elsewhere
-and `NEXT_PUBLIC_API_BASE_URL` points at it.
+**Done:** three Netlify projects in team `rahulpravash` —
+`raksha-control-centre` (`1a83af01-6fd5-4235-ae11-19394bfb5ceb`),
+`raksha-citizen` (`d778c1f3-41ef-4794-b614-d82d3ff1d65b`),
+`raksha-responder` (`b0d68854-9f45-4694-af6c-45850574af16`). Each has
+`NEXT_PUBLIC_API_BASE_URL = https://raksha-backend-not-deployed.invalid` (a deliberate
+placeholder: pages load, every API call fails visibly, and no visitor's browser is pointed
+at their own `localhost`), and the control centre has
+`NEXT_PUBLIC_CITIZEN_APP_URL = https://raksha-citizen.netlify.app`. Each app has a
+`netlify.toml`; Next's `standalone` output is skipped when `NETLIFY` is set. A local
+rehearsal of Netlify's flow (install from the app folder into the workspace root, build
+with `NETLIFY=true`) succeeded.
 
-**The decision to make when you return:**
+**Blocked:** the upload. This session's network policy refuses `api.netlify.com` and
+`netlify-mcp.netlify.app`, so nothing has been deployed and no URL is live. Either add
+those two hosts to the environment's allowed domains and ask for the deploy again, or
+connect the GitHub repository to each project in the Netlify UI with **Base directory**
+`apps/control-center`, `apps/citizen-web`, `apps/responder-web` respectively (the
+committed `netlify.toml` supplies the rest).
 
-- **Option A** — deploy the front ends to Netlify now and host the backend
-  separately (Railway, Render, Fly.io — each supports PostGIS and a long-running
-  process). Then set `NEXT_PUBLIC_API_BASE_URL` per site and redeploy.
-- **Option B** — deploy the front ends to Netlify as a UI preview only,
-  understanding that API calls will fail until a backend exists.
-- **Option C** — pick a single host that can run everything, and skip Netlify.
-
-A Netlify MCP connector was available in the session. Deploying will also need
-you to confirm which Netlify account/team to use.
+**Still needed for a working system:** a backend host (Render, Railway, Fly.io …) running
+`backend/Dockerfile` with PostgreSQL + PostGIS and Redis — none is connected here. Then set
+each site's `NEXT_PUBLIC_API_BASE_URL` to it and redeploy, and on the backend set
+`RAKSHA_CORS_ORIGINS` to the three Netlify origins and `RAKSHA_CITIZEN_APP_URL`,
+`RAKSHA_CONTROL_CENTER_URL`, `RAKSHA_RESPONDER_APP_URL` (`docs/DEPLOYMENT.md` §13).
+Whatever is deployed is a demo/pilot environment: no penetration test, no authority
+acceptance.
 
 ---
 
@@ -549,7 +556,7 @@ you to confirm which Netlify account/team to use.
 Nothing code-feasible is half-done. What is left needs a person, a provider, a dataset,
 or a decision:
 
-1. **Decide Netlify (§7)** and deploy — front ends can go to Netlify; the backend cannot.
+1. **Finish the Netlify deploy (§7)** — allow the two hosts or connect GitHub — and pick a backend host.
 2. **The human work**: commission the penetration test; get the residual risk accepted;
    stand up real infrastructure and rehearse a restore and a load test there; start
    Docker for the first time (§5 item 6) and let CI run once (§5 item 24).
