@@ -114,8 +114,18 @@ accuracy.
 
 ## 8. Performance testing (Phase 17)
 
-Locust scenarios for report submission and queue loading, asserted against the
-NFR targets in `PRD.md` §8, with a seeded dataset of 100k incidents.
+`scripts/loadtest.py` runs report submission, the control-centre dashboard and the
+geo and analytics reads against the NFR targets in `PRD.md` §8 (`--assert-nfr`),
+on a 100k-incident dataset from `database/seeds/seed_load.py`. It uses `httpx`
+rather than Locust, which is already a dev dependency and so adds none.
+
+It is **not** part of `scripts/check.sh`: it needs a running server and a seeded
+database, and numbers from a shared development machine are not a regression
+signal. Method, results and caveats: `docs/PERFORMANCE.md`.
+
+`scripts/check_migrations.sh` (in the gate) upgrades an empty database to head,
+fails if the models and migrations disagree (`alembic check`), and downgrades to
+base, so the whole migration chain is proven to reverse on every run.
 
 ## 9. Quality gate
 

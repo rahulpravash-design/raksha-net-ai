@@ -3,7 +3,8 @@
 > **Current phase marker: Phases 0–14 complete, except Phases 8 and 9.
 > Phase 16 is code-complete; the penetration test and operating-authority
 > acceptance it requires cannot be done by software and are NOT done.**
-> **Next: Phase 17 (Performance). Phase 15 is deliberately skipped.
+> **Phase 17 is measured and fixed in a development environment, with no
+> production capacity evidence. Next: Phase 18. Phase 15 is deliberately skipped.
 > See `CHECKPOINT.md` for the exact resume point.**
 >
 > Do not implement a future phase unless explicitly requested.
@@ -395,10 +396,36 @@ items below are done by people.
 
 ---
 
-## Phase 17 — Performance & Scalability ⬜ NOT STARTED
+## Phase 17 — Performance & Scalability ⚠️ PARTIAL — measured and fixed here; not validated for production
 
 Load testing against the NFR targets, query tuning, caching, partitioning,
-connection-pool tuning, read replicas.
+connection-pool tuning, read replicas. Full record: `docs/PERFORMANCE.md`.
+
+**What shipped:**
+
+- A 100k-incident load seeder (`database/seeds/seed_load.py`) and a closed-loop
+  load tester (`scripts/loadtest.py`, `httpx` only) that asserts the two PRD
+  targets.
+- **Both targets met on development hardware with a wide margin**: queue load p95
+  283 ms (target 1,500), report submission p95 180 ms (target 500).
+- **A real defect found and fixed:** under about 64 concurrent clients the API did
+  not slow down, it deadlocked (56 errors, 31 s p95, ending as 500s) because
+  requests hold a database connection while waiting for a worker thread. Fixed
+  with a concurrency cap below the pool and thread counts, a 5 s pool timeout,
+  and a `503` with `Retry-After` for overload. Same load afterwards: 0 errors.
+- An `incidents(created_at)` index (migration 0013): deep history paging p95
+  481 → 170 ms. An index on `dispatches(created_at)` was tried and rejected.
+- Caching **measured and deliberately not built** (no need; invalidation risk on
+  the live queue).
+- `alembic check` + a full up/down migration run added to the gate.
+
+**Not done:**
+
+- **No production capacity evidence.** One 4-core machine ran generator, API and
+  database. Nothing says the targets hold in a deployment.
+- Partitioning and read replicas: deployment decisions, not built or measured.
+- Write paths other than report submission were not load-tested.
+- An unexplained sporadic dropped connection with several API processes.
 
 ---
 

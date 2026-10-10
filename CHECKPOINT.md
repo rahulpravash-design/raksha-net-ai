@@ -13,7 +13,8 @@
 ## 1. Where the project stands
 
 **Phases 0–14 are implemented, except Phases 8 and 9. Phase 16 is code-complete,
-but its penetration test and risk acceptance have NOT happened.**
+but its penetration test and risk acceptance have NOT happened. Phase 17 is
+measured and fixed in a development environment only.**
 
 | Phase | State |
 |---|---|
@@ -34,27 +35,25 @@ but its penetration test and risk acceptance have NOT happened.**
 | 14 Analytics | ✅ complete |
 | 15 Prediction | ⬜ deliberately skipped — no historical dataset exists |
 | 16 Security hardening | ⚠️ **code-complete; pen test + authority acceptance NOT done** |
-| 17 Performance & scale | ⬜ **next** |
-| 18 Production readiness | ⬜ not started |
+| 17 Performance & scale | ⚠️ measured + fixed in a dev environment; **no production capacity evidence** |
+| 18 Production readiness | ⬜ **next** |
 
 **Verification at checkpoint time** — all of this was run, not assumed:
 
-- `./scripts/check.sh` — **19/19 steps green** (ruff, black, mypy, pytest, AI
-  pytest, pip-audit, npm audit, then eslint + tsc + vitest + build for all three
-  front ends). Read from its actual final line (`All checks passed.`).
-- **407 backend tests**, **31 AI tests**, **90 frontend tests** (45 citizen, 40
-  control centre, 5 responder). 528 total, all passing.
-- Migrations `0001 → 0012`. Each new one (0009–0012) was applied, rolled back
-  and re-applied; `0010` (which rewrites data) was proven on a planted
-  plaintext row in both directions.
-- **A live end-to-end run** in a real Chromium against the running API and the
-  built front ends: a dispatcher and a citizen sign in through the UI (dashboard
-  stats and the Leaflet map render), and the full MFA path — enrol, API login
-  demands a code, UI reveals the code field, sign in with a code from an
-  *independent* TOTP implementation, admin resets MFA — with zero CSP violations.
-  These scripts lived in the scratchpad and are **not** in the repository (see
-  §5, item 14).
-- 267 tracked files, 12 migrations, 68 API operations.
+- `./scripts/check.sh` — **20/20 steps green** (ruff, black, mypy, pytest, the
+  migration chain + model-drift check, AI pytest, pip-audit, npm audit, then
+  eslint + tsc + vitest + build for all three front ends). Read from its actual
+  final line (`All checks passed.`).
+- **413 backend tests**, **31 AI tests**, **90 frontend tests** (45 citizen, 40
+  control centre, 5 responder). 534 total, all passing. The backend suite was run
+  twice in a row to confirm one flaky test was really fixed.
+- Migrations `0001 → 0013`; the gate now upgrades to head, fails on model/migration
+  drift, and downgrades to base on every run.
+- Load results (`docs/PERFORMANCE.md`): 100k incidents; queue p95 283 ms and report
+  p95 180 ms against 1,500 / 500 ms targets — **on one shared development machine**.
+- Earlier this phase-set: a live Chromium run of sign-in, dashboard and the MFA path
+  against the running stack (scripts not in the repo; see §5, item 14).
+- 272 tracked files, 13 migrations, 68 API operations, 41 commits.
 
 ---
 
@@ -85,6 +84,25 @@ there is no partially-written code. Details and limits: `docs/SECURITY.md`.
 - Docs brought current: `API.md` (it still listed phases 10–14 as "planned"),
   `DATABASE.md`, `SECURITY.md`, `RUNBOOK.md`, `.env.example`.
 
+**Phase 17 (performance)** was done after that. Full record: `docs/PERFORMANCE.md`.
+
+- Both PRD targets met on dev hardware by a wide margin (queue p95 283 ms vs 1,500;
+  report p95 180 ms vs 500) at 100k incidents.
+- **Found and fixed an overload deadlock**: ~64 concurrent clients made the API
+  collapse (56 errors, 31 s p95, ending as 500s). Cause: a request holds a DB
+  connection while waiting for a worker thread. Fix: `ConcurrencyLimitMiddleware`
+  (24 in flight, queue 3 s, then `503` + `Retry-After`), 5 s pool timeout, pool
+  exhaustion → `503`. Verified: 0 errors at 8/32/64/128 workers.
+- `incidents(created_at)` index (migration 0013): deep history paging 481 → 170 ms.
+- No caching (measured, not needed). `dispatches(created_at)` index tried, rejected.
+- `scripts/check_migrations.sh` + `alembic check` now gate model/migration drift
+  (it found 3 real drifts, and was shown to fail when a model drifts).
+- A flaky test (`test_the_spatial_index_is_used...`) failed by planner-statistics
+  timing; made deterministic.
+- **My first load data was wrong** (an uncorrelated `LATERAL` is evaluated once in
+  Postgres, so every row got the same values) and the first numbers were thrown
+  away. Verify generated data varies before trusting a measurement.
+
 Two lessons, in case the pattern recurs:
 
 1. **`ruff S608` flags any f-string passed to `text()`**, even over static
@@ -97,35 +115,35 @@ Two lessons, in case the pattern recurs:
 
 ## 3. The exact next step
 
-**Start Phase 17 — Performance & scalability.** From `docs/ROADMAP.md`: load
-testing against the NFR targets, query tuning, caching, partitioning,
-connection-pool tuning, read replicas.
+**Start Phase 18 — Production readiness.** From `docs/ROADMAP.md`: managed
+infrastructure, secret management, observability, backup and rehearsed restore,
+release pipeline with rollback, runbooks, and formal acceptance by an operating
+authority.
 
-Be honest about what an agent session can show. A load test run against a
-single sandbox machine proves nothing about production capacity; it can find
-algorithmic problems (N+1 queries, missing indexes, slow endpoints) and give a
-reproducible number. Read the NFR targets in `docs/PRD.md` first, then, in order:
+Much of that is organisational or needs real infrastructure and **cannot be
+completed or claimed from a development session** (managed infrastructure, a
+rehearsed restore in a real environment, the authority's acceptance). What can be
+built and tested honestly here, in this order:
 
-1. **A runnable load-test script** (`scripts/loadtest.*`, e.g. Locust or k6 if
-   you can justify the dependency per `CLAUDE.md` §3 — or a small asyncio/httpx
-   script with none) against the local stack, covering report submission, the
-   queue, the map bbox feed and analytics. Seed enough rows (thousands) to make
-   the numbers mean something; `database/seeds` makes ~12 incidents.
-2. **Measure before changing anything.** Use `EXPLAIN (ANALYZE, BUFFERS)` on the
-   hot queries (queue, bbox, nearby, the Phase 14 aggregations — the latter scan
-   `incidents` with no supporting index on `created_at`). Record the baseline in
-   `docs/` so improvement is evidence.
-3. **Index review** — likely candidates: `incidents(created_at)`,
-   `dispatches(created_at)`; confirm with the plans, don't guess. Needs a migration
-   (`0013`), applied/rolled back.
-4. **Redis caching on hot reads** (Redis is already a dependency, used by rate
-   limiting). Decide invalidation first; the queue and map must never show stale
-   data during an incident — prefer a short TTL on aggregates (analytics), none on
-   the live queue unless measured to matter.
-5. Connection-pool tuning (`db_pool_size`, `db_max_overflow` exist in config).
-   Partitioning and read replicas are deployment decisions; document, don't build.
+1. **A `/metrics` endpoint** (Prometheus text format): request rate and latency
+   histogram per route, error rate, DB pool usage, and the new overload signals
+   (requests queued/shed by `ConcurrencyLimitMiddleware`, pool exhaustion).
+   `docs/DEPLOYMENT.md` §8 already promises these. Decide whether a client library
+   (`prometheus-client`) is justified per `CLAUDE.md` §3, and keep the endpoint
+   restricted — it must not be public. The shed/queue counters are the thing
+   that would have shown the Phase 17 deadlock early.
+2. **Backup and restore scripts** (`pg_dump`/WAL guidance) that can actually be
+   run against the local Postgres, **with a restore verified end to end** into a
+   scratch database: restore, then compare row counts and run the readiness probe.
+   Encrypted columns need the matching `RAKSHA_ENCRYPTION_KEY` — state that.
+3. **Readiness that means something**: `/health/ready` currently checks the
+   database and PostGIS; consider Redis and the scanner as *degraded*, not down.
+4. **Release/rollback notes tied to migrations** — which migrations reverse
+   losslessly (all do, and the gate proves it on empty data; `0010` rewrites data).
+5. **Do not** claim a cloud deployment, a rehearsed production restore, or
+   operating-authority acceptance. Write the procedures; leave the boxes unticked.
 
-Do **not** claim the NFR targets are met on the strength of a sandbox run.
+Then the outstanding **Netlify decision (§7)**.
 
 ---
 
@@ -201,6 +219,15 @@ Everything below is committed. Nothing is staged or modified.
 - Docs: `API.md`, `DATABASE.md`, `SECURITY.md`, `ROADMAP.md`, `RUNBOOK.md`,
   `.env.example`
 
+**Phase 17 — performance**
+- `database/seeds/seed_load.py`, `scripts/loadtest.py`, `scripts/check_migrations.sh` (new)
+- `backend/app/core/middleware.py` (`ConcurrencyLimitMiddleware`), `core/errors.py`
+  (`ServiceBusyError`, pool-timeout handler), `core/config.py`, `db/session.py`, `main.py`
+- `backend/migrations/versions/0013_incident_created_at_index.py`; models `incident.py`,
+  `user.py` (server defaults declared)
+- Tests: `tests/unit/test_overload.py`; `test_geo_api.py` made deterministic
+- Docs: `docs/PERFORMANCE.md` (new), `TESTING.md` §8, `DEPLOYMENT.md` (sizing)
+
 ---
 
 ## 5. Known issues, gaps and honest limits
@@ -272,6 +299,14 @@ Everything below is committed. Nothing is staged or modified.
     `./scripts/check.sh` fails on those two steps for a reason unrelated to the code.
 17. **Lockout reveals that an account exists** (`403 ACCOUNT_LOCKED`) and can be
     triggered on purpose against a victim; the cap and admin unlock bound it.
+18. **Phase 17 has no production evidence.** One shared 4-core machine; see
+    `docs/PERFORMANCE.md` §6. Re-run `scripts/loadtest.py` from a separate machine
+    against a production-shaped deployment before stating any capacity.
+19. **Unexplained sporadic `ReadError` with several API processes** (~1–2 of 370
+    requests; none with one process; nothing in the server log). Probably a
+    keep-alive race. Understand it before running several processes in earnest.
+20. **Postgres `max_connections` (default 100)** limits API processes to three at
+    full pool use; `processes × 30` must fit. Documented in DEPLOYMENT.md.
 
 ---
 
@@ -361,14 +396,14 @@ you to confirm which Netlify account/team to use.
 
 ## 8. Suggested order when you return
 
-1. **Phase 17 (Performance)** — §3. Measure first; be honest about what a sandbox shows.
-2. **Phase 18 (Production readiness artifacts)** — a `/metrics` endpoint,
-   backup/restore scripts, deployment docs. Without claiming a cloud deployment
-   happened.
-3. **Decide Netlify (§7)** and deploy.
-4. **The human half of Phase 16** — commission a penetration test; get the
-   residual risk accepted; then (optionally) add the MFA enrolment UI, recovery
-   codes, and a nonce-based CSP. None of that is a substitute for the first two.
+1. **Phase 18 (Production readiness artifacts)** — §3. Metrics, a *verified*
+   backup/restore, honest readiness. Claim no deployment or acceptance.
+2. **Decide Netlify (§7)** and deploy.
+3. **The human half of Phase 16** — commission a penetration test; get the
+   residual risk accepted; then (optionally) the MFA enrolment UI, recovery
+   codes, a nonce-based CSP.
+4. **The human half of Phase 17** — run the load test from a separate machine
+   against a production-shaped deployment.
 5. A committed browser smoke test (§5, item 14), and a live pass over resources,
    dispatch, hospitals, notifications and analytics.
 

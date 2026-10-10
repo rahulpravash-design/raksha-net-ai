@@ -141,6 +141,18 @@ latency > 2 s, database connection saturation, disk > 85%.
 | Real-time fan-out | Redis pub/sub behind the WebSocket layer |
 | Write load | Partition `incidents` and `audit_logs` by month |
 
+### Sizing a deployment (measured — see `PERFORMANCE.md`)
+
+- One API process is CPU-bound at roughly 40 dashboard refreshes/s or 55 report
+  submissions/s on development hardware; throughput scales with processes.
+- Each process may open `RAKSHA_DB_POOL_SIZE + RAKSHA_DB_MAX_OVERFLOW` (30)
+  connections. Keep `processes × 30` under PostgreSQL `max_connections` (default
+  100): three processes per default database, or raise it / add PgBouncer.
+- `RAKSHA_MAX_CONCURRENT_REQUESTS` (24) must stay below the pool total and the
+  worker-thread count. Above it requests queue for up to 3 s, then receive
+  `503 SERVICE_BUSY` with `Retry-After`; the proxy and clients should honour it.
+- Without Redis, rate limiting is per process.
+
 ## 11. Production readiness checklist
 
 ```

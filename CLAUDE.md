@@ -170,7 +170,9 @@ For any non-trivial change:
 ## 10. Current development phase
 
 **Phases 0–14 are implemented, except Phases 8 and 9. Phase 16 is
-code-complete, but its penetration test and risk acceptance have not happened.**
+code-complete, but its penetration test and risk acceptance have not happened.
+Phase 17 is measured and fixed in a development environment, with no
+production capacity evidence.**
 
 Built: the V1 foundation (0–5), the AI emergency analyzer (6), the versioned
 priority-engine configuration (7), resource coordination (10), human-approved
@@ -179,7 +181,9 @@ in-app notifications (13, with external channels stubbed), and analytics (14,
 response/resolution time, category and resource breakdowns, and hotspot
 detection on coarsened coordinates only), and the code side of security
 hardening (16: account lockout, TOTP MFA, encrypted contact details, CSP and
-security headers, upload malware scanning, dependency-audit gating).
+security headers, upload malware scanning, dependency-audit gating), and
+performance work (17: load tooling, an overload-deadlock fix, a history index —
+measured in a development environment only, see `docs/PERFORMANCE.md`).
 
 **Read `CHECKPOINT.md` before resuming.** It records the exact next step, what
 is deliberately unbuilt, and how to bring the stack up.
@@ -189,8 +193,8 @@ current phase marker is maintained at the top of that file.
 
 Do not implement a future phase unless explicitly asked. Not implemented:
 computer vision (8), voice transcription (9), prediction (15, deliberately —
-no real historical dataset exists), performance work (17) and production
-readiness (18). Phase 16 still needs a human penetration test and an
+no real historical dataset exists) and production readiness (18). Phase 17 is
+measured and fixed in a development environment only (`docs/PERFORMANCE.md`). Phase 16 still needs a human penetration test and an
 operating authority's acceptance; do not describe it as finished.
 
 Three things are stubbed behind an interface rather than missing, and each
