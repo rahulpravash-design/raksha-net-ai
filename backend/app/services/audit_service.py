@@ -18,6 +18,7 @@ from app.repositories.audit_repository import AuditRepository
 class AuditAction:
     LOGIN_SUCCESS = "auth.login_success"
     LOGIN_FAILED = "auth.login_failed"
+    ACCOUNT_LOCKED = "auth.account_locked"
     LOGOUT = "auth.logout"
     TOKEN_REFRESHED = "auth.token_refreshed"  # noqa: S105 - an action name
     TOKEN_REUSE_DETECTED = "auth.token_reuse_detected"  # noqa: S105 - an action name

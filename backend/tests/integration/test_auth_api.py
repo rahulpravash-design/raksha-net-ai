@@ -282,3 +282,116 @@ def test_logout_is_idempotent(client: TestClient, make_user) -> None:
         ).status_code
         == 200
     )
+
+
+# --- account lockout ---------------------------------------------------------
+def _wrong_login(client: TestClient, email: str):
+    return client.post(
+        "/api/v1/auth/login", json={"email": email, "password": "not-the-password-xx"}
+    )
+
+
+def test_repeated_failures_lock_the_account(
+    client: TestClient, make_user, db_session: Session
+) -> None:
+    user = make_user(UserRole.CITIZEN)
+
+    for _ in range(4):
+        assert _wrong_login(client, user.email).status_code == 401
+
+    fifth = _wrong_login(client, user.email)
+    assert fifth.status_code == 403
+    body = fifth.json()["error"]
+    assert body["code"] == "ACCOUNT_LOCKED"
+    assert body["details"]["retry_after_seconds"] > 0
+
+    db_session.refresh(user)
+    assert user.locked_until is not None
+    audited = db_session.scalars(
+        select(AuditLog).where(AuditLog.action == "auth.account_locked")
+    ).all()
+    assert len(audited) == 1
+
+
+def test_a_locked_account_refuses_even_the_correct_password(
+    client: TestClient, make_user
+) -> None:
+    user = make_user(UserRole.CITIZEN)
+    for _ in range(5):
+        _wrong_login(client, user.email)
+
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": user.email, "password": make_user.password},
+    )
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "ACCOUNT_LOCKED"
+
+
+def test_a_lock_expires(client: TestClient, make_user, db_session: Session) -> None:
+    from datetime import timedelta
+
+    from app.utils.time import utcnow
+
+    user = make_user(UserRole.CITIZEN)
+    for _ in range(5):
+        _wrong_login(client, user.email)
+
+    user.locked_until = utcnow() - timedelta(seconds=1)
+    db_session.commit()
+
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": user.email, "password": make_user.password},
+    )
+    assert response.status_code == 200
+    db_session.refresh(user)
+    assert user.failed_login_attempts == 0
+    assert user.locked_until is None
+
+
+def test_a_successful_login_resets_the_failure_count(
+    client: TestClient, make_user, db_session: Session
+) -> None:
+    user = make_user(UserRole.CITIZEN)
+    for _ in range(3):
+        _wrong_login(client, user.email)
+    assert (
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": user.email, "password": make_user.password},
+        ).status_code
+        == 200
+    )
+
+    # Three more failures would lock a stale count of 6, but not a fresh 3.
+    for _ in range(3):
+        assert _wrong_login(client, user.email).status_code == 401
+
+
+def test_lockout_backs_off_progressively(
+    client: TestClient, make_user, db_session: Session
+) -> None:
+    from datetime import timedelta
+
+    from app.utils.time import utcnow
+
+    user = make_user(UserRole.CITIZEN)
+    for _ in range(5):
+        _wrong_login(client, user.email)
+    db_session.refresh(user)
+    first_lock = user.locked_until - utcnow()
+
+    user.locked_until = utcnow() - timedelta(seconds=1)
+    db_session.commit()
+    assert _wrong_login(client, user.email).status_code == 403
+    db_session.refresh(user)
+    second_lock = user.locked_until - utcnow()
+
+    assert second_lock > first_lock * 1.5
+
+
+def test_an_unknown_email_cannot_be_locked(client: TestClient) -> None:
+    for _ in range(8):
+        response = _wrong_login(client, "nobody@example.org")
+        assert response.status_code == 401

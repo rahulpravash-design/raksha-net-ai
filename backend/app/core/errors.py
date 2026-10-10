@@ -90,6 +90,25 @@ class InactiveAccountError(NotAuthenticatedError):
     message = "This account has been deactivated."
 
 
+class AccountLockedError(NotAuthenticatedError):
+    status_code = status.HTTP_403_FORBIDDEN
+    code = "ACCOUNT_LOCKED"
+    message = "Too many failed sign-in attempts. Try again later."
+
+    def __init__(self, *, retry_after_seconds: int, **kwargs: Any) -> None:
+        super().__init__(details={"retry_after_seconds": retry_after_seconds}, **kwargs)
+
+
+class MfaRequiredError(NotAuthenticatedError):
+    code = "MFA_REQUIRED"
+    message = "A verification code from your authenticator app is required."
+
+
+class InvalidMfaCodeError(NotAuthenticatedError):
+    code = "INVALID_MFA_CODE"
+    message = "That verification code is incorrect or has expired."
+
+
 # --- 403 / 404 ---------------------------------------------------------------
 class ForbiddenError(AppError):
     status_code = status.HTTP_403_FORBIDDEN

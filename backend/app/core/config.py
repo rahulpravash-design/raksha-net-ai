@@ -88,6 +88,12 @@ class Settings(BaseSettings):
     rate_limit_auth_per_minute: int = 10
     rate_limit_report_per_minute: int = 12
 
+    #: Consecutive failed logins before an account is time-locked. Counted
+    #: per account, not per client — rate limiting above already throttles by
+    #: IP; this stops a distributed guess against one account.
+    account_lockout_threshold: int = 5
+    account_lockout_minutes: int = 15
+
     # --- Media -------------------------------------------------------------
     media_storage_backend: str = "local"
     media_storage_path: Path = Path("./storage/media")

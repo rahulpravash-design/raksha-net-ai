@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.core.errors import (
+    AccountLockedError,
     EmailAlreadyRegisteredError,
     InactiveAccountError,
     InvalidCredentialsError,
@@ -35,6 +36,10 @@ from app.services.audit_service import AuditAction, AuditService
 from app.utils.time import utcnow
 
 logger = get_logger(__name__)
+
+#: Ceiling on progressive lockout, so a determined attacker cannot lock a
+#: legitimate user out for longer than a day.
+MAX_LOCKOUT_MINUTES = 24 * 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,14 +164,21 @@ class AuthService:
             self._record_failed_login(payload.email, context)
             raise InvalidCredentialsError()
 
+        # Checked before the password so a locked account cannot be probed:
+        # the correct password is refused too until the lock expires.
+        self._assert_not_locked(user)
+
         if not verify_password(payload.password, user.hashed_password):
             self._record_failed_login(payload.email, context, user_id=user.id)
+            self._register_failed_attempt(user, context)
             raise InvalidCredentialsError()
 
         if not user.is_active:
             self._record_failed_login(payload.email, context, user_id=user.id)
             raise InactiveAccountError()
 
+        user.failed_login_attempts = 0
+        user.locked_until = None
         user.last_login_at = utcnow()
         tokens = self._issue_tokens(user, context)
         self.audit.record(
@@ -291,6 +303,47 @@ class AuthService:
             refresh_token=raw_refresh,
             user=user,
         )
+
+    @staticmethod
+    def _assert_not_locked(user: User) -> None:
+        if user.locked_until is None:
+            return
+        remaining = (user.locked_until - utcnow()).total_seconds()
+        if remaining > 0:
+            raise AccountLockedError(retry_after_seconds=int(remaining) + 1)
+
+    def _register_failed_attempt(self, user: User, context: RequestContext) -> None:
+        """Count a wrong password and lock the account once past the threshold.
+
+        The lock doubles for every failure beyond the threshold (progressive
+        backoff), capped at a day, and the counter only resets on a
+        successful login — so waiting out a lock buys one more guess, not a
+        fresh batch.
+        """
+        user.failed_login_attempts += 1
+        threshold = self.settings.account_lockout_threshold
+        if user.failed_login_attempts < threshold:
+            self.session.commit()
+            return
+
+        over = user.failed_login_attempts - threshold
+        minutes = min(
+            self.settings.account_lockout_minutes * (2 ** min(over, 10)),
+            MAX_LOCKOUT_MINUTES,
+        )
+        user.locked_until = utcnow() + timedelta(minutes=minutes)
+        self.audit.record(
+            AuditAction.ACCOUNT_LOCKED,
+            actor_id=user.id,
+            entity_type="user",
+            entity_id=user.id,
+            ip_address=context.ip_address,
+            user_agent=context.user_agent,
+            metadata={"locked_minutes": minutes},
+        )
+        self.session.commit()
+        logger.warning("account_locked", extra={"user_id": str(user.id)})
+        raise AccountLockedError(retry_after_seconds=minutes * 60)
 
     def _record_failed_login(
         self,
