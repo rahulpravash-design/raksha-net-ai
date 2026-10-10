@@ -23,6 +23,7 @@ apps keep their existing look; they share only the notification bell
 | Hospital registration | `components/hospitals/HospitalRegisterForm.tsx` | Administrators register a hospital and pick its operator from active hospital-operator accounts. |
 | Crew picker | `components/resources/ResourceForm.tsx` | Dispatchers link a responder to a unit via `/users/directory` (no email, phone or other roles). |
 | Account security | `app/(console)/account/security`, `components/MfaSettings.tsx`, `QrCode.tsx` | Two-factor enrolment for the signed-in user: QR code (drawn as an SVG path from the `qrcode` module matrix — no HTML injection) plus a typeable setup key, confirm with a code, turn off with password + code. Under `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL` the API client's `onMfaEnrolmentRequired` hook sends an unenrolled user here instead of showing failed requests. |
+| Analytics | `app/(console)/analytics`, `components/analytics/`, `lib/analytics.ts` | Dispatch roles only. Period presets (24 h / 7 d / 30 d / all time) and a category filter; median-led time-to-dispatch and time-to-resolution cards that always show the sample size, flag fewer than 5 cases as anecdotal and say "nothing to measure" instead of 0; category and resource-use bars (one hue, values printed on every row, so the list reads as a table); hotspots as ranked grid cells showing coarsened centres only. Plain CSS bars — no chart library, no categorical palette, so the palette validator had nothing to validate. |
 | Resource inventory | `app/(console)/resources`, `components/resources/` | Stats from `/resources/stats/summary`, search + type/status filters + pagination, cards, detail panel, register/edit forms, availability and deactivate controls. |
 
 ## 2. Rules the visuals follow
@@ -75,6 +76,10 @@ Stated plainly, so this is not mistaken for a finished redesign:
   needs an administrator to reset it, and an administrator cannot reset their own.
   The enrolment screen says this before the user relies on it. A user can also turn
   MFA off while policy requires it; the next request then sends them back to enrol.
+* **Analytics limits:** no time-series or trend lines (the API returns aggregates only),
+  no map of hotspots (cells are listed), no export, and the category filter applies
+  only to the time measures and hotspots because that is all the API supports. The
+  "fewer than 5 cases" threshold is a display convention, not a statistical test.
 * Accounts: no email change, no audit-log viewer, no bulk actions.
 * Incident detail has no inline map and no attachment lightbox.
 * **Responder and hospital apps** have no new visual identity; there is no
@@ -132,6 +137,11 @@ Stated plainly, so this is not mistaken for a finished redesign:
   with `MFA_ENFORCED=1` against an API started with
   `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL=true` to prove an unenrolled operator is sent
   to the security screen and the console works after enrolling.
+* `analytics.mjs` — builds one complete report→dispatch→resolved case, then checks the
+  cards against the API's own figures (sample size, category total), that hotspots
+  show cell centres and never the report's exact coordinates, period and category
+  filters re-query, responder and hospital operator get no link and are sent home
+  (and the API refuses a responder), mobile overflow.
 * `dispatch.mjs` — the dispatch workflow (see CHECKPOINT).
 
 Chromium ran WebGL through software rendering (SwiftShader). That proves the

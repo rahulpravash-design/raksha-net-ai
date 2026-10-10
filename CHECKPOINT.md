@@ -47,8 +47,8 @@ measured and fixed in a development environment only.**
 - `./scripts/check.sh` — **20/20 steps green** (ruff, black, mypy, pytest, migration
   chain + drift check, AI pytest, pip-audit, npm audit, then eslint + tsc + vitest +
   build for all three front ends). Read from its actual final line.
-- **467 backend tests** (none skipped, including those that start a real
-  `redis-server`), **31 AI tests**, **191 frontend tests** (45 citizen, 141 control centre, 5 responder), **467 backend**. 689 total, all passing.
+- **475 backend tests** (none skipped, including those that start a real
+  `redis-server`), **31 AI tests**, **248 frontend tests** (45 citizen, 198 control centre, 5 responder). 754 total, all passing.
 - Migrations `0001 → 0013`; the gate upgrades to head, fails on model/migration
   drift and downgrades to base on every run (and cleans up even if it fails).
 - Backup → restore → compare, on a 100k-incident database: all checks pass; each
@@ -153,18 +153,17 @@ of it is the responder app's assignments list (`api.myAssignments`).
 | ~~Resource inventory screen~~ **BUILT** (`/resources`, browser-verified; limits in `docs/FRONTEND.md` §4) | — | — |
 | ~~Hospital capacity, nearby hospitals, send/track an inbound notice~~ **BUILT** in the control centre for dispatchers **and** hospital operators (`/hospitals`, incident Hospitals panel; browser-verified). A separate hospital-operator *app* was not built — the operator uses a reduced control-centre view. | — | — |
 | ~~Notification inbox (+ unread badge)~~ **BUILT** (`packages/ui` `NotificationBell`, all three headers; browser-verified for the responder) | — | — |
-| Analytics (response/resolution time, categories, utilisation, hotspot map) | Dispatcher/admin | `/analytics/*` |
+| ~~Analytics~~ **BUILT** (`/analytics`; hotspots listed as coarsened cells, not mapped) | — | — |
 | ~~MFA enrolment (QR/URI, confirm, disable)~~ **BUILT** in the control centre (`/account/security`; browser-verified, QR decoded with OpenCV, enforced-policy redirect proven). Not built in the citizen and responder apps. | — | — |
 | ~~Admin: unlock / reset MFA / create operators~~ **BUILT** (`/admin/users`; also hospital registration and a crew picker). Open: **no password-change endpoint exists** — see `docs/FRONTEND.md` §4 | — | — |
 
-The dispatch workflow — the product's core human-in-the-loop action — is now built
-(§3a). Remaining, in order:
-
-4. Analytics (coarsened hotspots only — never request or display raw
-   coordinates), hospital notices, MFA enrolment.
-5. Follow the existing patterns (vitest component tests per screen; `check.sh`).
-   **Verify in a real browser**, as the Phase 16 sign-in run did — type checks and
-   unit tests do not show that a dispatch actually works.
+Every Phase 10–14 capability now has a screen in the control centre (dispatch, resources,
+hospitals, notifications, analytics, MFA enrolment, administration). The next
+engineering priorities are, in order: **a password-change endpoint and screen**
+(admin-set passwords are permanent today), MFA enrolment in the citizen and responder
+apps, hospital editing, and the responder-visibility question in `docs/SECURITY.md` §3.
+Verify each in a real browser, as the sign-in, dispatch and admin runs were — type
+checks and unit tests do not show that a flow actually works.
 
 ### 3b. 3D redesign (control centre) — partial, see `docs/FRONTEND.md`
 
@@ -447,7 +446,7 @@ npm run dev --workspace @raksha/responder-web      # :3002
 
 ```bash
 ./scripts/check.sh            # the full gate — read the LAST line
-cd backend && .venv/bin/pytest -q          # 407 backend tests
+cd backend && .venv/bin/pytest -q          # 475 backend tests
 cd .. && PYTHONPATH=. backend/.venv/bin/pytest ai/tests -q   # 31 AI tests
 ```
 

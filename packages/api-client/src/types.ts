@@ -116,6 +116,50 @@ export interface MfaEnrollment {
   provisioning_uri: string;
 }
 
+/** Minutes-based statistics. Everything but `sample_size` is null when there is no data yet. */
+export interface TimeStats {
+  sample_size: number;
+  avg_minutes: number | null;
+  median_minutes: number | null;
+  min_minutes: number | null;
+  max_minutes: number | null;
+}
+
+export interface CategoryBreakdown {
+  items: { category: IncidentCategory; count: number; avg_priority_score: number | null }[];
+  total: number;
+}
+
+export interface ResourceUtilization {
+  items: {
+    resource_type: ResourceType;
+    total_resources: number;
+    available_now: number;
+    dispatches_in_period: number;
+    avg_dispatches_per_resource: number;
+  }[];
+  period_start: string | null;
+  period_end: string | null;
+}
+
+/** A coarsened grid cell. Latitude/longitude are the cell centre, never an incident's own position. */
+export interface HotspotCell {
+  latitude: number;
+  longitude: number;
+  incident_count: number;
+}
+
+export interface Hotspots {
+  cell_size_degrees: number;
+  items: HotspotCell[];
+}
+
+export interface AnalyticsQuery {
+  since?: string;
+  until?: string;
+  category?: IncidentCategory;
+}
+
 export interface UserSummary {
   id: string;
   full_name: string;

@@ -11,7 +11,12 @@
 import type {
   AnalysisReviewInput,
   AdminUser,
+  AnalyticsQuery,
   ApiErrorBody,
+  CategoryBreakdown,
+  Hotspots,
+  ResourceUtilization,
+  TimeStats,
   CreateUserInput,
   MfaEnrollment,
   UpdateUserInput,
@@ -189,6 +194,31 @@ export class ApiClient {
 
   async me(): Promise<User> {
     return this.request<User>("/api/v1/auth/me");
+  }
+
+  // --- analytics (DISPATCH roles) --------------------------------------------
+  async responseTime(query: AnalyticsQuery = {}): Promise<TimeStats> {
+    return this.request<TimeStats>("/api/v1/analytics/response-time", { query: { ...query } });
+  }
+
+  async resolutionTime(query: AnalyticsQuery = {}): Promise<TimeStats> {
+    return this.request<TimeStats>("/api/v1/analytics/resolution-time", { query: { ...query } });
+  }
+
+  async categoryBreakdown(query: Pick<AnalyticsQuery, "since" | "until"> = {}): Promise<CategoryBreakdown> {
+    return this.request<CategoryBreakdown>("/api/v1/analytics/category-breakdown", {
+      query: { ...query },
+    });
+  }
+
+  async resourceUtilization(query: Pick<AnalyticsQuery, "since" | "until"> = {}): Promise<ResourceUtilization> {
+    return this.request<ResourceUtilization>("/api/v1/analytics/resource-utilization", {
+      query: { ...query },
+    });
+  }
+
+  async hotspots(query: AnalyticsQuery & { limit?: number } = {}): Promise<Hotspots> {
+    return this.request<Hotspots>("/api/v1/analytics/hotspots", { query: { ...query } });
   }
 
   // --- two-factor authentication -------------------------------------------
