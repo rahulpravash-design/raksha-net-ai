@@ -111,6 +111,18 @@ class MediaType(StrEnum):
     VIDEO = "VIDEO"
 
 
+class ScanStatus(StrEnum):
+    """Malware-scan result recorded on an upload.
+
+    There is no stored ``INFECTED`` member in practice: an infected file is
+    refused and never persisted. It exists so the scanner can report it.
+    """
+
+    CLEAN = "CLEAN"
+    UNSCANNED = "UNSCANNED"
+    INFECTED = "INFECTED"
+
+
 class ResourceType(StrEnum):
     AMBULANCE = "AMBULANCE"
     FIRE_ENGINE = "FIRE_ENGINE"

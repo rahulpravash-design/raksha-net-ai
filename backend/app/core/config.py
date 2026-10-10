@@ -116,6 +116,16 @@ class Settings(BaseSettings):
     media_allowed_mime: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["image/jpeg", "image/png", "image/webp"]
     )
+    #: ClamAV daemon to scan uploads with. Unset means uploads are stored as
+    #: ``UNSCANNED`` (see ``app/services/scanners.py``), not treated as clean.
+    clamav_host: str | None = None
+    clamav_port: int = 3310
+    clamav_timeout_seconds: float = 10.0
+    #: If true, an upload is refused when the scanner cannot be reached.
+    #: Default false: a photograph is secondary to the report it belongs to,
+    #: and an outage in an optional tool must not stop a report being
+    #: completed — the upload is kept as ``UNSCANNED`` and the fault logged.
+    clamav_required: bool = False
 
     # --- Geospatial --------------------------------------------------------
     geo_srid: int = 4326

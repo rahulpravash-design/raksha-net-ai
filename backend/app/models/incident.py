@@ -32,6 +32,7 @@ from app.models.enums import (
     IncidentStatus,
     MediaType,
     PriorityBand,
+    ScanStatus,
     SeverityLevel,
     UserRole,
 )
@@ -191,6 +192,13 @@ class IncidentMedia(UUIDPrimaryKeyMixin, Base):
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     original_filename: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    #: Whether the content was scanned for malware. ``UNSCANNED`` is a fact
+    #: about the record, not a default to be read as safe.
+    scan_status: Mapped[ScanStatus] = mapped_column(
+        Enum(ScanStatus, name="scan_status", native_enum=True),
+        nullable=False,
+        default=ScanStatus.UNSCANNED,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

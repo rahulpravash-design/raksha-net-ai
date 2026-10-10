@@ -18,18 +18,21 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.core.errors import (
     ForbiddenError,
+    MediaInfectedError,
+    MediaScanUnavailableError,
     MediaTooLargeError,
     NotFoundError,
     UnsupportedMediaTypeError,
     ValidationError,
 )
 from app.core.logging import get_logger
-from app.models.enums import OPERATIONAL_ROLES, MediaType
+from app.models.enums import OPERATIONAL_ROLES, MediaType, ScanStatus
 from app.models.incident import Incident, IncidentMedia
 from app.models.user import User
 from app.repositories.incident_repository import IncidentRepository
 from app.services.audit_service import AuditAction, AuditService
 from app.services.auth_service import RequestContext
+from app.services.scanners import ScannerUnavailableError, get_scanner
 
 logger = get_logger(__name__)
 
@@ -79,6 +82,9 @@ class MediaService:
         incident = self._get_incident_for(actor, incident_id)
 
         content_type = self._validate(file)
+        # Scanned before anything is written, so a flagged file never reaches
+        # storage at all.
+        scan_status = self._scan(file, incident, actor, context)
         checksum = hashlib.sha256(file.content).hexdigest()
         storage_key = self._storage_key(incident.id, content_type)
 
@@ -95,6 +101,7 @@ class MediaService:
             size_bytes=len(file.content),
             checksum_sha256=checksum,
             original_filename=self._safe_display_name(file.filename),
+            scan_status=scan_status,
         )
         self.repo.add_media(media)
         self.audit.record(
@@ -109,6 +116,7 @@ class MediaService:
                 "incident_id": str(incident.id),
                 "content_type": content_type,
                 "size_bytes": media.size_bytes,
+                "scan_status": scan_status.value,
             },
         )
         self.session.commit()
@@ -157,6 +165,37 @@ class MediaService:
         )
         self.session.commit()
         return path.read_bytes(), media
+
+    # -- malware scan -------------------------------------------------------
+    def _scan(
+        self,
+        file: UploadedFile,
+        incident: Incident,
+        actor: User,
+        context: RequestContext,
+    ) -> ScanStatus:
+        try:
+            outcome = get_scanner(self.settings).scan(file.content)
+        except ScannerUnavailableError as exc:
+            logger.error("malware_scanner_unavailable", extra={"error": str(exc)})
+            if self.settings.clamav_required:
+                raise MediaScanUnavailableError() from exc
+            return ScanStatus.UNSCANNED
+
+        if outcome.status is ScanStatus.INFECTED:
+            self.audit.record(
+                AuditAction.MEDIA_REJECTED_MALWARE,
+                actor_id=actor.id,
+                actor_role=actor.role,
+                entity_type="incident",
+                entity_id=incident.id,
+                ip_address=context.ip_address,
+                user_agent=context.user_agent,
+                metadata={"signature": outcome.detail},
+            )
+            self.session.commit()
+            raise MediaInfectedError()
+        return outcome.status
 
     # -- validation ---------------------------------------------------------
     def _validate(self, file: UploadedFile) -> str:

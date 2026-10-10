@@ -173,6 +173,18 @@ class UnsupportedMediaTypeError(AppError):
     message = "That file type is not accepted."
 
 
+class MediaInfectedError(AppError):
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
+    code = "MEDIA_INFECTED"
+    message = "The file was rejected because it was flagged as malicious."
+
+
+class MediaScanUnavailableError(AppError):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    code = "MEDIA_SCAN_UNAVAILABLE"
+    message = "Uploads cannot be accepted right now because they cannot be scanned."
+
+
 class AnalysisUnavailableError(AppError):
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     code = "ANALYSIS_UNAVAILABLE"

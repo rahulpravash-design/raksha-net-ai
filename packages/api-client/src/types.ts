@@ -151,6 +151,7 @@ export interface MediaItem {
   content_type: string;
   size_bytes: number;
   original_filename: string | null;
+  scan_status: "CLEAN" | "UNSCANNED";
   created_at: string;
 }
 

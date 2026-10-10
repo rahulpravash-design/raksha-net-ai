@@ -201,3 +201,104 @@ def test_uploading_requires_authentication(
         files={"file": ("scene.png", png_bytes(), "image/png")},
     )
     assert response.status_code == 401
+
+
+# --- malware scanning (Phase 16) ---------------------------------------------
+import pytest  # noqa: E402
+
+from app.models.enums import ScanStatus  # noqa: E402
+from app.services import media_service  # noqa: E402
+from app.services.scanners import ScannerUnavailableError, ScanOutcome  # noqa: E402
+
+
+class _StubScanner:
+    def __init__(self, result: ScanOutcome | Exception) -> None:
+        self.result = result
+
+    def scan(self, content: bytes) -> ScanOutcome:
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
+@pytest.fixture
+def use_scanner(monkeypatch):
+    def _use(result: ScanOutcome | Exception) -> None:
+        monkeypatch.setattr(
+            media_service, "get_scanner", lambda settings: _StubScanner(result)
+        )
+
+    return _use
+
+
+def _upload(client: TestClient, incident_id: str):
+    return client.post(
+        f"/api/v1/incidents/{incident_id}/media",
+        files={"file": ("photo.png", png_bytes(), "image/png")},
+    )
+
+
+def test_an_upload_with_no_scanner_is_recorded_as_unscanned(
+    authed_client, make_user, incident_payload
+) -> None:
+    client, incident = make_incident(authed_client, make_user, incident_payload)
+    response = _upload(client, incident["id"])
+    assert response.status_code == 201
+    assert response.json()["scan_status"] == "UNSCANNED"
+
+
+def test_a_clean_scan_is_recorded(
+    authed_client, make_user, incident_payload, use_scanner
+) -> None:
+    use_scanner(ScanOutcome(ScanStatus.CLEAN))
+    client, incident = make_incident(authed_client, make_user, incident_payload)
+    assert _upload(client, incident["id"]).json()["scan_status"] == "CLEAN"
+
+
+def test_an_infected_upload_is_refused_and_never_stored(
+    authed_client, make_user, incident_payload, use_scanner, tmp_path, db_session
+) -> None:
+    use_scanner(ScanOutcome(ScanStatus.INFECTED, "Eicar-Test-Signature"))
+    client, incident = make_incident(authed_client, make_user, incident_payload)
+
+    response = _upload(client, incident["id"])
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "MEDIA_INFECTED"
+    assert "Eicar" not in response.text  # the signature stays in the audit log
+
+    assert not list((tmp_path / "media").rglob("*.png"))
+    listed = client.get(f"/api/v1/incidents/{incident['id']}/media").json()
+    assert listed == []
+
+    from sqlalchemy import select
+
+    from app.models.incident import AuditLog
+
+    audited = db_session.scalars(
+        select(AuditLog).where(AuditLog.action == "media.rejected_malware")
+    ).all()
+    assert len(audited) == 1
+    assert audited[0].event_metadata == {"signature": "Eicar-Test-Signature"}
+
+
+def test_an_unreachable_scanner_does_not_block_the_upload_by_default(
+    authed_client, make_user, incident_payload, use_scanner
+) -> None:
+    use_scanner(ScannerUnavailableError("down"))
+    client, incident = make_incident(authed_client, make_user, incident_payload)
+    response = _upload(client, incident["id"])
+    assert response.status_code == 201
+    assert response.json()["scan_status"] == "UNSCANNED"
+
+
+def test_an_unreachable_scanner_blocks_the_upload_when_scanning_is_required(
+    authed_client, make_user, incident_payload, use_scanner, monkeypatch
+) -> None:
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "clamav_required", True)
+    use_scanner(ScannerUnavailableError("down"))
+    client, incident = make_incident(authed_client, make_user, incident_payload)
+    response = _upload(client, incident["id"])
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "MEDIA_SCAN_UNAVAILABLE"

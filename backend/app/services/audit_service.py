@@ -40,6 +40,7 @@ class AuditAction:
     INCIDENT_ASSIGNED = "incident.assigned"
     MEDIA_UPLOADED = "media.uploaded"
     MEDIA_ACCESSED = "media.accessed"
+    MEDIA_REJECTED_MALWARE = "media.rejected_malware"
     RESOURCE_CREATED = "resource.created"
     RESOURCE_UPDATED = "resource.updated"
     RESOURCE_STATUS_CHANGED = "resource.status_changed"

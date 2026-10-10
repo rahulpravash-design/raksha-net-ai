@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from app.models.enums import MediaType
+from app.models.enums import MediaType, ScanStatus
 from app.schemas.common import ORMModel
 
 
@@ -16,4 +16,5 @@ class MediaRead(ORMModel):
     content_type: str
     size_bytes: int
     original_filename: str | None
+    scan_status: ScanStatus
     created_at: datetime
