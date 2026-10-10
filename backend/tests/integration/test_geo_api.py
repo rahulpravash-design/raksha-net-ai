@@ -199,9 +199,17 @@ def test_closed_incidents_are_hidden_from_the_live_map_by_default(
 
 def test_the_spatial_index_is_used_for_radius_queries(db_session) -> None:
     """A radius query that falls back to a sequential scan will not survive
-    production volume, so the plan is asserted, not assumed."""
+    production volume, so the plan is asserted, not assumed.
+
+    The test table holds a handful of rows, and autovacuum re-analyses it during
+    a long suite; on one page of data a sequential scan is genuinely the
+    cheaper plan, so asserting the planner's *choice* made this test pass or
+    fail by timing. Forbidding the sequential scan asks the real question: is
+    the query written so that the GiST index can serve it?
+    """
     from sqlalchemy import text
 
+    db_session.execute(text("SET LOCAL enable_seqscan = off"))
     plan = "\n".join(row[0] for row in db_session.execute(text("""
                 EXPLAIN SELECT id FROM incidents
                 WHERE ST_DWithin(
@@ -210,4 +218,4 @@ def test_the_spatial_index_is_used_for_radius_queries(db_session) -> None:
                     5000
                 )
                 """)))
-    assert "ix_incidents_geom" in plan or "Index" in plan
+    assert "ix_incidents_geom" in plan, plan
