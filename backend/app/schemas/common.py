@@ -51,4 +51,7 @@ class ReadinessResponse(BaseModel):
     status: str
     database: str
     postgis: str | None = None
+    #: ``current``, ``behind`` (not ready), ``ahead`` (database newer than this
+    #: code, e.g. after an application rollback) or ``unknown``.
+    schema_state: str | None = None
     checks: dict[str, float] = Field(default_factory=dict)

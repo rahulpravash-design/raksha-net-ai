@@ -20,6 +20,11 @@ print(s.test_database_url or (base if base.endswith('_test') else base + '_test'
 ")"
 export ALEMBIC_DATABASE_URL
 
+# Leave the database empty even if a check fails: a failure that stopped here
+# would strand it at head with a recorded revision, and the next test run would
+# inherit that.
+trap '.venv/bin/alembic downgrade base >/dev/null 2>&1 || true' EXIT
+
 .venv/bin/alembic upgrade head
 .venv/bin/alembic check
 .venv/bin/alembic downgrade base
