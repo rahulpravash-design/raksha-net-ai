@@ -56,7 +56,7 @@ services:
       RAKSHA_REDIS_URL: redis://redis:6379/0
       RAKSHA_RATE_LIMIT_BACKEND: redis
       RAKSHA_SECRET_KEY: ${RAKSHA_SECRET_KEY:?set RAKSHA_SECRET_KEY in .env}
-      RAKSHA_CORS_ORIGINS: http://localhost:3000,http://localhost:3001
+      RAKSHA_CORS_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:3002
       # The V2 analyzer is a local rule-based heuristic (ai/nlp/text_analyzer.py):
       # no external provider, no API key, nothing to configure. Safe to enable
       # by default in this development-only stack.

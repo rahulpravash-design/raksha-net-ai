@@ -91,7 +91,11 @@ class Settings(BaseSettings):
     # ``NoDecode`` keeps pydantic-settings from JSON-parsing these before our
     # own validator runs, so a plain comma-separated value works in ``.env``.
     cors_origins: Annotated[list[str], NoDecode] = Field(
-        default_factory=lambda: ["http://localhost:3000", "http://localhost:3001"]
+        default_factory=lambda: [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://localhost:3002",
+        ]
     )
 
     #: How many requests the API works on at once (per process). Held below the
