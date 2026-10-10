@@ -89,6 +89,8 @@ jobs:
           alembic upgrade head
           alembic downgrade base
           alembic upgrade head
+          # Fails if a model changed without a migration (or the reverse).
+          alembic check
 
       - name: Tests
         working-directory: backend

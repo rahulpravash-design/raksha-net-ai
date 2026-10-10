@@ -151,6 +151,9 @@ class Incident(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint("longitude >= -180 AND longitude <= 180", name="longitude_range"),
         CheckConstraint("id <> duplicate_of_id", name="duplicate_not_self"),
         Index("ix_incidents_geom", "geom", postgresql_using="gist"),
+        # Deep history paging and every time-windowed analytics query. Measured
+        # (docs/PERFORMANCE.md): p95 of a deep page 481 ms -> 170 ms at 100k rows.
+        Index("ix_incidents_created_at", "created_at"),
         # Serves the control-centre queue: open incidents, highest priority first.
         Index(
             "ix_incidents_status_priority",
@@ -198,6 +201,7 @@ class IncidentMedia(UUIDPrimaryKeyMixin, Base):
         Enum(ScanStatus, name="scan_status", native_enum=True),
         nullable=False,
         default=ScanStatus.UNSCANNED,
+        server_default="UNSCANNED",
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

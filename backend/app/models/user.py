@@ -14,6 +14,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    false,
     func,
 )
 from sqlalchemy.dialects.postgresql import INET
@@ -51,7 +52,9 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     #: Consecutive failed logins since the last success. Reset to 0 on any
     #: successful login (``CLAUDE.md`` section 5, Phase 16 account lockout).
-    failed_login_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    failed_login_attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     #: Set once ``failed_login_attempts`` reaches the configured threshold.
     #: A login attempt against a still-locked account is refused without
     #: even checking the password.
@@ -62,7 +65,9 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     #: TOTP shared secret, encrypted at rest. Present while enrolment is
     #: pending *and* once enabled; ``mfa_enabled`` is what says which.
     mfa_secret: Mapped[str | None] = mapped_column(EncryptedString(255), nullable=True)
-    mfa_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    mfa_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
     #: The 30-second time step of the last accepted code. A code at or before
     #: it is a replay and is refused, even though it is still inside the window.
     mfa_last_step: Mapped[int | None] = mapped_column(BigInteger, nullable=True)

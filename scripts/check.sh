@@ -28,6 +28,7 @@ run "backend: ruff"       backend/.venv/bin/ruff check backend
 run "backend: black"      backend/.venv/bin/black --check backend
 run "backend: mypy"       bash -c "cd backend && .venv/bin/mypy app"
 run "backend: pytest"     bash -c "cd backend && .venv/bin/pytest -q"
+run "backend: migrations" scripts/check_migrations.sh
 run "ai: pytest"          bash -c "PYTHONPATH=. backend/.venv/bin/pytest ai/tests -q"
 
 # Dependency audit. Needs network access. Gates on what ships: dev-only tooling
