@@ -9,6 +9,7 @@ from app.models.dispatch import Dispatch
 from app.models.enums import (
     ADMIN_ROLES,
     DISPATCH_ROLES,
+    INCIDENT_VIEW_ROLES,
     OPEN_STATUSES,
     OPERATIONAL_ROLES,
     TERMINAL_STATUSES,
@@ -41,6 +42,7 @@ from app.models.user import RefreshToken, User
 __all__ = [
     "ADMIN_ROLES",
     "DISPATCH_ROLES",
+    "INCIDENT_VIEW_ROLES",
     "OPEN_STATUSES",
     "OPERATIONAL_ROLES",
     "TERMINAL_STATUSES",

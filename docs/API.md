@@ -296,7 +296,7 @@ incident summary used by the map.
 | GET | `/resources/{id}` | operational | Resource detail |
 | PATCH | `/resources/{id}` | DISPATCH roles | Update a resource |
 | POST | `/resources/{id}/status` | DISPATCH roles, or the unit's own operator | Set operational status |
-| GET | `/incidents/{id}/resource-recommendations` | operational | Ranked suggestions, with reasons. Never dispatches. |
+| GET | `/incidents/{id}/resource-recommendations` | dispatch-side (not hospital operators) | Ranked suggestions, with reasons. Never dispatches. |
 | POST | `/incidents/{id}/dispatches` | DISPATCH roles | Dispatch a resource. The approver is the authenticated caller; the body cannot name one. |
 | GET | `/incidents/{id}/dispatches` | operational | Resources sent to an incident |
 | GET | `/dispatches/mine` | operational | The caller's own assignments |
@@ -314,7 +314,7 @@ incident summary used by the map.
 | POST | `/hospitals/{id}/capacity` | the hospital's operator, or DISPATCH roles | Report capacity |
 | GET | `/hospitals/{id}/notices` | the hospital's operator, or DISPATCH roles | Inbound patients |
 | POST | `/incidents/{id}/hospital-notices` | DISPATCH roles | Tell a hospital what is coming |
-| GET | `/incidents/{id}/hospital-notices` | operational | Hospitals notified for an incident |
+| GET | `/incidents/{id}/hospital-notices` | dispatch-side (not hospital operators) | Hospitals notified for an incident |
 | POST | `/hospital-notices/{id}/status` | the hospital's operator, or DISPATCH roles | Acknowledge, divert or close |
 
 A notice carries no reporter identity, contact detail, description or

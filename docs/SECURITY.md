@@ -107,12 +107,18 @@ Two independent checks, both enforced server-side:
 | `CITIZEN` | Create a report; read/cancel own reports; upload media to own reports |
 | `RESPONDER` | Read assigned incidents; update assignment status (Phase 11) |
 | `DISPATCHER` | Read all incidents; transition status; override priority; assign; dispatch |
-| `HOSPITAL_OPERATOR` | Read incidents routed to their hospital; report capacity (Phase 12) |
+| `HOSPITAL_OPERATOR` | See hospitals; report their own hospital's capacity; read and answer inbound-patient notices for it (Phase 12). **Cannot read incident records** — reporter, report text, contact and exact location are closed to this role (`INCIDENT_VIEW_ROLES`). |
 | `ADMIN` | User and resource administration; read audit logs |
 | `SUPER_ADMIN` | All of the above; manage administrators |
 
 Least privilege is the rule: a hospital operator sees the clinical and ETA
 information relevant to an inbound patient, not the reporter's contact details.
+
+**Known discrepancy (not fixed):** the table says a `RESPONDER` reads *assigned*
+incidents, but responders are in `INCIDENT_VIEW_ROLES` and can read the whole
+queue. Decide whether that is intended before a pilot. The hospital-operator
+equivalent was corrected on 2026-10-10 after a hospital-operator screen exposed it
+(`tests/integration/test_hospital_operator_privacy.py`).
 
 ## 4. Input validation
 

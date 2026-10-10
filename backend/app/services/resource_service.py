@@ -24,6 +24,7 @@ from app.core.logging import get_logger
 from app.models.enums import (
     CATEGORY_RESOURCE_PREFERENCE,
     DISPATCH_ROLES,
+    INCIDENT_VIEW_ROLES,
     OPERATIONAL_ROLES,
     ResourceStatus,
     ResourceType,
@@ -304,7 +305,10 @@ class ResourceService:
         suitable unit is almost always the right one, and a 40 km list of
         ambulances is noise when there is one two streets away.
         """
-        self._assert_operational(actor)
+        if actor.role not in INCIDENT_VIEW_ROLES:
+            raise ForbiddenError(
+                "Only dispatch-side roles can rank units for an incident."
+            )
         incident = self.incidents.get(incident_id)
         if incident is None:
             raise NotFoundError("Incident not found.")

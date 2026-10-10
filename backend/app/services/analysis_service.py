@@ -36,7 +36,7 @@ from app.core.logging import get_logger
 from app.models.analysis import IncidentAnalysis
 from app.models.enums import (
     DISPATCH_ROLES,
-    OPERATIONAL_ROLES,
+    INCIDENT_VIEW_ROLES,
     AnalysisReviewDecision,
     IncidentCategory,
     SeverityLevel,
@@ -96,7 +96,7 @@ class AnalysisService:
         context: RequestContext | None = None,
     ) -> IncidentAnalysis:
         context = context or RequestContext()
-        if actor.role not in OPERATIONAL_ROLES:
+        if actor.role not in INCIDENT_VIEW_ROLES:
             raise ForbiddenError("Only operational roles may request an AI analysis.")
 
         incident = self.incidents.get(incident_id)
@@ -195,7 +195,7 @@ class AnalysisService:
     def list_for_incident(
         self, incident_id: uuid.UUID, *, actor: User
     ) -> list[IncidentAnalysis]:
-        if actor.role not in OPERATIONAL_ROLES:
+        if actor.role not in INCIDENT_VIEW_ROLES:
             raise ForbiddenError("Only operational roles may view AI analyses.")
         if self.incidents.get(incident_id) is None:
             raise NotFoundError("Incident not found.")

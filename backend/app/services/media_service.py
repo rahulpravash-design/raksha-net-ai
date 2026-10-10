@@ -26,7 +26,11 @@ from app.core.errors import (
     ValidationError,
 )
 from app.core.logging import get_logger
-from app.models.enums import OPERATIONAL_ROLES, MediaType, ScanStatus
+from app.models.enums import (
+    INCIDENT_VIEW_ROLES,
+    MediaType,
+    ScanStatus,
+)
 from app.models.incident import Incident, IncidentMedia
 from app.models.user import User
 from app.repositories.incident_repository import IncidentRepository
@@ -269,8 +273,8 @@ class MediaService:
             raise NotFoundError("Incident not found.")
 
         is_owner = incident.reported_by_id == actor.id
-        if actor.role in OPERATIONAL_ROLES or is_owner:
-            if require_write and not (is_owner or actor.role in OPERATIONAL_ROLES):
+        if actor.role in INCIDENT_VIEW_ROLES or is_owner:
+            if require_write and not (is_owner or actor.role in INCIDENT_VIEW_ROLES):
                 raise ForbiddenError("You cannot add media to this incident.")
             return incident
 

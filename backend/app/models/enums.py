@@ -29,6 +29,14 @@ OPERATIONAL_ROLES: frozenset[UserRole] = frozenset(
     }
 )
 
+#: Roles that may read incident records: reporter identity, report text, contact
+#: details and exact location. A hospital operator is operational (it can see
+#: hospitals and report capacity) but is deliberately NOT here: the hospital sees
+#: only the minimised inbound-patient notice (docs/SECURITY.md section 3).
+INCIDENT_VIEW_ROLES: frozenset[UserRole] = OPERATIONAL_ROLES - {
+    UserRole.HOSPITAL_OPERATOR
+}
+
 #: Roles that may change an incident's status, priority or assignment.
 DISPATCH_ROLES: frozenset[UserRole] = frozenset(
     {UserRole.DISPATCHER, UserRole.ADMIN, UserRole.SUPER_ADMIN}

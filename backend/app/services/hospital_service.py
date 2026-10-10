@@ -25,6 +25,7 @@ from app.models.enums import (
     ADMIN_ROLES,
     ALLOWED_NOTICE_TRANSITIONS,
     DISPATCH_ROLES,
+    INCIDENT_VIEW_ROLES,
     OPERATIONAL_ROLES,
     HospitalNoticeStatus,
     UserRole,
@@ -325,7 +326,12 @@ class HospitalService:
     def list_notices_for_incident(
         self, incident_id: uuid.UUID, *, actor: User
     ) -> list[InboundPatientNotice]:
-        self._assert_operational(actor)
+        # Notices across every hospital for an incident are a dispatcher's view;
+        # a hospital sees only its own (list_notices_for_hospital).
+        if actor.role not in INCIDENT_VIEW_ROLES:
+            raise ForbiddenError(
+                "Only dispatch-side roles can view an incident's notices."
+            )
         if self.incidents.get(incident_id) is None:
             raise NotFoundError("Incident not found.")
         return self.repo.list_notices_for_incident(incident_id)

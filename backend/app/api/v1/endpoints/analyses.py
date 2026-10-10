@@ -11,7 +11,7 @@ import uuid
 
 from fastapi import APIRouter, status
 
-from app.api.deps import Context, DbSession, DispatchUser, OperationalUser
+from app.api.deps import Context, DbSession, DispatchUser, IncidentViewer
 from app.schemas.analysis import AnalysisReview, IncidentAnalysisRead
 from app.services.analysis_service import AnalysisService
 
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/incidents/{incident_id}/analyses", tags=["ai-analysi
 )
 def run_analysis(
     incident_id: uuid.UUID,
-    user: OperationalUser,
+    user: IncidentViewer,
     session: DbSession,
     context: Context,
 ) -> IncidentAnalysisRead:
@@ -47,7 +47,7 @@ def run_analysis(
     summary="List AI analyses for an incident",
 )
 def list_analyses(
-    incident_id: uuid.UUID, user: OperationalUser, session: DbSession
+    incident_id: uuid.UUID, user: IncidentViewer, session: DbSession
 ) -> list[IncidentAnalysisRead]:
     rows = AnalysisService(session).list_for_incident(incident_id, actor=user)
     return [IncidentAnalysisRead.model_validate(row) for row in rows]

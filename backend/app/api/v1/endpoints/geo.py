@@ -6,7 +6,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import AppSettings, DbSession, OperationalUser
+from app.api.deps import AppSettings, DbSession, IncidentViewer
 from app.schemas.geo import GeoJSONFeatureCollection, NearbyResponse
 from app.services.geo_service import GeoService
 
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/geo", tags=["geo"])
     summary="Incidents within a radius",
 )
 def incidents_nearby(
-    _: OperationalUser,
+    _: IncidentViewer,
     session: DbSession,
     settings: AppSettings,
     latitude: Annotated[float, Query(ge=-90, le=90)],
@@ -48,7 +48,7 @@ def incidents_nearby(
     summary="Incidents in a map viewport (GeoJSON)",
 )
 def incidents_in_bbox(
-    _: OperationalUser,
+    _: IncidentViewer,
     session: DbSession,
     settings: AppSettings,
     min_lat: Annotated[float, Query(ge=-90, le=90)],

@@ -13,6 +13,7 @@ from app.api.deps import (
     CurrentUser,
     DbSession,
     DispatchUser,
+    IncidentViewer,
     OperationalUser,
 )
 from app.schemas.common import Page
@@ -169,7 +170,7 @@ def create_notice(
     summary="Hospitals notified for an incident",
 )
 def list_incident_notices(
-    incident_id: uuid.UUID, user: OperationalUser, session: DbSession
+    incident_id: uuid.UUID, user: IncidentViewer, session: DbSession
 ) -> list[InboundNoticeRead]:
     rows = HospitalService(session).list_notices_for_incident(incident_id, actor=user)
     return [InboundNoticeRead.model_validate(row) for row in rows]

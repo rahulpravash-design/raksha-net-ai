@@ -20,7 +20,12 @@ from app.core.errors import (
 )
 from app.core.security import decode_access_token
 from app.db.session import get_db
-from app.models.enums import DISPATCH_ROLES, OPERATIONAL_ROLES, UserRole
+from app.models.enums import (
+    DISPATCH_ROLES,
+    INCIDENT_VIEW_ROLES,
+    OPERATIONAL_ROLES,
+    UserRole,
+)
 from app.models.user import User
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import RequestContext
@@ -126,6 +131,9 @@ def require_any_role(roles: Iterable[UserRole]) -> Callable[[User], User]:
 
 #: An operator who may see the whole incident picture.
 OperationalUser = Annotated[User, Depends(require_any_role(OPERATIONAL_ROLES))]
+
+#: An operator who may read incident records (not a hospital operator).
+IncidentViewer = Annotated[User, Depends(require_any_role(INCIDENT_VIEW_ROLES))]
 
 #: An operator who may change incident state.
 DispatchUser = Annotated[User, Depends(require_any_role(DISPATCH_ROLES))]

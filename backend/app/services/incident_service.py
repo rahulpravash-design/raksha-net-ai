@@ -13,6 +13,7 @@ from app.core.errors import ForbiddenError, NotFoundError, ValidationError
 from app.core.logging import get_logger
 from app.models.enums import (
     DISPATCH_ROLES,
+    INCIDENT_VIEW_ROLES,
     OPERATIONAL_ROLES,
     IncidentCategory,
     IncidentStatus,
@@ -159,7 +160,7 @@ class IncidentService:
 
     @staticmethod
     def can_view(incident: Incident, user: User) -> bool:
-        if user.role in OPERATIONAL_ROLES:
+        if user.role in INCIDENT_VIEW_ROLES:
             return True
         return incident.reported_by_id == user.id
 
@@ -182,7 +183,7 @@ class IncidentService:
     ) -> tuple[list[Incident], int]:
         """List incidents, scoped to what the caller may see."""
         restrict_to_reporter: uuid.UUID | None = None
-        if own_only or user.role not in OPERATIONAL_ROLES:
+        if own_only or user.role not in INCIDENT_VIEW_ROLES:
             restrict_to_reporter = user.id
 
         return self.repo.search(
@@ -319,7 +320,7 @@ class IncidentService:
         incident = self._get_or_404(incident_id)
 
         is_owner = incident.reported_by_id == actor.id
-        if not is_owner and actor.role not in OPERATIONAL_ROLES:
+        if not is_owner and actor.role not in INCIDENT_VIEW_ROLES:
             raise NotFoundError("Incident not found.")
 
         previous = incident.status

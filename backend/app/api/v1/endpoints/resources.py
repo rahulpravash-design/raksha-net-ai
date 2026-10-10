@@ -12,7 +12,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, status
 
-from app.api.deps import Context, CurrentUser, DbSession, DispatchUser, OperationalUser
+from app.api.deps import (
+    Context,
+    CurrentUser,
+    DbSession,
+    DispatchUser,
+    IncidentViewer,
+    OperationalUser,
+)
 from app.models.enums import ResourceStatus, ResourceType
 from app.schemas.common import Page
 from app.schemas.resource import (
@@ -159,7 +166,7 @@ recommendations_router = APIRouter(prefix="/incidents", tags=["resources"])
 )
 def recommend_resources(
     incident_id: uuid.UUID,
-    user: OperationalUser,
+    user: IncidentViewer,
     session: DbSession,
     limit: Annotated[int, Query(ge=1, le=25)] = 10,
 ) -> ResourceRecommendations:

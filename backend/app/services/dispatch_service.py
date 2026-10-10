@@ -27,6 +27,7 @@ from app.models.enums import (
     CLOSED_DISPATCH_STATUSES,
     DISPATCH_ROLES,
     DISPATCH_TO_RESOURCE_STATUS,
+    INCIDENT_VIEW_ROLES,
     OPERATIONAL_ROLES,
     TERMINAL_STATUSES,
     DispatchStatus,
@@ -259,7 +260,7 @@ class DispatchService:
         return self._get_visible_or_404(dispatch_id, actor)
 
     def list_for_incident(self, incident_id: uuid.UUID, *, actor: User) -> list[Dispatch]:
-        if actor.role not in OPERATIONAL_ROLES:
+        if actor.role not in INCIDENT_VIEW_ROLES:
             raise ForbiddenError("Only operational roles can view dispatches.")
         if self.incidents.get(incident_id) is None:
             raise NotFoundError("Incident not found.")

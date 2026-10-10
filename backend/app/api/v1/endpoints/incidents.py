@@ -14,7 +14,7 @@ from app.api.deps import (
     CurrentUser,
     DbSession,
     DispatchUser,
-    OperationalUser,
+    IncidentViewer,
 )
 from app.core.errors import RateLimitedError
 from app.core.rate_limit import get_rate_limiter
@@ -96,7 +96,7 @@ def list_my_incidents(
 
 @router.get("", response_model=Page[IncidentSummary], summary="Incident queue")
 def list_incidents(
-    user: OperationalUser,
+    user: IncidentViewer,
     session: DbSession,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 25,
@@ -135,7 +135,7 @@ def list_incidents(
     response_model=IncidentStatsSummary,
     summary="Queue counts by band, status and category",
 )
-def incident_stats(_: OperationalUser, session: DbSession) -> IncidentStatsSummary:
+def incident_stats(_: IncidentViewer, session: DbSession) -> IncidentStatsSummary:
     return IncidentService(session).stats_summary()
 
 
@@ -144,9 +144,7 @@ def incident_stats(_: OperationalUser, session: DbSession) -> IncidentStatsSumma
     response_model=PriorityAgreementSummary,
     summary="How often dispatchers overrule the priority engine",
 )
-def priority_agreement(
-    _: OperationalUser, session: DbSession
-) -> PriorityAgreementSummary:
+def priority_agreement(_: IncidentViewer, session: DbSession) -> PriorityAgreementSummary:
     """The engine's agreement with the humans who can overrule it.
 
     A rising override rate in one band is the signal that the weights need

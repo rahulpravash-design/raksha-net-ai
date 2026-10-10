@@ -7,7 +7,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Query, status
 
-from app.api.deps import Context, CurrentUser, DbSession, DispatchUser, OperationalUser
+from app.api.deps import (
+    Context,
+    CurrentUser,
+    DbSession,
+    DispatchUser,
+    IncidentViewer,
+    OperationalUser,
+)
 from app.schemas.dispatch import (
     DispatchCreate,
     DispatchRead,
@@ -50,7 +57,7 @@ def create_dispatch(
     summary="Resources sent to an incident",
 )
 def list_incident_dispatches(
-    incident_id: uuid.UUID, user: OperationalUser, session: DbSession
+    incident_id: uuid.UUID, user: IncidentViewer, session: DbSession
 ) -> list[DispatchRead]:
     rows = DispatchService(session).list_for_incident(incident_id, actor=user)
     return [DispatchRead.model_validate(row) for row in rows]
