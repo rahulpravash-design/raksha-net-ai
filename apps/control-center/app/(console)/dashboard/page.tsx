@@ -32,6 +32,7 @@ import { MapLegend } from "@/components/maps/MapLegend";
 import { StatsBar } from "@/components/StatsBar";
 import { ErrorBanner, Spinner, TextInput } from "@/components/ui";
 import { getApiClient } from "@/lib/api";
+import { incidentMarkers } from "@/lib/markers";
 import { homeFor, seesIncidents } from "@/lib/routes";
 import { MAP_DEFAULTS } from "@/lib/config";
 import type { Viewport } from "@/components/IncidentMap";
@@ -179,17 +180,7 @@ export default function DashboardPage() {
   const detail = useSelectedIncident(selectedId);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
-  const globeMarkers = useMemo(
-    () =>
-      incidents.map((incident) => ({
-        id: incident.id,
-        lat: Number(incident.latitude),
-        lon: Number(incident.longitude),
-        band: incident.priority_band,
-        label: `${categoryLabel(incident.category)} ${incident.reference_code}`,
-      })),
-    [incidents],
-  );
+  const globeMarkers = useMemo(() => incidentMarkers(incidents), [incidents]);
 
   if (authLoading || !initialised) return <Spinner label="Loading the control centre" />;
   if (!user) return null;
