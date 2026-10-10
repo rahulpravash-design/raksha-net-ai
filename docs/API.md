@@ -334,6 +334,7 @@ incident summary used by the map.
 | Method | Path | Access | Description |
 |---|---|---|---|
 | POST | `/hospitals` | ADMIN | Register a hospital |
+| PATCH | `/hospitals/{id}` | ADMIN | Correct name, position (latitude and longitude together), address, phone, linked operator (`null` unlinks), or `is_active`. The code and the capacity fields are refused (`400`); retiring is refused with `409 HOSPITAL_HAS_OPEN_NOTICES` while inbound notices are open. The audit entry records field names only |
 | GET | `/hospitals` | operational | Hospitals |
 | GET | `/hospitals/nearby` | operational | Hospitals that can take a patient now |
 | GET | `/hospitals/{id}` | operational | Hospital detail |

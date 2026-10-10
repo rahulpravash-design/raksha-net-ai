@@ -39,6 +39,7 @@ from app.repositories.user_repository import UserRepository
 from app.schemas.hospital import (
     HospitalCapacityUpdate,
     HospitalCreate,
+    HospitalUpdate,
     InboundNoticeCreate,
     InboundNoticeStatusChange,
     NearbyHospital,
@@ -105,6 +106,72 @@ class HospitalService:
             ip_address=context.ip_address,
             user_agent=context.user_agent,
             metadata={"code": hospital.code},
+        )
+        self.session.commit()
+        self.session.refresh(hospital)
+        return hospital
+
+    def update_details(
+        self,
+        hospital_id: uuid.UUID,
+        payload: HospitalUpdate,
+        *,
+        actor: User,
+        context: RequestContext | None = None,
+    ) -> Hospital:
+        """Correct what a hospital is: name, position, phone, linked operator, active.
+
+        Administrators only. Capacity is deliberately not here — that is reported
+        by the hospital's own operator and has its own endpoint.
+        """
+        context = context or RequestContext()
+        if actor.role not in ADMIN_ROLES:
+            raise ForbiddenError("Only administrators can edit a hospital.")
+        hospital = self._get_or_404(hospital_id)
+
+        changes = payload.model_dump(exclude_unset=True)
+        if not changes:
+            raise ValidationError("No fields were supplied to update.")
+
+        latitude = changes.pop("latitude", None)
+        longitude = changes.pop("longitude", None)
+        if (latitude is None) != (longitude is None):
+            raise ValidationError("Latitude and longitude must be supplied together.")
+        if latitude is not None and longitude is not None:
+            self.repo.set_location(
+                hospital, validate_coordinates(latitude, longitude, self.settings)
+            )
+            changes["position"] = True
+
+        for required in ("name", "is_active"):
+            if required in changes and changes[required] is None:
+                raise ValidationError(f"{required} cannot be cleared.")
+
+        if "managed_by_id" in changes:
+            changes["managed_by_id"] = self._validated_manager(changes["managed_by_id"])
+
+        retiring = changes.get("is_active") is False and hospital.is_active
+        if retiring and self.repo.list_notices_for_hospital(hospital.id, open_only=True):
+            raise ConflictError(
+                "This hospital still has open inbound-patient notices. "
+                "Close or cancel them before retiring it.",
+                code="HOSPITAL_HAS_OPEN_NOTICES",
+            )
+
+        for field, value in changes.items():
+            if field != "position":
+                setattr(hospital, field, value)
+
+        self.audit.record(
+            AuditAction.HOSPITAL_UPDATED,
+            actor_id=actor.id,
+            actor_role=actor.role,
+            entity_type="hospital",
+            entity_id=hospital.id,
+            ip_address=context.ip_address,
+            user_agent=context.user_agent,
+            # Field names only: a phone number or an address is not audit-log material.
+            metadata={"fields": sorted(changes)},
         )
         self.session.commit()
         self.session.refresh(hospital)

@@ -36,10 +36,11 @@ export default function HospitalsPage() {
   const [search, setSearch] = useState("");
   const [onlyAccepting, setOnlyAccepting] = useState(false);
   const [registering, setRegistering] = useState(false);
+  const [showRetired, setShowRetired] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const page = await api.hospitals({ page_size: 100, active_only: true });
+      const page = await api.hospitals({ page_size: 100, active_only: !showRetired });
       setHospitals(page.items);
       setError(null);
     } catch (caught) {
@@ -50,7 +51,7 @@ export default function HospitalsPage() {
           : "Hospitals could not be loaded.",
       );
     }
-  }, [api]);
+  }, [api, showRetired]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -144,6 +145,16 @@ export default function HospitalsPage() {
           />
           Only those accepting emergencies
         </label>
+        {isAdmin && (
+          <label className="flex items-center gap-2 px-2 text-sm sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={showRetired}
+              onChange={(e) => setShowRetired(e.target.checked)}
+            />
+            Include retired hospitals
+          </label>
+        )}
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]">
@@ -178,6 +189,7 @@ export default function HospitalsPage() {
               hospital={selected}
               canSeeNotices={mayDispatch || isMine(selected)}
               canReportCapacity={mayDispatch || isMine(selected)}
+              canEditDetails={isAdmin}
               noticeViewer={mayDispatch ? "dispatch" : "hospital"}
               onChanged={() => void load()}
             />

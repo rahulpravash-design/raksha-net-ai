@@ -40,6 +40,7 @@ import type {
   Resource,
   CreateHospitalInput,
   CreateHospitalNoticeInput,
+  UpdateHospitalInput,
   CreateResourceInput,
   Hospital,
   HospitalCapacityInput,
@@ -543,6 +544,10 @@ export class ApiClient {
 
   async createHospital(input: CreateHospitalInput): Promise<Hospital> {
     return this.request<Hospital>("/api/v1/hospitals", { method: "POST", body: input });
+  }
+
+  async updateHospital(id: string, input: UpdateHospitalInput): Promise<Hospital> {
+    return this.request<Hospital>(`/api/v1/hospitals/${id}`, { method: "PATCH", body: input });
   }
 
   async hospitalsNearby(params: {

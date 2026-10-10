@@ -160,7 +160,7 @@ of it is the responder app's assignments list (`api.myAssignments`).
 Every Phase 10–14 capability now has a screen in the control centre (dispatch, resources,
 hospitals, notifications, analytics, MFA enrolment, administration). The next
 engineering priorities are, in order: **trying a real mail provider** (recovery email is built
-and verified only against a local test mailbox), and hospital editing.
+and verified only against a local test mailbox).
 Verify each in a real browser, as the sign-in, dispatch and admin runs were — type
 checks and unit tests do not show that a flow actually works.
 

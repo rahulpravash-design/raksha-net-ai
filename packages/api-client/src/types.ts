@@ -458,6 +458,20 @@ export interface CreateHospitalInput {
   managed_by_id?: string | null;
 }
 
+/** Administrator edits to what a hospital is. Capacity and the code are not editable here. */
+export interface UpdateHospitalInput {
+  name?: string;
+  /** Latitude and longitude are sent together or not at all. */
+  latitude?: number;
+  longitude?: number;
+  address?: string | null;
+  contact_phone?: string | null;
+  /** `null` unlinks the operator; leave it out to keep the current one. */
+  managed_by_id?: string | null;
+  /** Retire (false) or restore (true). Refused while the hospital has open notices. */
+  is_active?: boolean;
+}
+
 export interface NearbyResource {
   id: string;
   call_sign: string;

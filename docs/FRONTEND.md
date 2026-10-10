@@ -123,6 +123,7 @@ Stated plainly, so this is not mistaken for a finished redesign:
   canvas present or fallback shown, heading present, links correct, no horizontal
   overflow, no CSP/console errors.
 * `landing-live.mjs` — a visitor sees demonstration markers and the page makes no incident request and shows no real reference code; a dispatcher's count equals the API's open total, the chips are the API's top eight in order, a chip offers that incident's page (never its text), a new report raises the count within the refresh window without a reload; a hospital operator keeps demonstration data with the reason and no incident request; phone width, reduced motion and WebGL-off all work (29 checks).
+* `hospital-edit.mjs` — an administrator edits a hospital's name, phone, address and position from the screen (server agrees; capacity untouched), relinks the operator (the previous one loses access), is refused retiring while a notice is open and shown the reason, retires once it is closed, restores it from the retired view; a dispatcher gets no button and a 403; phone width.
 * `command.mjs` — sign in, markers labelled, select an incident, panel contents,
   timeline, resource layer toggle, Map ⇄ Globe, inbox opens, markers focusable,
   mobile overflow, reduced-motion animations stopped.

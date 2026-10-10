@@ -9,6 +9,7 @@ import { getApiClient } from "@/lib/api";
 
 import { CapacityForm } from "./CapacityForm";
 import { CapacityMeter } from "./CapacityMeter";
+import { HospitalEditForm } from "./HospitalEditForm";
 import { AcceptingTag } from "./HospitalCard";
 import { NoticeList } from "./NoticeList";
 
@@ -21,17 +22,21 @@ export function HospitalDetail({
   hospital,
   canSeeNotices,
   canReportCapacity,
+  canEditDetails = false,
   noticeViewer,
   onChanged,
 }: {
   hospital: Hospital;
   canSeeNotices: boolean;
   canReportCapacity: boolean;
+  /** Administrators: correct the hospital's name, position, phone and linked operator. */
+  canEditDetails?: boolean;
   noticeViewer: "hospital" | "dispatch";
   onChanged: (hospital?: Hospital) => void;
 }) {
   const api = getApiClient();
   const [editing, setEditing] = useState(false);
+  const [editingDetails, setEditingDetails] = useState(false);
   const [notices, setNotices] = useState<HospitalNotice[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,10 +68,26 @@ export function HospitalDetail({
             {hospital.address ? ` · ${hospital.address}` : ""}
           </p>
         </div>
-        <AcceptingTag accepting={hospital.accepting_emergencies} />
+        <div className="flex flex-col items-end gap-1">
+          <AcceptingTag accepting={hospital.accepting_emergencies} />
+          {!hospital.is_active && (
+            <span className="rounded-full border border-amber-300/60 px-2 py-0.5 text-xs text-amber-200">
+              Retired
+            </span>
+          )}
+        </div>
       </div>
 
-      {editing ? (
+      {editingDetails ? (
+        <HospitalEditForm
+          hospital={hospital}
+          onCancel={() => setEditingDetails(false)}
+          onSaved={(updated) => {
+            setEditingDetails(false);
+            onChanged(updated);
+          }}
+        />
+      ) : editing ? (
         <CapacityForm
           hospital={hospital}
           onCancel={() => setEditing(false)}
@@ -93,11 +114,18 @@ export function HospitalDetail({
               <dd>{hospital.capacity_updated_at ? formatDateTime(hospital.capacity_updated_at) : "Never"}</dd>
             </div>
           </dl>
-          {canReportCapacity && (
-            <Button variant="secondary" onClick={() => setEditing(true)}>
-              Report capacity
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {canReportCapacity && (
+              <Button variant="secondary" onClick={() => setEditing(true)}>
+                Report capacity
+              </Button>
+            )}
+            {canEditDetails && (
+              <Button variant="secondary" onClick={() => setEditingDetails(true)}>
+                Edit details
+              </Button>
+            )}
+          </div>
         </div>
       )}
 

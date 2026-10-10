@@ -21,6 +21,7 @@ from app.schemas.hospital import (
     HospitalCapacityUpdate,
     HospitalCreate,
     HospitalRead,
+    HospitalUpdate,
     InboundNoticeCreate,
     InboundNoticeRead,
     InboundNoticeStatusChange,
@@ -44,6 +45,24 @@ def create_hospital(
     context: Context,
 ) -> HospitalRead:
     hospital = HospitalService(session).create(payload, actor=user, context=context)
+    return HospitalRead.model_validate(hospital)
+
+
+@router.patch(
+    "/{hospital_id}",
+    response_model=HospitalRead,
+    summary="Edit a hospital's details (administrators)",
+)
+def update_hospital(
+    hospital_id: uuid.UUID,
+    payload: HospitalUpdate,
+    user: AdminUser,
+    session: DbSession,
+    context: Context,
+) -> HospitalRead:
+    hospital = HospitalService(session).update_details(
+        hospital_id, payload, actor=user, context=context
+    )
     return HospitalRead.model_validate(hospital)
 
 

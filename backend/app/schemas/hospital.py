@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.enums import (
     HospitalNoticeStatus,
@@ -48,6 +48,27 @@ class HospitalCreate(BaseModel):
         if self.icu_available > self.icu_total:
             raise ValueError("icu_available cannot exceed icu_total.")
         return self
+
+
+class HospitalUpdate(BaseModel):
+    """Administrator corrections to what a hospital *is* (not how full it is).
+
+    The code is the hospital's identity and is not editable; capacity has its own
+    endpoint and its own, wider, set of people who may use it. ``extra="forbid"``
+    so an attempt to change either is refused rather than quietly ignored.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=2, max_length=200)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    address: str | None = Field(default=None, max_length=400)
+    contact_phone: str | None = Field(default=None, max_length=32)
+    #: ``null`` unlinks the operator; leaving the key out keeps the current one.
+    managed_by_id: uuid.UUID | None = None
+    #: Retire a hospital (or bring it back). Refused while it has open notices.
+    is_active: bool | None = None
 
 
 class HospitalCapacityUpdate(BaseModel):

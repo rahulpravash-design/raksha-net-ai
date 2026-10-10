@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { ApiError, type AdminUser, type Hospital } from "@raksha/api-client";
+import { ApiError, type Hospital } from "@raksha/api-client";
 
 import { Button, ErrorBanner, Field, TextInput } from "@/components/ui";
 import { getApiClient } from "@/lib/api";
@@ -11,6 +11,8 @@ import {
   validateHospitalForm,
   type HospitalFormErrors,
 } from "@/lib/hospital";
+
+import { useHospitalOperators } from "./useHospitalOperators";
 
 /** Register a hospital (administrators only) and link the operator who maintains it. */
 export function HospitalRegisterForm({
@@ -25,20 +27,7 @@ export function HospitalRegisterForm({
   const [errors, setErrors] = useState<HospitalFormErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [operators, setOperators] = useState<AdminUser[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-    api
-      .adminUsers({ role: "HOSPITAL_OPERATOR", is_active: true, page_size: 100 })
-      .then((page) => {
-        if (!cancelled) setOperators(page.items);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [api]);
+  const operators = useHospitalOperators();
 
   const set = (key: keyof typeof values) => (value: string) =>
     setValues((current) => ({ ...current, [key]: value }));

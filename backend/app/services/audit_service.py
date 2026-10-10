@@ -57,6 +57,7 @@ class AuditAction:
     DISPATCH_CREATED = "dispatch.created"
     DISPATCH_STATUS_CHANGED = "dispatch.status_changed"
     HOSPITAL_CREATED = "hospital.created"
+    HOSPITAL_UPDATED = "hospital.updated"
     HOSPITAL_CAPACITY_UPDATED = "hospital.capacity_updated"
     HOSPITAL_NOTICE_SENT = "hospital.notice_sent"
     HOSPITAL_NOTICE_UPDATED = "hospital.notice_updated"

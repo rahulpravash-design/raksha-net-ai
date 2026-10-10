@@ -1,4 +1,9 @@
-import type { CreateHospitalInput, Hospital, HospitalCapacityInput } from "@raksha/api-client";
+import type {
+  CreateHospitalInput,
+  Hospital,
+  HospitalCapacityInput,
+  UpdateHospitalInput,
+} from "@raksha/api-client";
 
 import { parseCapabilities } from "./resourceForm";
 
@@ -187,4 +192,63 @@ export function validateHospitalForm(values: HospitalFormValues): {
       managed_by_id: values.managed_by_id || null,
     },
   };
+}
+
+// --- editing what a hospital is (administrators) -------------------------------------
+
+export interface DetailsFormValues {
+  name: string;
+  latitude: string;
+  longitude: string;
+  address: string;
+  contact_phone: string;
+  managed_by_id: string;
+}
+
+export type DetailsFormErrors = Partial<Record<keyof DetailsFormValues, string>>;
+
+export function detailsFormFrom(hospital: Hospital): DetailsFormValues {
+  return {
+    name: hospital.name,
+    latitude: String(Number(hospital.latitude)),
+    longitude: String(Number(hospital.longitude)),
+    address: hospital.address ?? "",
+    contact_phone: hospital.contact_phone ?? "",
+    managed_by_id: hospital.managed_by?.id ?? "",
+  };
+}
+
+/**
+ * Validate an edit and return only what changed, so an untouched field is never
+ * re-sent (and a phone number the screen did not touch is never re-written).
+ * Position travels as a pair: the server refuses half of one.
+ */
+export function buildDetailsUpdate(
+  hospital: Hospital,
+  values: DetailsFormValues,
+): { errors: DetailsFormErrors; input: UpdateHospitalInput | null } {
+  const errors: DetailsFormErrors = {};
+  if (values.name.trim().length < 2) errors.name = "Enter a name of at least 2 characters.";
+  const latitude = coordinate(values.latitude, 90);
+  const longitude = coordinate(values.longitude, 180);
+  if (Number.isNaN(latitude)) errors.latitude = "Latitude must be a number between -90 and 90.";
+  if (Number.isNaN(longitude)) errors.longitude = "Longitude must be a number between -180 and 180.";
+  if (values.address.length > 400) errors.address = "The address is at most 400 characters.";
+  if (values.contact_phone.length > 32) errors.contact_phone = "The phone number is at most 32 characters.";
+  if (Object.keys(errors).length > 0) return { errors, input: null };
+
+  const input: UpdateHospitalInput = {};
+  if (values.name.trim() !== hospital.name) input.name = values.name.trim();
+  if (latitude !== Number(hospital.latitude) || longitude !== Number(hospital.longitude)) {
+    input.latitude = latitude;
+    input.longitude = longitude;
+  }
+  if ((values.address.trim() || null) !== hospital.address) input.address = values.address.trim() || null;
+  if ((values.contact_phone.trim() || null) !== hospital.contact_phone) {
+    input.contact_phone = values.contact_phone.trim() || null;
+  }
+  if ((values.managed_by_id || null) !== (hospital.managed_by?.id ?? null)) {
+    input.managed_by_id = values.managed_by_id || null;
+  }
+  return { errors, input };
 }
