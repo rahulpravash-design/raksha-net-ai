@@ -8,12 +8,13 @@ import { useAuth } from "@/components/AuthProvider";
 
 const ITEMS = [
   { href: "/dashboard", label: "Command centre", match: (p: string) => p.startsWith("/dashboard") || p.startsWith("/incidents") },
+  { href: "/resources", label: "Resources", match: (p: string) => p.startsWith("/resources") },
   { href: "/", label: "Overview", match: (p: string) => p === "/" },
 ];
 
 /**
  * Module navigation. It lists only screens that exist; modules still to be
- * built (resource inventory, hospitals, analytics) are not shown as links.
+ * built (hospitals, analytics) are not shown as links.
  * Rail on wide screens, a strip under the header on narrow ones.
  */
 export function Sidebar() {

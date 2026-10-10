@@ -94,7 +94,15 @@ export function useSelectedIncident(id: string | null): SelectedDetail {
  * and the AI's proposal are kept visibly apart, and nothing here can dispatch:
  * dispatch lives in the incident console, behind an explicit confirmation.
  */
-export function SelectedIncident({ id, detail }: { id: string; detail: SelectedDetail }) {
+export function SelectedIncident({
+  id,
+  detail,
+  onQuickView,
+}: {
+  id: string;
+  detail: SelectedDetail;
+  onQuickView?: () => void;
+}) {
   const { incident, analysis, recommendations, loading, error } = detail;
 
   return (
@@ -182,12 +190,23 @@ export function SelectedIncident({ id, detail }: { id: string; detail: SelectedD
             <p className="muted mt-1 text-xs">Suggestions only — dispatch is a human decision.</p>
           </div>
 
-          <Link
-            href={`/incidents/${id}`}
-            className="block rounded-lg bg-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-brand-700"
-          >
-            Open incident console
-          </Link>
+          <div className="flex gap-2">
+            {onQuickView && (
+              <button
+                type="button"
+                onClick={onQuickView}
+                className="surface flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold"
+              >
+                Quick view
+              </button>
+            )}
+            <Link
+              href={`/incidents/${id}`}
+              className="flex-1 rounded-lg bg-brand-600 px-4 py-2.5 text-center text-sm font-semibold text-white hover:bg-brand-700"
+            >
+              Open incident console
+            </Link>
+          </div>
         </>
       )}
     </section>

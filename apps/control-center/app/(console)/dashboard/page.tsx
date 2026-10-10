@@ -19,6 +19,7 @@ import {
 import { useAuth } from "@/components/AuthProvider";
 import { GlobeStage } from "@/components/3d/GlobeStage";
 import { Reveal } from "@/components/animations/Reveal";
+import { IncidentDrawer } from "@/components/command-center/IncidentDrawer";
 import { ActivityTimeline } from "@/components/command-center/ActivityTimeline";
 import { CommandStrip } from "@/components/command-center/CommandStrip";
 import {
@@ -69,6 +70,7 @@ export default function DashboardPage() {
   const [resources, setResources] = useState<Resource[]>([]);
   const [view, setView] = useState<MapView>("map");
   const [showResources, setShowResources] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [connected, setConnected] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -169,6 +171,7 @@ export default function DashboardPage() {
   );
 
   const detail = useSelectedIncident(selectedId);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
   const globeMarkers = useMemo(
     () =>
@@ -244,7 +247,13 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-3">
-          {selectedId && <SelectedIncident id={selectedId} detail={detail} />}
+          {selectedId && (
+            <SelectedIncident
+              id={selectedId}
+              detail={detail}
+              onQuickView={() => setDrawerOpen(true)}
+            />
+          )}
 
           <Reveal
             as="section"
@@ -307,6 +316,11 @@ export default function DashboardPage() {
           </Reveal>
         </div>
       </div>
+      <IncidentDrawer
+        open={drawerOpen && selectedId !== null}
+        detail={detail}
+        onClose={closeDrawer}
+      />
     </div>
   );
 }

@@ -216,7 +216,7 @@ export function DispatchPanel({
     try {
       const [rows, ranked] = await Promise.all([
         api.incidentDispatches(incidentId),
-        showRecs ? api.resourceRecommendations(incidentId) : Promise.resolve(null),
+        showRecs ? api.resourceRecommendations(incidentId, 5) : Promise.resolve(null),
       ]);
       setDispatches(rows);
       setRecs(ranked);
