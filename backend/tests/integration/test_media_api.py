@@ -302,3 +302,71 @@ def test_an_unreachable_scanner_blocks_the_upload_when_scanning_is_required(
     response = _upload(client, incident["id"])
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "MEDIA_SCAN_UNAVAILABLE"
+
+
+# --- embedded metadata ---------------------------------------------------------
+def _photo_with_location() -> bytes:
+    from tests.unit.test_image_metadata import ICC, JFIF, XMP, exif_segment, jpeg
+
+    return jpeg(JFIF, exif_segment(6), XMP, ICC)
+
+
+def test_the_stored_photograph_carries_no_location(
+    authed_client, make_user, incident_payload, db_session
+) -> None:
+    """A phone photo holds the GPS position it was taken at; nobody who opens the
+    incident should be able to read it from the file."""
+    import hashlib
+
+    from sqlalchemy import select
+
+    from app.models.incident import AuditLog, IncidentMedia
+    from tests.unit.test_image_metadata import GPS_TEXT, SERIAL
+
+    client, incident = make_incident(authed_client, make_user, incident_payload)
+    upload = _photo_with_location()
+    assert GPS_TEXT in upload
+
+    response = client.post(
+        f"/api/v1/incidents/{incident['id']}/media",
+        files={"file": ("IMG_0042.jpg", upload, "image/jpeg")},
+    )
+    assert response.status_code == 201, response.text
+    media = response.json()
+
+    stored = client.get(f"/api/v1/media/{media['id']}/content").content
+    assert GPS_TEXT not in stored and SERIAL not in stored and b"xmpmeta" not in stored
+    assert stored.startswith(b"\xff\xd8") and stored.endswith(b"\xff\xd9")
+    assert len(stored) < len(upload)
+    # Size and checksum describe what is held, not what arrived.
+    assert media["size_bytes"] == len(stored)
+    row = db_session.scalars(
+        select(IncidentMedia).where(IncidentMedia.id == media["id"])
+    ).one()
+    assert row.checksum_sha256 == hashlib.sha256(stored).hexdigest()
+    assert row.size_bytes == len(stored)
+
+    audit = db_session.scalars(
+        select(AuditLog).where(AuditLog.action == "media.uploaded")
+    ).all()
+    assert audit[-1].event_metadata["metadata_stripped_bytes"] == len(upload) - len(
+        stored
+    )
+
+
+def test_a_damaged_image_is_refused_rather_than_stored_with_its_metadata(
+    authed_client, make_user, incident_payload, tmp_path
+) -> None:
+    client, incident = make_incident(authed_client, make_user, incident_payload)
+    damaged = (
+        b"\xff\xd8\xff\xe1\x7f\xff" + b"truncated exif block"
+    )  # claims 32 KB, has 20 bytes
+
+    response = client.post(
+        f"/api/v1/incidents/{incident['id']}/media",
+        files={"file": ("broken.jpg", damaged, "image/jpeg")},
+    )
+    assert response.status_code == 400
+    assert "damaged" in response.json()["error"]["message"]
+    assert not list((tmp_path / "media").rglob("*.jpg"))
+    assert client.get(f"/api/v1/incidents/{incident['id']}/media").json() == []

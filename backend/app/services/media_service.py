@@ -37,6 +37,7 @@ from app.repositories.incident_repository import IncidentRepository
 from app.services.audit_service import AuditAction, AuditService
 from app.services.auth_service import RequestContext
 from app.services.scanners import ScannerUnavailableError, get_scanner
+from app.utils.image_metadata import ImageMetadataError, strip_metadata
 
 logger = get_logger(__name__)
 
@@ -89,12 +90,17 @@ class MediaService:
         # Scanned before anything is written, so a flagged file never reaches
         # storage at all.
         scan_status = self._scan(file, incident, actor, context)
-        checksum = hashlib.sha256(file.content).hexdigest()
+        # What is stored is the picture without its embedded metadata: a phone photo
+        # carries the GPS position it was taken at, and everyone who may open the
+        # incident could read it from the file. The checksum and size describe the
+        # stored bytes, not the upload.
+        stored = self._strip_metadata(file.content, content_type)
+        checksum = hashlib.sha256(stored).hexdigest()
         storage_key = self._storage_key(incident.id, content_type)
 
         destination = self._absolute_path(storage_key)
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(file.content)
+        destination.write_bytes(stored)
 
         media = IncidentMedia(
             incident_id=incident.id,
@@ -102,7 +108,7 @@ class MediaService:
             media_type=MediaType.IMAGE,
             storage_key=storage_key,
             content_type=content_type,
-            size_bytes=len(file.content),
+            size_bytes=len(stored),
             checksum_sha256=checksum,
             original_filename=self._safe_display_name(file.filename),
             scan_status=scan_status,
@@ -120,6 +126,7 @@ class MediaService:
                 "incident_id": str(incident.id),
                 "content_type": content_type,
                 "size_bytes": media.size_bytes,
+                "metadata_stripped_bytes": len(file.content) - len(stored),
                 "scan_status": scan_status.value,
             },
         )
@@ -200,6 +207,22 @@ class MediaService:
             self.session.commit()
             raise MediaInfectedError()
         return outcome.status
+
+    # -- metadata -----------------------------------------------------------
+    @staticmethod
+    def _strip_metadata(content: bytes, content_type: str) -> bytes:
+        """Remove embedded metadata, or refuse the file.
+
+        Failing closed is the point: an image whose structure cannot be walked is
+        one whose metadata we cannot promise to have removed.
+        """
+        try:
+            return strip_metadata(content, content_type)
+        except ImageMetadataError as exc:
+            raise ValidationError(
+                "The image could not be processed and may be damaged. "
+                "Try taking the photograph again."
+            ) from exc
 
     # -- validation ---------------------------------------------------------
     def _validate(self, file: UploadedFile) -> str:

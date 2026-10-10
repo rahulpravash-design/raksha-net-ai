@@ -202,7 +202,8 @@ response carries incident content.
 | Name | Storage key is `{incident_id}/{uuid4}{ext}`; the client filename is metadata only |
 | Location | Outside the web root; served through an authorised endpoint only |
 | Execution | Storage directory is never on an execution path; no server-side rendering of uploads |
-| Integrity | SHA-256 recorded per object |
+| Metadata | Embedded metadata is removed **before storage** (`app/utils/image_metadata.py`): EXIF (GPS position, device model and serial, thumbnail), XMP, IPTC and comments from JPEGs; text, EXIF and timestamp chunks from PNGs; EXIF and XMP from WebPs. The scan runs on the original bytes; what is stored is the cleaned file. Nothing is re-encoded (pixels are byte-identical, checked against real encoder output). A JPEG keeps its EXIF *orientation* alone, in a minimal block, so portrait photographs are not shown on their side; WebP orientation is not preserved. An image whose structure cannot be walked is refused with `400` rather than stored with metadata that could not be removed |
+| Integrity | SHA-256 recorded per object — of the stored (cleaned) bytes |
 | Malware | With `RAKSHA_CLAMAV_HOST` set, content is streamed to ClamAV (`INSTREAM`) **before** anything is written; a flagged file is refused with `422` and audited with the signature |
 | Record | Every stored file carries `scan_status`: `CLEAN`, or `UNSCANNED` |
 

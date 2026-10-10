@@ -273,6 +273,10 @@ reviewed once: a second attempt gets `409 ANALYSIS_ALREADY_REVIEWED`.
 Validation: size <= `RAKSHA_MEDIA_MAX_BYTES`, declared MIME in the allow-list,
 **and** magic-byte sniffing that must agree with the declared type. The stored
 key is generated; the client filename is never used as a path component.
+**Embedded metadata (EXIF GPS, device identifiers, XMP, IPTC, comments) is stripped
+before storage**, so `size_bytes` and the content served back describe the cleaned
+file and are usually smaller than the upload. A JPEG keeps only its orientation. An
+image whose structure cannot be read is refused with `400`.
 
 Malware scanning: with `RAKSHA_CLAMAV_HOST` set, content is scanned before it
 is stored. A flagged file is refused with `422 MEDIA_INFECTED` and never
