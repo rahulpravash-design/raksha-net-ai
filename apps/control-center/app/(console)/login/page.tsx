@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { ApiError } from "@raksha/api-client";
+import { SecondFactorField } from "@raksha/ui";
 
 import { useAuth } from "@/components/AuthProvider";
 import { Button, ErrorBanner, Field, TextInput } from "@/components/ui";
@@ -35,7 +36,9 @@ export default function ConsoleLoginPage() {
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === "MFA_REQUIRED") {
         setNeedsCode(true);
-        setError("Enter the 6-digit code from your authenticator app.");
+        setError(
+          "Enter the 6-digit code from your authenticator app, or one of your recovery codes.",
+        );
       } else {
         setError(
           caught instanceof ApiError
@@ -83,21 +86,7 @@ export default function ConsoleLoginPage() {
           />
         </Field>
 
-        {needsCode && (
-          <Field label="Verification code" required>
-            <TextInput
-              type="text"
-              name="mfa_code"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              pattern="[0-9]{6}"
-              maxLength={6}
-              required
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-            />
-          </Field>
-        )}
+        {needsCode && <SecondFactorField value={code} onChange={setCode} />}
         <p className="text-sm">
           <Link href="/forgot-password" className="font-medium underline">
             Forgot your password?

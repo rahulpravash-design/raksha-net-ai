@@ -429,7 +429,7 @@ items below are done by people.
   has been performed; do not treat this phase as complete because the code
   exists.
 - **Acceptance of residual risk by an operating authority.**
-- MFA recovery codes. (The enrolment screen is built in all three apps; a user who loses the device still needs an administrator to reset their second factor.)
+- MFA recovery codes are built (migration 0016) along with the enrolment screen in all three apps; a user who loses both the device and the codes still needs an administrator.
 - Front-end CSP without `'unsafe-inline'` (needs per-request nonces).
 - The ClamAV client has not been run against a real ClamAV.
 - Dev-tooling advisories (`braces`, in the ESLint chain) are reported, not gating.

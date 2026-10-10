@@ -135,6 +135,14 @@ export interface MfaEnrollment {
   provisioning_uri: string;
 }
 
+/** Turning two-factor on returns the user and ten one-time recovery codes, shown only then. */
+export type MfaEnabled = User & { recovery_codes: string[] };
+
+export interface MfaRecoveryStatus {
+  /** Unused recovery codes. A count only: the codes themselves can never be fetched. */
+  remaining: number;
+}
+
 /** Minutes-based statistics. Everything but `sample_size` is null when there is no data yet. */
 export interface TimeStats {
   sample_size: number;

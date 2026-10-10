@@ -18,10 +18,12 @@ describe("validatePasswordChange", () => {
   it("catches reusing the current password", () => {
     expect(validatePasswordChange({ ...ok, next: ok.current, confirm: ok.current }, false).next).toMatch(/different/i);
   });
-  it("asks for a code only when MFA is on, and only six digits", () => {
+  it("asks for a code only when MFA is on: six digits, or a recovery code", () => {
     expect(validatePasswordChange(ok, true).code).toBeDefined();
     expect(validatePasswordChange({ ...ok, code: "12345" }, true).code).toBeDefined();
     expect(validatePasswordChange({ ...ok, code: "123456" }, true)).toEqual({});
+    expect(validatePasswordChange({ ...ok, code: "abcd-efgh-jkmn" }, true)).toEqual({});
+    expect(validatePasswordChange({ ...ok, code: "abcd-efgh" }, true).code).toBeDefined();
   });
   it("does not guess the server's password policy", () => {
     expect(validatePasswordChange({ ...ok, next: "short", confirm: "short" }, false)).toEqual({});

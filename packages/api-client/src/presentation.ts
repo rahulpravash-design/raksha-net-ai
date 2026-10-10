@@ -322,3 +322,24 @@ export const NEXT_DISPATCH_STATUSES: Record<DispatchStatus, DispatchStatus[]> =
     COMPLETED: [],
     CANCELLED: [],
   };
+
+// --- second factor input ------------------------------------------------------------------
+
+/** Six digits, as an authenticator app shows them. */
+export function isAuthenticatorCode(value: string): boolean {
+  return /^\d{6}$/.test(value.trim());
+}
+
+/**
+ * A one-time recovery code as people type it: twelve letters, with dashes or spaces
+ * allowed between groups (`ABCD-EFGH-JKMN`). The server ignores case and punctuation.
+ */
+export function isRecoveryCode(value: string): boolean {
+  const text = value.trim();
+  return /^[A-Za-z][A-Za-z -]{10,22}[A-Za-z]$/.test(text) && text.replace(/[^A-Za-z]/g, "").length === 12;
+}
+
+/** Either kind of second-factor code. */
+export function isSecondFactorCode(value: string): boolean {
+  return isAuthenticatorCode(value) || isRecoveryCode(value);
+}

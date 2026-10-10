@@ -18,7 +18,9 @@ import type {
   ResourceUtilization,
   TimeStats,
   CreateUserInput,
+  MfaEnabled,
   MfaEnrollment,
+  MfaRecoveryStatus,
   UpdateUserInput,
   UserRole,
   UserSummary,
@@ -290,10 +292,25 @@ export class ApiClient {
     return this.request<MfaEnrollment>("/api/v1/auth/mfa/enroll", { method: "POST" });
   }
 
-  async mfaEnable(code: string): Promise<User> {
-    return this.request<User>("/api/v1/auth/mfa/enable", { method: "POST", body: { code } });
+  /** Confirm enrolment with an authenticator code. The response carries the recovery codes. */
+  async mfaEnable(code: string): Promise<MfaEnabled> {
+    return this.request<MfaEnabled>("/api/v1/auth/mfa/enable", { method: "POST", body: { code } });
   }
 
+  async mfaRecoveryStatus(): Promise<MfaRecoveryStatus> {
+    return this.request<MfaRecoveryStatus>("/api/v1/auth/mfa/recovery-codes");
+  }
+
+  /** Replace the whole set. `code` is an authenticator code or an unused recovery code. */
+  async mfaRegenerateRecoveryCodes(password: string, code: string): Promise<string[]> {
+    const result = await this.request<{ recovery_codes: string[] }>(
+      "/api/v1/auth/mfa/recovery-codes",
+      { method: "POST", body: { password, code } },
+    );
+    return result.recovery_codes;
+  }
+
+  /** `code` is an authenticator code, or a recovery code when the device is lost. */
   async mfaDisable(password: string, code: string): Promise<User> {
     return this.request<User>("/api/v1/auth/mfa/disable", {
       method: "POST",

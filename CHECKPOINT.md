@@ -48,16 +48,16 @@ measured and fixed in a development environment only.**
 - `./scripts/check.sh` — **20/20 steps green** (ruff, black, mypy, pytest, migration
   chain + drift check, AI pytest, pip-audit, npm audit, then eslint + tsc + vitest +
   build for all three front ends). Read from its actual final line.
-- **605 backend tests** (none skipped, including those that start a real
-  `redis-server`), **31 AI tests**, **320 frontend tests** (45 citizen, 265 control centre, 10 responder). 956 total, all passing.
-- Migrations `0001 → 0015`; the gate upgrades to head, fails on model/migration
+- **634 backend tests** (none skipped, including those that start a real
+  `redis-server`), **31 AI tests**, **329 frontend tests** (45 citizen, 274 control centre, 10 responder). 994 total, all passing.
+- Migrations `0001 → 0016`; the gate upgrades to head, fails on model/migration
   drift and downgrades to base on every run (and cleans up even if it fails).
 - Backup → restore → compare, on a 100k-incident database: all checks pass; each
   refusal path (corrupt file, wrong age key, wrong encryption key, existing target)
   was exercised. See `infrastructure/deployment/RUNBOOK.md`.
 - Rate limiting across two real API processes: limit 10 → memory let 19 through,
   Redis exactly 10.
-- Migrations are unchanged by the latest work (no schema change); the API gained `PATCH /hospitals/{id}`.
+- The API gained `PATCH /hospitals/{id}` and the MFA recovery-code endpoints; the schema gained `mfa_recovery_codes` (0016).
 
 ---
 
@@ -156,7 +156,7 @@ struck-through rows record what was done. The exact next step is in §8.
 | ~~Hospital capacity, nearby hospitals, send/track an inbound notice~~ **BUILT** in the control centre for dispatchers **and** hospital operators (`/hospitals`, incident Hospitals panel; browser-verified). A separate hospital-operator *app* was not built — the operator uses a reduced control-centre view. | — | — |
 | ~~Notification inbox (+ unread badge)~~ **BUILT** (`packages/ui` `NotificationBell`, all three headers; browser-verified for the responder) | — | — |
 | ~~Analytics~~ **BUILT** (`/analytics`; hotspots listed as coarsened cells, not mapped) | — | — |
-| ~~MFA enrolment (QR/URI, confirm, disable)~~ **BUILT** in all three apps from one shared component (`/account/security`; control centre browser-verified with QR decoded by OpenCV and enforced-policy redirect; responder and citizen `responder-security.mjs`; an unenrolled responder under `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL=true` is sent to the enrolment screen). No recovery codes. | — | — |
+| ~~MFA enrolment (QR/URI, confirm, disable)~~ **BUILT** in all three apps from one shared component (`/account/security`; control centre browser-verified with QR decoded by OpenCV and enforced-policy redirect; responder and citizen `responder-security.mjs`; an unenrolled responder under `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL=true` is sent to the enrolment screen). One-time recovery codes (migration 0016): shown once after enabling, counted, replaceable, accepted wherever a second factor is; `mfa-recovery.mjs` proves the lone-administrator recovery in a browser. | — | — |
 | ~~Admin: unlock / reset MFA / create operators~~ **BUILT** (`/admin/users`; also hospital registration and a crew picker). Passwords: change, forced change on administrator-set passwords, and temporary reset are built (migration 0014) | — | — |
 
 Every Phase 10–14 capability now has a screen in the control centre (dispatch, resources,
@@ -410,7 +410,7 @@ Everything below is committed. Nothing is staged or modified.
     only ever sent to a local test mailbox.
 13. **Phase 16 is not finished by its code.** No penetration test, no operating
     authority acceptance. `docs/SECURITY.md` §12 lists every other gap: no MFA
-    recovery codes; front-end CSP keeps `'unsafe-inline'`;
+    recovery-code storage is the user's own responsibility; front-end CSP keeps `'unsafe-inline'`;
     ClamAV client untested against a real ClamAV; MFA enforcement off by default;
     dev-tooling advisory (`braces`) not gating.
 14. **The browser end-to-end scripts are in `scripts/e2e/` but not in the gate.** They need
@@ -481,7 +481,7 @@ npm run dev --workspace @raksha/responder-web      # :3002
 
 ```bash
 ./scripts/check.sh            # the full gate — read the LAST line
-cd backend && .venv/bin/pytest -q          # 605 backend tests
+cd backend && .venv/bin/pytest -q          # 634 backend tests
 cd .. && PYTHONPATH=. backend/.venv/bin/pytest ai/tests -q   # 31 AI tests
 ```
 
@@ -545,7 +545,7 @@ or a decision:
 3. **Try a real mail provider** (`RAKSHA_SMTP_HOST`) — recovery email has only met a
    local test mailbox — and decide whether SMS/push (stubbed behind `NullNotifier`) are
    needed, which needs provider accounts.
-4. Optional hardening: MFA recovery codes, nonce-based CSP, a CI job for the browser
+4. Optional hardening: nonce-based CSP, a CI job for the browser
    scripts, dispatch arcs (unit to incident) on the live landing globe, a read-only
    supervisor role if a pilot needs one (`docs/SECURITY.md` §3).
 

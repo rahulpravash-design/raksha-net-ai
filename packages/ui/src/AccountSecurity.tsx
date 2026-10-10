@@ -1,9 +1,15 @@
 "use client";
 
 import QRCode from "qrcode";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
-import { ApiError, type MfaEnrollment, type User } from "@raksha/api-client";
+import {
+  ApiError,
+  isAuthenticatorCode,
+  isSecondFactorCode,
+  type MfaEnrollment,
+  type User,
+} from "@raksha/api-client";
 
 import { Button, ErrorBanner, Field, TextInput } from "./primitives";
 
@@ -36,8 +42,8 @@ export function validatePasswordChange(
   if (values.next !== "" && values.confirm !== values.next) {
     errors.confirm = "The two new passwords do not match.";
   }
-  if (mfaEnabled && !/^\d{6}$/.test(values.code)) {
-    errors.code = "Enter the 6-digit code from your authenticator app.";
+  if (mfaEnabled && !isSecondFactorCode(values.code)) {
+    errors.code = "Enter the 6-digit code from your authenticator app, or a recovery code.";
   }
   return errors;
 }
@@ -88,21 +94,144 @@ export function groupSecret(secret: string): string {
 /** The slice of the API client the account-security panels need. */
 export interface SecurityApi {
   mfaEnroll(): Promise<MfaEnrollment>;
-  mfaEnable(code: string): Promise<User>;
+  /** Resolves with the recovery codes (absent from an older server). */
+  mfaEnable(code: string): Promise<{ recovery_codes?: string[] }>;
+  mfaRecoveryStatus(): Promise<{ remaining: number }>;
+  mfaRegenerateRecoveryCodes(password: string, code: string): Promise<string[]>;
   mfaDisable(password: string, code: string): Promise<User>;
   changePassword(current: string, next: string, mfaCode?: string): Promise<unknown>;
 }
 
 const DEFAULT_PANEL = "surface space-y-4 rounded-xl p-4";
-const CODE = /^\d{6}$/;
 const digits = (value: string) => value.replace(/\D/g, "");
+/** For a field that takes either kind of code: keep what could be one, drop the rest. */
+const secondFactorText = (value: string) => value.replace(/[^A-Za-z0-9 -]/g, "").slice(0, 24);
 
 /**
- * Two-factor authentication for the signed-in user: enrol, confirm, disable.
+ * The second-factor field: an authenticator code or a one-time recovery code. Used by
+ * the three sign-in pages and the security panels, so they cannot drift apart. The
+ * field keeps `name="mfa_code"` and a plain text keyboard (a numeric one would make a
+ * recovery code impossible to type).
+ */
+export function SecondFactorField({
+  value,
+  onChange,
+  label = "Verification code or recovery code",
+  hint = "The 6-digit code from your authenticator app. If you have lost the device, use one of your recovery codes instead — each works once.",
+  error,
+  required = true,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  label?: string;
+  hint?: string;
+  error?: string | undefined;
+  required?: boolean;
+}) {
+  return (
+    <Field label={label} hint={hint} error={error} required={required}>
+      <TextInput
+        type="text"
+        name="mfa_code"
+        autoComplete="one-time-code"
+        autoCapitalize="characters"
+        autoCorrect="off"
+        spellCheck={false}
+        maxLength={24}
+        required={required}
+        value={value}
+        onChange={(event) => onChange(secondFactorText(event.target.value))}
+      />
+    </Field>
+  );
+}
+
+/**
+ * Recovery codes, shown once. They cannot be fetched again, so the screen does not let
+ * go of them until the person says they have kept them somewhere.
+ */
+export function RecoveryCodesView({
+  codes,
+  onDone,
+  heading = "Save your recovery codes",
+}: {
+  codes: string[];
+  onDone: () => void;
+  heading?: string;
+}) {
+  const [saved, setSaved] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const text = codes.join("\n");
+
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  function download() {
+    const blob = new Blob(
+      [`RAKSHA NET AI recovery codes\nEach works once, in place of an authenticator code.\n\n${text}\n`],
+      { type: "text/plain" },
+    );
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "raksha-recovery-codes.txt";
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <div role="group" aria-label="Recovery codes" className="space-y-3">
+      <h3 className="font-semibold">{heading}</h3>
+      <p className="text-sm">
+        If you lose your authenticator device, one of these signs you in. Each works{" "}
+        <strong>once</strong>. Keep them somewhere safe and separate from your phone, as you
+        would a password. <strong>They are not shown again.</strong>
+      </p>
+      <ul
+        aria-label="Your recovery codes"
+        className="surface grid select-all grid-cols-1 gap-1 rounded-lg px-3 py-2 font-mono text-sm sm:grid-cols-2"
+      >
+        {codes.map((code) => (
+          <li key={code}>{code}</li>
+        ))}
+      </ul>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" variant="secondary" onClick={() => void copy()}>
+          {copied ? "Copied" : "Copy codes"}
+        </Button>
+        <Button type="button" variant="secondary" onClick={download}>
+          Download as a file
+        </Button>
+      </div>
+      <label className="flex items-start gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={saved}
+          onChange={(event) => setSaved(event.target.checked)}
+        />
+        I have saved these codes somewhere safe.
+      </label>
+      <Button type="button" disabled={!saved} onClick={onDone}>
+        Done
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * Two-factor authentication for the signed-in user: enrol, confirm, recovery codes,
+ * disable.
  *
- * The secret is shown only here, once per enrolment. There are no recovery
- * codes: a user who loses the device must have an administrator reset it, and
- * the screen says so before they rely on it.
+ * The secret is shown only here, once per enrolment, and so are the recovery codes:
+ * the server keeps only their hashes, so a lost set can be replaced but never read
+ * again — and the screen holds on to them until the person says they are saved.
  */
 export function MfaPanel({
   api,
@@ -120,9 +249,30 @@ export function MfaPanel({
   const [code, setCode] = useState("");
   const [password, setPassword] = useState("");
   const [disabling, setDisabling] = useState(false);
+  const [renewing, setRenewing] = useState(false);
+  const [issued, setIssued] = useState<{ codes: string[]; heading: string } | null>(null);
+  const [remaining, setRemaining] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  const mfaOn = user.mfa_enabled;
+  useEffect(() => {
+    if (!mfaOn || issued) return;
+    let cancelled = false;
+    api
+      .mfaRecoveryStatus()
+      .then((status) => {
+        if (!cancelled) setRemaining(status.remaining);
+      })
+      .catch(() => {
+        // A count is a convenience; the panel works without it.
+        if (!cancelled) setRemaining(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api, mfaOn, issued]);
 
   async function run(action: () => Promise<void>, fallback: string) {
     setBusy(true);
@@ -145,27 +295,45 @@ export function MfaPanel({
 
   const confirm = () =>
     run(async () => {
-      if (!CODE.test(code)) {
+      if (!isAuthenticatorCode(code)) {
         throw new ApiError(400, {
           code: "VALIDATION_ERROR",
           message: "Enter the 6-digit code from your authenticator app.",
         });
       }
-      await api.mfaEnable(code);
+      const result = await api.mfaEnable(code);
       setEnrolment(null);
       setCode("");
+      const codes = result?.recovery_codes ?? [];
+      if (codes.length > 0) setIssued({ codes, heading: "Save your recovery codes" });
       await onChanged();
       setNotice(
         "Two-factor authentication is on. You will be asked for a code each time you sign in.",
       );
     }, "The code could not be confirmed.");
 
-  const disable = () =>
+  const renew = () =>
     run(async () => {
-      if (!CODE.test(code)) {
+      if (!isSecondFactorCode(code)) {
         throw new ApiError(400, {
           code: "VALIDATION_ERROR",
-          message: "Enter the current 6-digit code.",
+          message: "Enter a current authenticator code or an unused recovery code.",
+        });
+      }
+      const codes = await api.mfaRegenerateRecoveryCodes(password, code);
+      setRenewing(false);
+      setPassword("");
+      setCode("");
+      setRemaining(codes.length);
+      setIssued({ codes, heading: "Your new recovery codes" });
+    }, "New recovery codes could not be made.");
+
+  const disable = () =>
+    run(async () => {
+      if (!isSecondFactorCode(code)) {
+        throw new ApiError(400, {
+          code: "VALIDATION_ERROR",
+          message: "Enter a current authenticator code or an unused recovery code.",
         });
       }
       await api.mfaDisable(password, code);
@@ -187,7 +355,7 @@ export function MfaPanel({
           </p>
         </div>
         <span
-          className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+          className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
             user.mfa_enabled
               ? "border-emerald-500/50 text-emerald-600 dark:text-emerald-300"
               : "border-amber-400/60 text-amber-600 dark:text-amber-200"
@@ -204,7 +372,18 @@ export function MfaPanel({
         </p>
       )}
 
-      {!user.mfa_enabled && !enrolment && (
+      {issued && (
+        <RecoveryCodesView
+          codes={issued.codes}
+          heading={issued.heading}
+          onDone={() => {
+            setIssued(null);
+            setNotice(null);
+          }}
+        />
+      )}
+
+      {!issued && !user.mfa_enabled && !enrolment && (
         <div className="space-y-2">
           <Button loading={busy} onClick={() => void begin()}>
             Set up two-factor
@@ -212,7 +391,7 @@ export function MfaPanel({
         </div>
       )}
 
-      {enrolment && (
+      {!issued && enrolment && (
         <div className="space-y-3">
           <ol className="list-decimal space-y-1 pl-5 text-sm">
             <li>Open an authenticator app (any TOTP app works).</li>
@@ -260,29 +439,56 @@ export function MfaPanel({
             </Button>
           </div>
           <p className="muted text-xs">
-            There are no backup codes. If you lose the device, an administrator has to reset your
-            second factor before you can sign in again — and an administrator cannot reset their
-            own.
+            Turning it on gives you ten one-time recovery codes to keep: they are what gets you in
+            if you lose the device. Without them, an administrator has to reset your second factor —
+            and an administrator cannot reset their own.
           </p>
         </div>
       )}
 
-      {user.mfa_enabled && !disabling && (
-        <Button
-          variant="danger"
-          onClick={() => {
-            setDisabling(true);
-            setError(null);
-            setNotice(null);
-          }}
+      {!issued && user.mfa_enabled && (
+        <p
+          className={`text-sm ${remaining !== null && remaining <= 3 ? "text-amber-600 dark:text-amber-200" : ""}`}
         >
-          Turn off two-factor…
-        </Button>
+          {remaining === null
+            ? "Recovery codes: checking…"
+            : remaining === 0
+              ? "You have no recovery codes left. If you lose your device you will need an administrator — get new ones now."
+              : `${remaining} unused recovery code${remaining === 1 ? "" : "s"}${remaining <= 3 ? " — running low, get new ones" : ""}.`}
+        </p>
       )}
 
-      {user.mfa_enabled && disabling && (
-        <div role="group" aria-label="Turn off two-factor" className="space-y-3">
-          <p className="text-sm">Turning it off needs your password and a current code.</p>
+      {!issued && user.mfa_enabled && !renewing && !disabling && (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              setRenewing(true);
+              setError(null);
+              setNotice(null);
+            }}
+          >
+            Get new recovery codes…
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => {
+              setDisabling(true);
+              setError(null);
+              setNotice(null);
+            }}
+          >
+            Turn off two-factor…
+          </Button>
+        </div>
+      )}
+
+      {!issued && user.mfa_enabled && renewing && (
+        <div role="group" aria-label="New recovery codes" className="space-y-3">
+          <p className="text-sm">
+            This replaces all ten codes: any you have not used stop working. It needs your password
+            and a current code.
+          </p>
           <Field label="Password">
             <TextInput
               type="password"
@@ -291,15 +497,54 @@ export function MfaPanel({
               onChange={(e) => setPassword(e.target.value)}
             />
           </Field>
-          <Field label="Current code">
+          <SecondFactorField
+            label="Current code or recovery code"
+            hint="An authenticator code, or one recovery code you have not used."
+            required={false}
+            value={code}
+            onChange={setCode}
+          />
+          <div className="flex gap-2">
+            <Button loading={busy} disabled={password === ""} onClick={() => void renew()}>
+              Make new codes
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={busy}
+              onClick={() => {
+                setRenewing(false);
+                setPassword("");
+                setCode("");
+                setError(null);
+              }}
+            >
+              Keep the old ones
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!issued && user.mfa_enabled && disabling && (
+        <div role="group" aria-label="Turn off two-factor" className="space-y-3">
+          <p className="text-sm">
+            Turning it off needs your password and a current code — or a recovery code, if you have
+            lost the device. It also deletes your recovery codes.
+          </p>
+          <Field label="Password">
             <TextInput
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              value={code}
-              onChange={(e) => setCode(digits(e.target.value))}
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
           </Field>
+          <SecondFactorField
+            label="Current code or recovery code"
+            hint="An authenticator code, or one recovery code you have not used."
+            required={false}
+            value={code}
+            onChange={setCode}
+          />
           <div className="flex gap-2">
             <Button
               variant="danger"
@@ -447,20 +692,13 @@ export function PasswordPanel({
           />
         </Field>
         {user.mfa_enabled && (
-          <Field
-            label="Code from your authenticator app"
-            required
-            error={errors.code}
+          <SecondFactorField
+            label="Code from your authenticator app, or a recovery code"
             hint="Two-factor is on, so a current code is needed too."
-          >
-            <TextInput
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              value={values.code}
-              onChange={(e) => set("code")(digits(e.target.value))}
-            />
-          </Field>
+            error={errors.code}
+            value={values.code}
+            onChange={set("code")}
+          />
         )}
         <Button type="submit" loading={busy}>
           Change password
