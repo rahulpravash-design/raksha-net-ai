@@ -8,14 +8,19 @@ from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
+from app.core import totp
 from app.core.config import Settings, get_settings
 from app.core.errors import (
     AccountLockedError,
+    ConflictError,
     EmailAlreadyRegisteredError,
     InactiveAccountError,
     InvalidCredentialsError,
+    InvalidMfaCodeError,
     InvalidTokenError,
+    MfaRequiredError,
     NotFoundError,
+    ValidationError,
 )
 from app.core.logging import get_logger
 from app.core.security import (
@@ -177,6 +182,9 @@ class AuthService:
             self._record_failed_login(payload.email, context, user_id=user.id)
             raise InactiveAccountError()
 
+        if user.mfa_enabled:
+            self._check_mfa_at_login(user, payload.mfa_code, context)
+
         user.failed_login_attempts = 0
         user.locked_until = None
         user.last_login_at = utcnow()
@@ -192,6 +200,95 @@ class AuthService:
         )
         self.session.commit()
         return tokens
+
+    def _check_mfa_at_login(
+        self, user: User, code: str | None, context: RequestContext
+    ) -> None:
+        """Second factor, reached only after the password was right.
+
+        A wrong code counts toward lockout exactly as a wrong password does:
+        with the password known, a six-digit code is the only thing left to
+        guess, and it must not be guessable without limit.
+        """
+        if code is None:
+            raise MfaRequiredError()
+        step = totp.verify(user.mfa_secret or "", code, last_step=user.mfa_last_step)
+        if step is None:
+            self._record_failed_login(user.email, context, user_id=user.id)
+            self._register_failed_attempt(user, context)
+            raise InvalidMfaCodeError()
+        user.mfa_last_step = step
+
+    # -- MFA management -----------------------------------------------------
+    def begin_mfa_enrollment(
+        self, user: User, context: RequestContext | None = None
+    ) -> tuple[str, str]:
+        """Issue a fresh pending secret. MFA is not on until a code proves it."""
+        context = context or RequestContext()
+        if user.mfa_enabled:
+            raise ConflictError("MFA is already enabled.", code="MFA_ALREADY_ENABLED")
+        secret = totp.new_secret()
+        user.mfa_secret = secret
+        user.mfa_last_step = None
+        self._audit_mfa(AuditAction.MFA_ENROLLMENT_STARTED, user, context)
+        self.session.commit()
+        uri = totp.provisioning_uri(secret, user.email, self.settings.mfa_issuer)
+        return secret, uri
+
+    def enable_mfa(
+        self, user: User, code: str, context: RequestContext | None = None
+    ) -> User:
+        context = context or RequestContext()
+        if user.mfa_enabled:
+            raise ConflictError("MFA is already enabled.", code="MFA_ALREADY_ENABLED")
+        if not user.mfa_secret:
+            raise ValidationError(
+                "Start MFA enrolment before confirming a code.",
+                code="MFA_NOT_ENROLLING",
+            )
+        step = totp.verify(user.mfa_secret, code)
+        if step is None:
+            raise InvalidMfaCodeError(status_code=400)
+        user.mfa_enabled = True
+        user.mfa_last_step = step
+        self._audit_mfa(AuditAction.MFA_ENABLED, user, context)
+        self.session.commit()
+        return user
+
+    def disable_mfa(
+        self,
+        user: User,
+        password: str,
+        code: str,
+        context: RequestContext | None = None,
+    ) -> User:
+        """Turning MFA off needs the password *and* a current code, so a stolen
+        access token alone cannot strip the second factor."""
+        context = context or RequestContext()
+        if not user.mfa_enabled:
+            raise ConflictError("MFA is not enabled.", code="MFA_NOT_ENABLED")
+        if not verify_password(password, user.hashed_password):
+            raise InvalidCredentialsError(status_code=400)
+        step = totp.verify(user.mfa_secret or "", code, last_step=user.mfa_last_step)
+        if step is None:
+            raise InvalidMfaCodeError(status_code=400)
+        user.mfa_enabled = False
+        user.mfa_secret = None
+        user.mfa_last_step = None
+        self._audit_mfa(AuditAction.MFA_DISABLED, user, context)
+        self.session.commit()
+        return user
+
+    def _audit_mfa(self, action: str, user: User, context: RequestContext) -> None:
+        self.audit.record(
+            action,
+            actor_id=user.id,
+            actor_role=user.role,
+            entity_type="user",
+            entity_id=user.id,
+            ip_address=context.ip_address,
+            user_agent=context.user_agent,
+        )
 
     # -- rotation -----------------------------------------------------------
     def refresh(

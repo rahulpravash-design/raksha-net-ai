@@ -10,6 +10,8 @@ from app.schemas.user import UserRead
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
+    #: Required only for an account with MFA enabled.
+    mfa_code: str | None = Field(default=None, pattern=r"^\d{6}$")
 
     @field_validator("email")
     @classmethod
@@ -27,3 +29,18 @@ class TokenResponse(BaseModel):
     expires_in: int = Field(description="Access-token lifetime in seconds.")
     refresh_token: str
     user: UserRead
+
+
+class MfaEnrollResponse(BaseModel):
+    """The shared secret, shown once so it can be added to an authenticator app."""
+
+    secret: str
+    provisioning_uri: str = Field(description="An otpauth:// URI for a QR code.")
+
+
+class MfaCodeRequest(BaseModel):
+    code: str = Field(pattern=r"^\d{6}$")
+
+
+class MfaDisableRequest(MfaCodeRequest):
+    password: str = Field(min_length=1, max_length=128)

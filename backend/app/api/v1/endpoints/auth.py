@@ -4,10 +4,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter, status
 
-from app.api.deps import AppSettings, Context, CurrentUser, DbSession
+from app.api.deps import AppSettings, AuthenticatedUser, Context, DbSession
 from app.core.errors import RateLimitedError
 from app.core.rate_limit import get_rate_limiter
-from app.schemas.auth import LoginRequest, RefreshRequest, TokenResponse
+from app.schemas.auth import (
+    LoginRequest,
+    MfaCodeRequest,
+    MfaDisableRequest,
+    MfaEnrollResponse,
+    RefreshRequest,
+    TokenResponse,
+)
 from app.schemas.common import Message
 from app.schemas.user import UserRead, UserRegister
 from app.services.auth_service import AuthService, IssuedTokens, RequestContext
@@ -95,5 +102,54 @@ def logout(
 
 
 @router.get("/me", response_model=UserRead, summary="Current user")
-def me(user: CurrentUser) -> UserRead:
+def me(user: AuthenticatedUser) -> UserRead:
+    """Deliberately not behind the MFA policy: a person told to enrol must be
+    able to see who they are and that MFA is what is missing."""
     return UserRead.model_validate(user)
+
+
+@router.post(
+    "/mfa/enroll",
+    response_model=MfaEnrollResponse,
+    summary="Begin TOTP MFA enrolment",
+)
+def mfa_enroll(
+    user: AuthenticatedUser,
+    session: DbSession,
+    settings: AppSettings,
+    context: Context,
+) -> MfaEnrollResponse:
+    """Returns a new shared secret. MFA stays off until ``/mfa/enable`` is
+    called with a code generated from it."""
+    _enforce_auth_rate_limit(context, settings)
+    secret, uri = AuthService(session, settings).begin_mfa_enrollment(user, context)
+    return MfaEnrollResponse(secret=secret, provisioning_uri=uri)
+
+
+@router.post("/mfa/enable", response_model=UserRead, summary="Confirm and enable MFA")
+def mfa_enable(
+    payload: MfaCodeRequest,
+    user: AuthenticatedUser,
+    session: DbSession,
+    settings: AppSettings,
+    context: Context,
+) -> UserRead:
+    _enforce_auth_rate_limit(context, settings)
+    enabled = AuthService(session, settings).enable_mfa(user, payload.code, context)
+    return UserRead.model_validate(enabled)
+
+
+@router.post("/mfa/disable", response_model=UserRead, summary="Disable MFA")
+def mfa_disable(
+    payload: MfaDisableRequest,
+    user: AuthenticatedUser,
+    session: DbSession,
+    settings: AppSettings,
+    context: Context,
+) -> UserRead:
+    """Needs the password and a current code, not just a session."""
+    _enforce_auth_rate_limit(context, settings)
+    disabled = AuthService(session, settings).disable_mfa(
+        user, payload.password, payload.code, context
+    )
+    return UserRead.model_validate(disabled)

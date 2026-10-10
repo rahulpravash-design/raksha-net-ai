@@ -99,6 +99,15 @@ class AccountLockedError(NotAuthenticatedError):
         super().__init__(details={"retry_after_seconds": retry_after_seconds}, **kwargs)
 
 
+class MfaEnrollmentRequiredError(NotAuthenticatedError):
+    status_code = status.HTTP_403_FORBIDDEN
+    code = "MFA_ENROLLMENT_REQUIRED"
+    message = (
+        "Multi-factor authentication must be set up for this account "
+        "before it can be used."
+    )
+
+
 class MfaRequiredError(NotAuthenticatedError):
     code = "MFA_REQUIRED"
     message = "A verification code from your authenticator app is required."

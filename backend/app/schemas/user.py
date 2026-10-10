@@ -88,6 +88,7 @@ class UserRead(ORMModel):
     role: UserRole
     is_active: bool
     is_verified: bool
+    mfa_enabled: bool
     created_at: datetime
     last_login_at: datetime | None
 

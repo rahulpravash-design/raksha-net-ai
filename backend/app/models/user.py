@@ -6,12 +6,22 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, func
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    func,
+)
 from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.types import EncryptedString
 from app.models.enums import UserRole
 
 if TYPE_CHECKING:
@@ -48,6 +58,14 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     locked_until: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+    #: TOTP shared secret, encrypted at rest. Present while enrolment is
+    #: pending *and* once enabled; ``mfa_enabled`` is what says which.
+    mfa_secret: Mapped[str | None] = mapped_column(EncryptedString(255), nullable=True)
+    mfa_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    #: The 30-second time step of the last accepted code. A code at or before
+    #: it is a replay and is refused, even though it is still inside the window.
+    mfa_last_step: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     reported_incidents: Mapped[list[Incident]] = relationship(
         back_populates="reported_by", foreign_keys="Incident.reported_by_id"

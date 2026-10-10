@@ -15,6 +15,7 @@ from app.core.errors import (
     ForbiddenError,
     InactiveAccountError,
     InvalidTokenError,
+    MfaEnrollmentRequiredError,
     NotAuthenticatedError,
 )
 from app.core.security import decode_access_token
@@ -58,7 +59,7 @@ def get_request_context(request: Request) -> RequestContext:
 Context = Annotated[RequestContext, Depends(get_request_context)]
 
 
-def get_current_user(
+def get_authenticated_user(
     session: DbSession,
     settings: AppSettings,
     credentials: Annotated[
@@ -81,6 +82,23 @@ def get_current_user(
     if not user.is_active:
         raise InactiveAccountError()
 
+    return user
+
+
+#: Signed in, with no MFA policy applied. Only the endpoints a person needs in
+#: order to *satisfy* that policy (``/auth/me`` and MFA enrolment) use this.
+AuthenticatedUser = Annotated[User, Depends(get_authenticated_user)]
+
+
+def get_current_user(user: AuthenticatedUser, settings: AppSettings) -> User:
+    """The caller, once the MFA policy is met. This is the default for every
+    endpoint, so the policy cannot be forgotten on a new one."""
+    if (
+        settings.mfa_required_for_operational
+        and user.role in OPERATIONAL_ROLES
+        and not user.mfa_enabled
+    ):
+        raise MfaEnrollmentRequiredError()
     return user
 
 

@@ -101,6 +101,14 @@ class Settings(BaseSettings):
     account_lockout_threshold: int = 5
     account_lockout_minutes: int = 15
 
+    #: Name shown in an authenticator app once TOTP MFA is enrolled.
+    mfa_issuer: str = "RAKSHA NET AI"
+    #: When true, every non-citizen account must have MFA enabled before it can
+    #: use the API (it may still sign in, read ``/auth/me`` and enrol). Off by
+    #: default so development and the seeded accounts keep working; a
+    #: production-like environment refuses to start with it off.
+    mfa_required_for_operational: bool = False
+
     # --- Media -------------------------------------------------------------
     media_storage_backend: str = "local"
     media_storage_path: Path = Path("./storage/media")
@@ -202,6 +210,8 @@ class Settings(BaseSettings):
             problems.append("RAKSHA_SECRET_KEY is still the placeholder value")
         if len(self.secret_key.get_secret_value()) < 32:
             problems.append("RAKSHA_SECRET_KEY must be at least 32 characters")
+        if not self.mfa_required_for_operational:
+            problems.append("RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL must be true")
         if self.encryption_key is None:
             problems.append("RAKSHA_ENCRYPTION_KEY must be set outside development")
         if "*" in self.cors_origins:
