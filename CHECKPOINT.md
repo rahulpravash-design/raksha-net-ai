@@ -48,7 +48,7 @@ measured and fixed in a development environment only.**
   chain + drift check, AI pytest, pip-audit, npm audit, then eslint + tsc + vitest +
   build for all three front ends). Read from its actual final line.
 - **550 backend tests** (none skipped, including those that start a real
-  `redis-server`), **31 AI tests**, **279 frontend tests** (45 citizen, 229 control centre, 5 responder). 860 total, all passing.
+  `redis-server`), **31 AI tests**, **302 frontend tests** (45 citizen, 252 control centre, 5 responder). 883 total, all passing.
 - Migrations `0001 → 0015`; the gate upgrades to head, fails on model/migration
   drift and downgrades to base on every run (and cleans up even if it fails).
 - Backup → restore → compare, on a 100k-incident database: all checks pass; each
@@ -201,6 +201,24 @@ a read-only supervisor tier would be a new role, not a loosening
 **Found while verifying:** the default CORS origins (config, `.env.example`, compose)
 omitted the responder app on `:3002`, so a stack started from the example file could not
 sign a responder in ("Could not reach the server"). Fixed.
+
+### 3d. Landing page: live glowing markers and the platform section (built, browser-verified)
+
+`components/landing/*`, `lib/landing.ts`, `lib/markers.ts`, `components/3d/IncidentMarker.tsx`
+(glow). A signed-in dispatch-side user sees the **real** open incidents on the globe
+(count from the API, chips in the API's order, new reports within 15 s); everyone
+else sees labelled demonstration markers — real incident locations are never sent to
+a visitor. Below the hero, a platform section describes the six screens that exist
+(dashboard, map, AI analysis panel, resources, analytics, hospitals) and links only
+to routes that have pages. `scripts/e2e/landing-live.mjs` (29 checks) passes against
+the live stack, as does the older `landing.mjs`.
+
+Not done / honest limits: the glow was judged in software-rendered WebGL
+(SwiftShader), not on a real GPU; the globe draws at most the 50 highest-priority open
+incidents (it says so); no arcs between real incidents (dispatch arcs from a unit to its
+incident would be a real relationship and could be added); public visitors get no live
+counts at all — adding anonymous aggregate counts would need a deliberately public,
+coarse endpoint and a decision about what is safe to publish.
 
 ### 3a. Dispatch workflow (built, browser-verified)
 

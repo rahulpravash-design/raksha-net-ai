@@ -9,8 +9,8 @@ apps keep their existing look; they share only the notification bell
 | Piece | Where | Notes |
 |---|---|---|
 | Dark "mission control" theme | `app/globals.css` | Tokens `--background #050914`, `--surface #0e192a`, accent cyan `#00e5ff`, priority colours in `lib/theme.ts`. `dark:` variants are keyed to a `dark` class on `<html>`, always set. |
-| Landing page | `app/(landing)/page.tsx`, `components/landing/` | Cinematic globe, the specified copy, two buttons that lead to real routes (`/dashboard`; the citizen app's `/report` via `NEXT_PUBLIC_CITIZEN_APP_URL`). |
-| Globe | `components/3d/` | React Three Fiber scene: land from real Natural Earth data, graticule, atmosphere shader, markers, great-circle arcs, drag to rotate, pointer parallax. Lazy-loaded; WebGL check; error boundary; static SVG fallback. |
+| Landing page | `app/(landing)/page.tsx`, `components/landing/`, `lib/landing.ts` | Cinematic globe, the specified copy, two buttons that lead to real routes (`/dashboard`; the citizen app's `/report` via `NEXT_PUBLIC_CITIZEN_APP_URL`), then a platform section. The globe shows **live incidents to a signed-in dispatch-side user** (same endpoints as the dashboard, refreshed every 15 s, chips naming the real reference/category/priority, never report text) and **labelled demonstration markers to everyone else** (`globeMode`). The platform section has one card per screen that exists (`platformFeatures.ts`; a test proves every link has a page) and shows each viewer a link, a sign-in prompt, or "Not available to your role". On narrow screens the globe is its own block above the list; on wide screens it sits behind the copy. |
+| Globe | `components/3d/` | React Three Fiber scene: land from real Natural Earth data, graticule, atmosphere shader, **glowing priority markers** (a soft disc of the band colour lying on the surface, breathing slowly; steady under reduced motion; `glowTexture.ts`), a slow ring for critical or selected markers, great-circle arcs (demonstration only), drag to rotate, pointer parallax. Lazy-loaded; WebGL check; error boundary; static SVG fallback. |
 | Command centre | `app/(console)/dashboard/page.tsx`, `components/command-center/` | Sidebar, connection/freshness strip, priority tiles, Map ⇄ Globe switch, selected-incident panel, activity timeline, animated queue. |
 | Operational map | `components/IncidentMap.tsx`, `components/maps/` | Leaflet + OSM tiles. Grid clustering (`lib/cluster.ts`), per-priority marker shapes, resource layer, legend, selected-incident pulse. |
 | Motion | `components/animations/` | `MotionConfig reducedMotion="user"` once, shared timing; `Reveal` entrance. |
@@ -32,10 +32,18 @@ apps keep their existing look; they share only the notification bell
 * **The globe is decoration; the map is operational.** The globe never carries
   routing or distance meaning. Operational geography stays on the Leaflet map and
   in the backend.
-* **No fabricated data.** The landing page is public and has no session, so its
-  markers are real city coordinates with *illustrative* priorities, labelled
+* **No fabricated data, and no real locations for visitors.** The landing page is
+  public. An anonymous visitor, a citizen, a responder or a hospital operator sees
+  only real city coordinates with *illustrative* priorities, labelled
   "Demonstration markers — not live incidents" in the page itself
-  (`components/landing/demoData.ts`). Signed-in views draw real incidents.
+  (`components/landing/demoData.ts`) — real emergency locations never go to a
+  viewer the API would refuse them to (CLAUDE.md section 5). A signed-in
+  dispatcher, admin or super admin sees the platform's real open incidents; the
+  count is the API's own `total_open`, the globe says when it draws fewer than that,
+  no arcs are drawn between real incidents (that would be an invented relationship),
+  an empty queue says "No open incidents right now", and an unreachable feed says so
+  and shows nothing — never the demonstration markers. While the session is being
+  read nothing is drawn, so demo markers cannot flash up in front of an operator.
 * **Priority is never colour alone.** Each band has a silhouette (triangle,
   diamond, square, circle), a word and a colour. Map markers carry a `title`/`alt`.
 * **AI stays visibly separate.** The selected-incident panel labels the AI
@@ -112,6 +120,7 @@ Stated plainly, so this is not mistaken for a finished redesign:
 * `landing.mjs` — desktop, mobile (390 px), reduced motion, and WebGL disabled:
   canvas present or fallback shown, heading present, links correct, no horizontal
   overflow, no CSP/console errors.
+* `landing-live.mjs` — a visitor sees demonstration markers and the page makes no incident request and shows no real reference code; a dispatcher's count equals the API's open total, the chips are the API's top eight in order, a chip offers that incident's page (never its text), a new report raises the count within the refresh window without a reload; a hospital operator keeps demonstration data with the reason and no incident request; phone width, reduced motion and WebGL-off all work (29 checks).
 * `command.mjs` — sign in, markers labelled, select an incident, panel contents,
   timeline, resource layer toggle, Map ⇄ Globe, inbox opens, markers focusable,
   mobile overflow, reduced-motion animations stopped.

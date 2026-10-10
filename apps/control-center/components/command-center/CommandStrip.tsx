@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 /** Seconds since `at`, re-evaluated every few seconds while mounted. */
-function useAgeSeconds(at: number | null): number | null {
+export function useAgeSeconds(at: number | null): number | null {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 5_000);
@@ -12,7 +12,7 @@ function useAgeSeconds(at: number | null): number | null {
   return at === null ? null : Math.max(0, Math.round((now - at) / 1000));
 }
 
-function describeAge(seconds: number): string {
+export function describeAge(seconds: number): string {
   if (seconds < 10) return "just now";
   if (seconds < 90) return `${seconds} s ago`;
   return `${Math.round(seconds / 60)} min ago`;
