@@ -56,3 +56,6 @@ Thumbs.db
 # ---------- Logs ----------
 logs/
 *.log
+
+# Database and media backups (scripts/backup.sh) hold every report in plaintext.
+/backups/
