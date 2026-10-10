@@ -26,12 +26,18 @@ from app.core.security import hash_password  # noqa: E402
 from app.db.session import get_engine  # noqa: E402
 from app.models import (  # noqa: E402
     AuditLog,
+    Dispatch,
+    Hospital,
+    InboundPatientNotice,
     Incident,
     IncidentCategory,
     IncidentMedia,
     IncidentStatusHistory,
     IncidentStatus,
     RefreshToken,
+    Resource,
+    ResourceStatus,
+    ResourceType,
     User,
     UserRole,
 )
@@ -158,6 +164,102 @@ SEED_INCIDENTS: list[
     ),
 ]
 
+#: (call sign, name, type, offset from CENTRE in degrees, capabilities, crew, operated by the seeded responder)
+SEED_RESOURCES: list[
+    tuple[str, str, ResourceType, tuple[float, float], list[str], int, bool]
+] = [
+    (
+        "AMB-01",
+        "Egmore Ambulance 1",
+        ResourceType.AMBULANCE,
+        (0.020, -0.010),
+        ["advanced_life_support"],
+        3,
+        True,
+    ),
+    (
+        "AMB-02",
+        "Adyar Ambulance 2",
+        ResourceType.AMBULANCE,
+        (-0.045, 0.012),
+        ["basic_life_support"],
+        2,
+        False,
+    ),
+    (
+        "FIRE-01",
+        "Fire Station Anna Nagar",
+        ResourceType.FIRE_ENGINE,
+        (0.030, -0.040),
+        ["fire_suppression", "rescue_cutting"],
+        5,
+        False,
+    ),
+    (
+        "RES-01",
+        "Urban Search & Rescue Team",
+        ResourceType.RESCUE_TEAM,
+        (-0.010, 0.030),
+        ["structural_rescue", "first_aid"],
+        6,
+        False,
+    ),
+    (
+        "BOAT-01",
+        "Flood Rescue Boat, Cooum",
+        ResourceType.RESCUE_BOAT,
+        (0.005, 0.020),
+        ["water_rescue"],
+        4,
+        False,
+    ),
+    (
+        "POL-01",
+        "Traffic Police Patrol",
+        ResourceType.POLICE_UNIT,
+        (-0.020, -0.025),
+        ["traffic_control"],
+        2,
+        False,
+    ),
+]
+
+#: (code, name, offset from CENTRE, total beds, free beds, ICU total, ICU free, specialties)
+SEED_HOSPITALS: list[
+    tuple[str, str, tuple[float, float], int, int, int, int, list[str]]
+] = [
+    (
+        "GH-CHN",
+        "General Hospital, Chennai",
+        (0.012, 0.002),
+        220,
+        34,
+        40,
+        5,
+        ["trauma", "burns", "cardiac"],
+    ),
+    (
+        "RH-ADY",
+        "Riverside Hospital, Adyar",
+        (-0.050, 0.015),
+        120,
+        18,
+        16,
+        2,
+        ["trauma", "paediatrics"],
+    ),
+    (
+        "CH-ANA",
+        "Community Hospital, Anna Nagar",
+        (0.032, -0.035),
+        60,
+        9,
+        6,
+        0,
+        ["general"],
+    ),
+]
+
 #: Scattered around the configured default centre so the map is not one dot.
 CENTRE = (13.0827, 80.2707)
 SPREAD_DEGREES = 0.08
@@ -188,9 +290,19 @@ def assert_not_production() -> None:
 def reset(session: Session) -> None:
     """Remove seeded data. Order respects the foreign keys."""
     session.execute(delete(AuditLog))
+    session.execute(delete(InboundPatientNotice))
+    session.execute(delete(Dispatch))
     session.execute(delete(IncidentStatusHistory))
     session.execute(delete(IncidentMedia))
     session.execute(delete(Incident))
+    session.execute(
+        delete(Resource).where(
+            Resource.call_sign.in_([row[0] for row in SEED_RESOURCES])
+        )
+    )
+    session.execute(
+        delete(Hospital).where(Hospital.code.in_([row[0] for row in SEED_HOSPITALS]))
+    )
     session.execute(delete(RefreshToken))
     session.execute(
         delete(User).where(User.email.in_([email for email, _, _ in SEED_USERS]))
@@ -299,6 +411,67 @@ def seed_incidents(session: Session, users: dict[UserRole, User]) -> int:
     return created
 
 
+def seed_resources(session: Session, users: dict[UserRole, User]) -> int:
+    """A small, obviously invented fleet. The first unit is operated by the seeded
+    responder, so the responder application has something to be assigned."""
+    responder = users.get(UserRole.RESPONDER)
+    created = 0
+    for call_sign, name, kind, offset, capabilities, crew, operated in SEED_RESOURCES:
+        if session.scalars(
+            select(Resource).where(Resource.call_sign == call_sign)
+        ).first():
+            continue
+        coords = validate_coordinates(CENTRE[0] + offset[0], CENTRE[1] + offset[1])
+        session.add(
+            Resource(
+                call_sign=call_sign,
+                name=name,
+                resource_type=kind,
+                status=ResourceStatus.AVAILABLE,
+                latitude=coords.latitude,
+                longitude=coords.longitude,
+                geom=to_ewkt(coords),
+                capabilities=capabilities,
+                crew_size=crew,
+                operator_id=responder.id if operated and responder else None,
+            )
+        )
+        created += 1
+    session.commit()
+    return created
+
+
+def seed_hospitals(session: Session, users: dict[UserRole, User]) -> int:
+    """Hospitals, the first maintained by the seeded hospital operator."""
+    operator = users.get(UserRole.HOSPITAL_OPERATOR)
+    created = 0
+    for index, row in enumerate(SEED_HOSPITALS):
+        code, name, offset, total, free, icu_total, icu_free, specialties = row
+        if session.scalars(select(Hospital).where(Hospital.code == code)).first():
+            continue
+        coords = validate_coordinates(CENTRE[0] + offset[0], CENTRE[1] + offset[1])
+        session.add(
+            Hospital(
+                code=code,
+                name=name,
+                latitude=coords.latitude,
+                longitude=coords.longitude,
+                geom=to_ewkt(coords),
+                total_beds=total,
+                available_beds=free,
+                icu_total=icu_total,
+                icu_available=icu_free,
+                accepting_emergencies=True,
+                specialties=specialties,
+                managed_by_id=operator.id if index == 0 and operator else None,
+                capacity_updated_at=utcnow(),
+            )
+        )
+        created += 1
+    session.commit()
+    return created
+
+
 def main() -> None:
     args = build_argument_parser().parse_args()
     assert_not_production()
@@ -314,6 +487,13 @@ def main() -> None:
 
         count = seed_incidents(session, users)
         print(f"Seeded {count} synthetic incidents around {CENTRE}.")
+
+        print(
+            f"Seeded {seed_resources(session, users)} new resources (the first is operated by the seeded responder)."
+        )
+        print(
+            f"Seeded {seed_hospitals(session, users)} new hospitals (the first is maintained by the seeded hospital operator)."
+        )
 
     print("\nSign in with any of:")
     for email, _, role in SEED_USERS:

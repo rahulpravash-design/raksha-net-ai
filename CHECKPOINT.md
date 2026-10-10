@@ -2,8 +2,8 @@
 
 **Checkpoint date:** 2026-10-10
 **Branch:** `claude/raksha-net-ai-development-5uyq42`
-**Last commit:** see `git log -1` (Phase 16 security hardening, then its documentation)
-**State:** Clean. Working tree empty, every check green, everything pushed.
+**Last commit:** see `git log -1`
+**State:** Clean working tree, `./scripts/check.sh` green, everything pushed.
 
 > Read this file, then `docs/ROADMAP.md`, then `CLAUDE.md`. Do not redesign
 > anything marked COMPLETE below — it is built, tested and verified.
@@ -16,9 +16,10 @@
 but its penetration test and risk acceptance have NOT happened. Phase 17 is
 measured and fixed in a development environment only.**
 
-> **Backend vs. what a person can actually use.** \"Complete\" in the table means the
-> backend, its API and its tests. **Almost none of Phases 10–14 has a user interface**
-> (§3). A dispatcher cannot dispatch a unit from any screen.
+> **What "complete" means here.** In the table, complete = built, tested, and (for
+> anything with a screen) driven in a real browser against the live stack. It does
+> **not** mean deployed, penetration-tested or accepted by an operating authority —
+> none of that has happened. Every Phase 10–14 capability has a screen.
 
 | Phase | State |
 |---|---|
@@ -30,8 +31,8 @@ measured and fixed in a development environment only.**
 | 5 Control centre | ✅ complete |
 | 6 AI emergency analyzer | ✅ complete (rule-based baseline, deliberately) |
 | 7 Priority engine hardening | ✅ complete |
-| 8 Computer vision | ⬜ not started |
-| 9 Voice & multilingual | ⬜ not started |
+| 8 Computer vision | ⬜ not started — the privacy half is built (embedded photo metadata, including GPS, is stripped before storage); detection is blocked on a labelled photo dataset |
+| 9 Voice & multilingual | ⬜ not started — audio upload deliberately deferred (see `docs/ROADMAP.md`); transcription needs an ASR provider |
 | 10 Resource coordination | ✅ complete |
 | 11 Dispatch & responder app | ✅ complete |
 | 12 Hospital coordination | ✅ complete |
@@ -47,8 +48,8 @@ measured and fixed in a development environment only.**
 - `./scripts/check.sh` — **20/20 steps green** (ruff, black, mypy, pytest, migration
   chain + drift check, AI pytest, pip-audit, npm audit, then eslint + tsc + vitest +
   build for all three front ends). Read from its actual final line.
-- **550 backend tests** (none skipped, including those that start a real
-  `redis-server`), **31 AI tests**, **302 frontend tests** (45 citizen, 252 control centre, 5 responder). 883 total, all passing.
+- **605 backend tests** (none skipped, including those that start a real
+  `redis-server`), **31 AI tests**, **320 frontend tests** (45 citizen, 265 control centre, 10 responder). 956 total, all passing.
 - Migrations `0001 → 0015`; the gate upgrades to head, fails on model/migration
   drift and downgrades to base on every run (and cleans up even if it fails).
 - Backup → restore → compare, on a 100k-incident database: all checks pass; each
@@ -56,14 +57,19 @@ measured and fixed in a development environment only.**
   was exercised. See `infrastructure/deployment/RUNBOOK.md`.
 - Rate limiting across two real API processes: limit 10 → memory let 19 through,
   Redis exactly 10.
-- 285 tracked files, 13 migrations, 68 API operations (+ `/metrics`, unlisted), 46 commits.
+- Migrations are unchanged by the latest work (no schema change); the API gained `PATCH /hospitals/{id}`.
 
 ---
 
 ## 2. Current working feature — finished, nothing half-done
 
-Phase 16 (security hardening) was the last thing built. Everything is committed;
-there is no partially-written code. Details and limits: `docs/SECURITY.md`.
+Everything is committed; there is no partially-written code. The most recent work, in
+order: responders lose incident-record access and the control centre refuses them
+(§3c); the landing page shows live incidents to dispatch-side operators (§3d);
+responders and citizens get password / two-factor screens (a prerequisite for
+enforcing MFA); uploaded photos are stripped of embedded metadata; administrators
+can edit and retire hospitals; the development seed now includes resources and
+hospitals. Phase 16 (security hardening) details and limits: `docs/SECURITY.md`.
 
 - **Account lockout** — 5 failures → 15 min, doubling per further failure,
   capped at 24 h; only a successful login resets it. Audited. Admin unlock:
@@ -138,14 +144,10 @@ Two lessons, in case the pattern recurs:
 
 ---
 
-## 3. The exact next step
+## 3. Where the user interfaces stand
 
-**Build the user interfaces for Phases 10–14. This is the largest honest gap in the
-project, and it is buildable.**
-
-Every capability below exists in the backend, with tests, and is reachable only
-through the API. Checked by grepping the three apps: the only screen that calls any
-of it is the responder app's assignments list (`api.myAssignments`).
+The Phase 10–14 interfaces that were once the largest gap are built (table below); the
+struck-through rows record what was done. The exact next step is in §8.
 
 | Missing screen | Who needs it | Backend ready |
 |---|---|---|
@@ -397,24 +399,25 @@ Everything below is committed. Nothing is staged or modified.
     legal transition and forcing it would violate the state machine. The
     dispatcher moves the incident separately. This is intentional; revisit
     only with a deliberate state-machine change.
-11. Seed data (`database/seeds/seed_development.py`) creates users and
-    incidents only — **no resources, hospitals or dispatches**. Demoing
-    Phases 10–14 needs those created through the API first, and analytics
-    will read as empty/zero until some dispatches and resolutions exist.
-12. ~~No endpoint smoke-tested against a live server.~~ Partly addressed: sign-in,
-    dashboard, map and the MFA path were run in a real browser against the live
-    stack (§1). **Resources, dispatch, hospitals, notifications and analytics
-    were still only exercised through the test suite**, not through a UI/live run.
+11. The development seed creates users, incidents, six resources (the first operated by the
+    seeded responder) and three hospitals (the first maintained by the seeded hospital
+    operator), but **no dispatches or notices**, so analytics read as empty until some
+    are created through the app. Re-running the seed adds another ten incidents each time
+    (pre-existing; resources and hospitals are skipped if present).
+12. Every screen has been driven in a real browser against the live stack with the
+    scripts in `scripts/e2e/` (listed in `docs/FRONTEND.md` §5). The glow and the 3D scene
+    were judged in software-rendered WebGL (SwiftShader), never on a real GPU. Mail was
+    only ever sent to a local test mailbox.
 13. **Phase 16 is not finished by its code.** No penetration test, no operating
     authority acceptance. `docs/SECURITY.md` §12 lists every other gap: no MFA
     recovery codes; front-end CSP keeps `'unsafe-inline'`;
     ClamAV client untested against a real ClamAV; MFA enforcement off by default;
     dev-tooling advisory (`braces`) not gating.
-14. **The browser end-to-end scripts are not in the repository.** They were
-    throwaway scratchpad files (`playwright-core` + the sandbox Chromium at
-    `/opt/pw-browsers/chromium`). A committed `scripts/smoke` would turn a
-    one-off check into a regression guard; it needs a decision on the browser
-    dependency.
+14. **The browser end-to-end scripts are in `scripts/e2e/` but not in the gate.** They need
+    a running stack, `playwright-core` (deliberately not a repository dependency) and
+    Chromium, and they create rows in the dev database. A CI job that starts the stack
+    and runs them would turn them into a regression guard; it needs a decision on the
+    browser dependency.
 15. **Seeded dev accounts are not MFA-enrolled and `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL`
     is false in development**, so the shipped dev stack does not exercise the
     enforcement path. Turn it on in staging and enrol the accounts.
@@ -478,7 +481,7 @@ npm run dev --workspace @raksha/responder-web      # :3002
 
 ```bash
 ./scripts/check.sh            # the full gate — read the LAST line
-cd backend && .venv/bin/pytest -q          # 550 backend tests
+cd backend && .venv/bin/pytest -q          # 605 backend tests
 cd .. && PYTHONPATH=. backend/.venv/bin/pytest ai/tests -q   # 31 AI tests
 ```
 
@@ -532,14 +535,19 @@ you to confirm which Netlify account/team to use.
 
 ## 8. Suggested order when you return
 
-1. **The remaining Phase 10–14 user interfaces (§3)** — notification inbox first, then
-   resource inventory, hospital notices, analytics, MFA enrolment — each verified in a
-   real browser as the dispatch workflow was.
-2. **Decide Netlify (§7)** and deploy (frontends can go to Netlify; the backend cannot).
-3. **The human work**: commission the penetration test; get the residual risk
-   accepted; stand up real infrastructure and rehearse a restore and a load test there.
-4. Optional hardening: MFA recovery codes, nonce-based CSP, a committed browser smoke
-   test, a deploy pipeline.
+Nothing code-feasible is half-done. What is left needs a person, a provider, a dataset,
+or a decision:
 
-Phases 8, 9 and 15 stay blocked on inputs that do not exist (a labelled photo
-dataset, an ASR provider, a real historical dataset). Do not fake any of them.
+1. **Decide Netlify (§7)** and deploy — front ends can go to Netlify; the backend cannot.
+2. **The human work**: commission the penetration test; get the residual risk accepted;
+   stand up real infrastructure and rehearse a restore and a load test there; start
+   Docker for the first time (§5 item 6) and let CI run once (§5 item 24).
+3. **Try a real mail provider** (`RAKSHA_SMTP_HOST`) — recovery email has only met a
+   local test mailbox — and decide whether SMS/push (stubbed behind `NullNotifier`) are
+   needed, which needs provider accounts.
+4. Optional hardening: MFA recovery codes, nonce-based CSP, a CI job for the browser
+   scripts, dispatch arcs (unit to incident) on the live landing globe, a read-only
+   supervisor role if a pilot needs one (`docs/SECURITY.md` §3).
+
+Phases 8 (detection), 9 and 15 stay blocked on inputs that do not exist (a labelled
+photo dataset, an ASR provider, a real historical dataset). Do not fake any of them.

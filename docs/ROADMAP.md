@@ -199,12 +199,29 @@ measurable. ✅
 Observations from report photographs, with a fixed label vocabulary, confidence
 values and EXIF stripping. Observations are never rendered as facts.
 
-**Planned approach (decided, not built).** A rule-based colour-histogram
+**Built so far (2026-10-10): the privacy half.** Embedded metadata — EXIF GPS
+position, device model and serial, thumbnail, XMP, IPTC, comments — is stripped
+from every stored photograph (`app/utils/image_metadata.py`, `docs/SECURITY.md`
+section 5). That is the "EXIF stripping" the phase asks for, and it is worth having
+whether or not detection is ever built, because the photographs are stored and
+shown to operators today.
+
+**Planned approach (decided, not built; reconsidered).** A rule-based colour-histogram
 heuristic over incident photos, folded into the existing analysis pipeline
 through a `CompositeAnalyzer`, on the same honesty terms as the Phase 6 text
 analyzer. The AI contract already carries what this needs:
 `AnalysisRequest.image_bytes` and `AnalysisResult.observations` exist and are
 validated, and `OBSERVATION_VOCABULARY` is already phrased as observations.
+
+**Why the heuristic was not built when the rest of the project was finished.** A
+colour histogram cannot tell a flooded street from a brown road, flames from a
+sunset, or smoke from fog, and with no labelled photographs there is no way to
+measure how often it is wrong. Even labelled "possible" with a low confidence,
+an operator-facing observation of unknown accuracy risks either false alarm or
+false reassurance in the one place the platform's rules say an observation must
+be trustworthy about its own limits. It would also need an imaging dependency
+(Pillow) that nothing else needs. Build it when there is a dataset to evaluate it
+against, not before.
 
 **This phase cannot be marked complete as specified.** Its completion
 criterion is per-label evaluation metrics, and those require a labelled photo
@@ -216,7 +233,7 @@ observation as AI-derived.
 
 ---
 
-## Phase 9 — Voice & Multilingual Reporting ⬜ NOT STARTED
+## Phase 9 — Voice & Multilingual Reporting ⬜ NOT STARTED — audio upload deliberately deferred
 
 Audio upload, transcription with language hints (English, Tamil, code-mixed),
 then the Phase 6 pipeline. Word error rate is measured per language before the
@@ -229,6 +246,17 @@ not: there is no honest rule-based substitute for ASR the way there is for
 keyword extraction, and no provider is configured. Plan is a `Transcriber`
 protocol with a `NullTranscriber` — the same shape as `NullAnalyzer` and
 `NullNotifier` — so the absence is explicit rather than pretended.
+
+**Reconsidered when the rest of the project was finished: not built.** Two reasons.
+(1) Audio carries embedded metadata too (MP4/M4A location atoms, ID3 and Vorbis tags,
+WAV `LIST` chunks), and the platform now strips photographs for exactly that reason;
+accepting audio without doing the same would reopen the leak that was just closed,
+and stripping five container formats is a project of its own. (2) Without
+transcription a voice note is a recording an operator can play — useful, but not the
+feature the phase describes — and a `Transcriber` protocol with no implementation
+and no caller is the speculative abstraction `CLAUDE.md` section 6 warns against.
+Build audio upload, its metadata stripping and a real transcriber together, when an ASR
+provider and per-language word-error-rate measurements exist.
 
 ---
 
