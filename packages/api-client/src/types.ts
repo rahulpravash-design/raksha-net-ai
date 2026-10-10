@@ -326,6 +326,29 @@ export interface Resource {
   updated_at: string;
 }
 
+export interface ResourceStats {
+  total_active: number;
+  by_status: Record<string, number>;
+  by_type: Record<string, number>;
+}
+
+export interface CreateResourceInput {
+  call_sign: string;
+  name: string;
+  resource_type: ResourceType;
+  latitude: number;
+  longitude: number;
+  base_address?: string | null;
+  capabilities?: string[];
+  crew_size?: number | null;
+  contact_phone?: string | null;
+}
+
+/** Only supplied fields are changed. Latitude and longitude go together. */
+export type UpdateResourceInput = Partial<
+  Omit<CreateResourceInput, "call_sign"> & { is_active: boolean }
+>;
+
 export interface NearbyResource {
   id: string;
   call_sign: string;

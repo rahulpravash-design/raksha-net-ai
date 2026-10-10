@@ -27,7 +27,10 @@ import type {
   Page,
   PriorityBand,
   Resource,
+  CreateResourceInput,
   ResourceRecommendations,
+  ResourceStats,
+  UpdateResourceInput,
   ResourceStatus,
   ResourceType,
   ResponderAssignment,
@@ -289,6 +292,21 @@ export class ApiClient {
   ): Promise<Page<Resource>> {
     return this.request<Page<Resource>>("/api/v1/resources", {
       query: { ...query },
+    });
+  }
+
+  async resourceStats(): Promise<ResourceStats> {
+    return this.request<ResourceStats>("/api/v1/resources/stats/summary");
+  }
+
+  async createResource(input: CreateResourceInput): Promise<Resource> {
+    return this.request<Resource>("/api/v1/resources", { method: "POST", body: input });
+  }
+
+  async updateResource(id: string, changes: UpdateResourceInput): Promise<Resource> {
+    return this.request<Resource>(`/api/v1/resources/${id}`, {
+      method: "PATCH",
+      body: changes,
     });
   }
 
