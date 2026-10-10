@@ -9,6 +9,7 @@ import pytest
 from fastapi import FastAPI
 from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 
+from app.core import metrics
 from app.core.config import Settings
 from app.core.errors import register_exception_handlers
 from app.core.middleware import ConcurrencyLimitMiddleware
@@ -99,6 +100,27 @@ async def test_pool_exhaustion_is_a_503_not_a_500() -> None:
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "SERVICE_BUSY"
     assert response.headers["Retry-After"] == "2"
+
+
+def counter(name: str) -> float:
+    return metrics.REGISTRY.get_sample_value(name) or 0.0
+
+
+@pytest.mark.anyio
+async def test_overload_is_visible_in_the_metrics() -> None:
+    """Queued and shed requests, and pool exhaustion, must show up as numbers:
+    they are what would have revealed the Phase 17 deadlock early."""
+    queued = counter("raksha_requests_queued_total")
+    shed = counter("raksha_requests_shed_total")
+    exhausted = counter("raksha_db_pool_exhausted_total")
+
+    async with client(build_app(limit=1, wait=0.1)) as c:
+        await asyncio.gather(*[c.get("/slow") for _ in range(3)])
+        await c.get("/pool")
+
+    assert counter("raksha_requests_queued_total") == queued + 2  # two had to wait
+    assert counter("raksha_requests_shed_total") == shed + 2  # and neither got a slot
+    assert counter("raksha_db_pool_exhausted_total") == exhausted + 1
 
 
 @pytest.fixture

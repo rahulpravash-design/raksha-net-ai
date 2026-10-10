@@ -13,6 +13,7 @@ from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.metrics import router as metrics_router
 from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
@@ -21,6 +22,7 @@ from app.core.middleware import (
     AccessLogMiddleware,
     ConcurrencyLimitMiddleware,
     CorrelationIdMiddleware,
+    MetricsMiddleware,
     RateLimitMiddleware,
     SecurityHeadersMiddleware,
 )
@@ -80,6 +82,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # registered last and therefore wraps everything else.
     app.add_middleware(RateLimitMiddleware, settings=settings)
     app.add_middleware(ConcurrencyLimitMiddleware, settings=settings)
+    app.add_middleware(MetricsMiddleware, settings=settings)
     app.add_middleware(SecurityHeadersMiddleware, settings=settings)
     app.add_middleware(AccessLogMiddleware)
     app.add_middleware(CorrelationIdMiddleware)
@@ -94,6 +97,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     register_exception_handlers(app)
     app.include_router(api_router, prefix=settings.api_v1_prefix)
+    # Outside /api/v1 on purpose: it is operational, not part of the public API,
+    # and a proxy that forwards only /api/ cannot expose it by accident.
+    app.include_router(metrics_router)
 
     @app.get("/", include_in_schema=False)
     def root() -> dict[str, str]:

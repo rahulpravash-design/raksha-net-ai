@@ -121,6 +121,12 @@ class Settings(BaseSettings):
     #: production-like environment refuses to start with it off.
     mfa_required_for_operational: bool = False
 
+    # --- Observability -----------------------------------------------------
+    #: Bearer token a metrics scraper must present to read ``/metrics``. Unset
+    #: means the endpoint does not exist (404), not that it is open: metrics
+    #: reveal traffic shape and internal route names.
+    metrics_token: SecretStr | None = None
+
     # --- Media -------------------------------------------------------------
     media_storage_backend: str = "local"
     media_storage_path: Path = Path("./storage/media")

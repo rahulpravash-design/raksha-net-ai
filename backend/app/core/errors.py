@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core import metrics
 from app.core.logging import get_logger, request_id_var
 
 logger = get_logger(__name__)
@@ -270,6 +271,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _pool_exhausted(_: Request, exc: SQLAlchemyTimeoutError) -> JSONResponse:
         # Every connection stayed busy for the whole pool timeout. That is
         # overload, not a bug in the request: say so, and say when to retry.
+        metrics.DB_POOL_EXHAUSTED.inc()
         logger.error("database_pool_exhausted", extra={"detail": str(exc)[:200]})
         busy = ServiceBusyError(retry_after=2)
         return JSONResponse(

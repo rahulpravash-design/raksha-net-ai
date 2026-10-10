@@ -11,6 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from app.core import metrics
 from app.core.config import Settings
 from app.core.errors import RateLimitedError, ServiceBusyError
 from app.core.logging import get_logger, request_id_var
@@ -21,7 +22,9 @@ logger = get_logger("app.access")
 RequestHandler = Callable[[Request], Awaitable[Response]]
 
 #: Paths excluded from throttling and access logging noise.
-PROBE_PATHS = frozenset({"/api/v1/health", "/api/v1/health/ready"})
+#: ``/metrics`` is here so that, under overload, the monitoring that would show
+#: the overload is not itself shed, throttled or logged.
+PROBE_PATHS = frozenset({"/api/v1/health", "/api/v1/health/ready", "/metrics"})
 
 
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
@@ -107,6 +110,49 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class MetricsMiddleware(BaseHTTPMiddleware):
+    """Count and time every request, labelled by route template.
+
+    Registered outside :class:`ConcurrencyLimitMiddleware`, so a request that is
+    queued or shed is still counted and its wait is part of its latency.
+    """
+
+    def __init__(self, app: object, settings: Settings) -> None:
+        super().__init__(app)  # type: ignore[arg-type]
+        self._prefix = settings.api_v1_prefix.rstrip("/")
+
+    async def dispatch(self, request: Request, call_next: RequestHandler) -> Response:
+        if request.url.path in PROBE_PATHS:
+            return await call_next(request)
+
+        started = time.perf_counter()
+        metrics.HTTP_IN_FLIGHT.inc()
+        status_code = 500
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+            return response
+        finally:
+            metrics.HTTP_IN_FLIGHT.dec()
+            # The router stores the matched route on the scope as it dispatches,
+            # so it is only readable once the request has been handled.
+            label = self._route_label(request)
+            metrics.HTTP_REQUESTS.labels(request.method, label, str(status_code)).inc()
+            metrics.HTTP_LATENCY.labels(label).observe(time.perf_counter() - started)
+
+    def _route_label(self, request: Request) -> str:
+        # An included router reports its path *without* the mount prefix
+        # (``/incidents/{incident_id}``, not ``/api/v1/incidents/...``), and the
+        # prefix is not on the scope, so it is put back for requests that arrived
+        # under it. A request that matched nothing gets one shared label.
+        path = getattr(request.scope.get("route"), "path", None)
+        if path is None:
+            return metrics.UNMATCHED_ROUTE
+        if self._prefix and request.url.path.startswith(f"{self._prefix}/"):
+            return f"{self._prefix}{path}"
+        return str(path)
+
+
 class ConcurrencyLimitMiddleware(BaseHTTPMiddleware):
     """Admit only as many requests as the API can actually serve at once.
 
@@ -127,15 +173,24 @@ class ConcurrencyLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestHandler) -> Response:
         if self._semaphore is None or request.url.path in PROBE_PATHS:
             return await call_next(request)
-        try:
-            await asyncio.wait_for(self._semaphore.acquire(), timeout=self._wait)
-        except TimeoutError:
-            error = ServiceBusyError(retry_after=1)
-            return JSONResponse(
-                status_code=error.status_code,
-                content=error.to_payload(),
-                headers={"Retry-After": str(error.retry_after)},
-            )
+        if self._semaphore.locked():
+            metrics.REQUESTS_QUEUED.inc()
+            try:
+                await asyncio.wait_for(self._semaphore.acquire(), timeout=self._wait)
+            except TimeoutError:
+                metrics.REQUESTS_SHED.inc()
+                error = ServiceBusyError(retry_after=1)
+                return JSONResponse(
+                    status_code=error.status_code,
+                    content=error.to_payload(),
+                    headers={"Retry-After": str(error.retry_after)},
+                )
+        else:
+            # A slot is free, so this takes it without suspending. That matters:
+            # going through ``wait_for`` would defer the acquire to a new task,
+            # and requests arriving together would all see "not full" and none
+            # would be counted as queued.
+            await self._semaphore.acquire()
         try:
             return await call_next(request)
         finally:

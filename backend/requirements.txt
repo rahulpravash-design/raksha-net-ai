@@ -20,5 +20,8 @@ python-multipart==0.0.32
 # pyotp: RFC 6238 TOTP for MFA, small and dependency-free.
 cryptography==50.0.2
 pyotp==2.10.0
+# Phase 18. prometheus-client: the exposition format (label escaping,
+# histograms) is easy to get subtly wrong by hand; it has no dependencies.
+prometheus-client==0.26.0
 
 redis==8.1.0
