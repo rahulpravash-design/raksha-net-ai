@@ -15,7 +15,12 @@ import type {
   ResourceType,
   UserRole,
 } from "./types";
-import { DISPATCH_ROLES, OPERATIONAL_ROLES } from "./types";
+import {
+  CONSOLE_ROLES,
+  DISPATCH_ROLES,
+  INCIDENT_VIEW_ROLES,
+  OPERATIONAL_ROLES,
+} from "./types";
 
 export interface BandStyle {
   /** Tailwind classes for a filled badge. */
@@ -177,6 +182,16 @@ export function isOperationalRole(role: UserRole): boolean {
 
 export function canDispatch(role: UserRole): boolean {
   return DISPATCH_ROLES.includes(role);
+}
+
+/** May read incident records. Responders and hospital operators may not. */
+export function canViewIncidents(role: UserRole): boolean {
+  return INCIDENT_VIEW_ROLES.includes(role);
+}
+
+/** Admitted to the control centre at all. */
+export function isConsoleRole(role: UserRole): boolean {
+  return CONSOLE_ROLES.includes(role);
 }
 
 /** Absolute time, rendered in the viewer's locale. */

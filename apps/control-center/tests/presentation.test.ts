@@ -4,11 +4,13 @@ import {
   BAND_STYLES,
   bandStyle,
   canDispatch,
+  canViewIncidents,
   categoryLabel,
   citizenStatusMessage,
   formatBytes,
   formatCoordinates,
   formatRelative,
+  isConsoleRole,
   isOperationalRole,
   INCIDENT_CATEGORIES,
   INCIDENT_STATUSES,
@@ -71,9 +73,23 @@ describe("roles", () => {
     expect(canDispatch("SUPER_ADMIN")).toBe(true);
   });
 
-  it("lets a responder see incidents without dispatching", () => {
+  it("treats a responder as operational but neither dispatching nor reading incidents", () => {
     expect(isOperationalRole("RESPONDER")).toBe(true);
     expect(canDispatch("RESPONDER")).toBe(false);
+    expect(canViewIncidents("RESPONDER")).toBe(false);
+    expect(isConsoleRole("RESPONDER")).toBe(false);
+  });
+
+  it("limits incident records to the dispatch side", () => {
+    for (const role of USER_ROLES) {
+      expect(canViewIncidents(role)).toBe(canDispatch(role));
+    }
+    expect(canViewIncidents("HOSPITAL_OPERATOR")).toBe(false);
+  });
+
+  it("admits the dispatch side and hospital operators to the console, nobody else", () => {
+    const admitted = USER_ROLES.filter((role) => isConsoleRole(role));
+    expect(admitted).toEqual(["DISPATCHER", "HOSPITAL_OPERATOR", "ADMIN", "SUPER_ADMIN"]);
   });
 
   it("classifies every known role", () => {

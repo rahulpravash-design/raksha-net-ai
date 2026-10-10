@@ -11,8 +11,9 @@ import {
   type ReactNode,
 } from "react";
 
-import { ApiError, isOperationalRole, type User } from "@raksha/api-client";
+import { ApiError, type User } from "@raksha/api-client";
 
+import { admissionRefusal } from "@/lib/admission";
 import { getApiClient, tokenStore } from "@/lib/api";
 
 interface AuthState {
@@ -50,7 +51,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
     try {
-      setUser(await api.me());
+      const me = await api.me();
+      // A restored session is admitted on the same terms as a fresh sign-in.
+      setUser(admissionRefusal(me.role) ? null : me);
     } catch (error) {
       // An expired or revoked session is an ordinary state, not a failure worth
       // surfacing — the visitor simply sees the signed-out view.
@@ -73,16 +76,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(
     async (email: string, password: string, mfaCode?: string) => {
       const tokens = await api.login(email, password, mfaCode);
-      // A citizen account authenticates successfully but has no business in the
-      // control centre. The backend already refuses every operational endpoint;
-      // this stops them reaching a console that would only show errors.
-      if (!isOperationalRole(tokens.user.role)) {
+      const refusal = admissionRefusal(tokens.user.role);
+      if (refusal) {
         await api.logout();
-        throw new ApiError(403, {
-          code: "NOT_AN_OPERATOR",
-          message:
-            "This console is for emergency operators. Use the citizen app to file or track a report.",
-        });
+        throw new ApiError(403, refusal);
       }
       setUser(tokens.user);
     },

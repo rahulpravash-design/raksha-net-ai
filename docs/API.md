@@ -14,6 +14,18 @@ Interactive documentation is served at `/docs` when `RAKSHA_DEBUG=true`.
 - Pagination: `?page=1&page_size=25` (`page_size` max 100). List responses are
   `{ "items": [...], "total": n, "page": p, "page_size": s, "pages": k }`.
 
+### Who may do what
+
+- **operational** — `RESPONDER`, `DISPATCHER`, `HOSPITAL_OPERATOR`, `ADMIN`,
+  `SUPER_ADMIN`.
+- **dispatch side** (`DISPATCH roles`, also `DISPATCHER+`) — `DISPATCHER`,
+  `ADMIN`, `SUPER_ADMIN`. This is also the set that may **read incident records**
+  (`INCIDENT_VIEW_ROLES`): responders and hospital operators are operational but
+  cannot read an incident. A responder reaches only the assignments dispatched to a
+  unit they operate (`/dispatches/mine`, `/dispatches/{id}`); a hospital operator
+  only the notices addressed to their hospital. Where a label below says
+  *owner or dispatch side*, the owner is the citizen who reported it.
+
 ### Error format
 
 ```json
@@ -156,13 +168,13 @@ its own `role` or `is_active` field.
 |---|---|---|---|
 | POST | `/incidents` | CITIZEN+ | Report an emergency |
 | GET | `/incidents/mine` | CITIZEN+ | Own reports |
-| GET | `/incidents` | DISPATCHER, ADMIN, SUPER_ADMIN, RESPONDER | Queue with filters |
-| GET | `/incidents/{id}` | owner or operational role | Incident detail |
+| GET | `/incidents` | dispatch side | Queue with filters |
+| GET | `/incidents/{id}` | owner or dispatch side | Incident detail |
 | PATCH | `/incidents/{id}` | DISPATCHER+ | Update verified facts |
 | POST | `/incidents/{id}/status` | owner (cancel only) or DISPATCHER+ | Transition status |
 | POST | `/incidents/{id}/priority` | DISPATCHER+ | Recompute or override priority |
-| POST | `/incidents/{id}/assign` | DISPATCHER+ | Assign to an operator |
-| GET | `/incidents/{id}/history` | owner or operational role | Status history |
+| POST | `/incidents/{id}/assign` | DISPATCHER+ | Assign to dispatch staff. Responders and hospital operators are refused (`400`): field units are sent with a dispatch |
+| GET | `/incidents/{id}/history` | owner or dispatch side | Status history |
 | GET | `/incidents/stats/summary` | DISPATCHER+ | Counts by band and status |
 
 ### `POST /incidents`
@@ -211,8 +223,8 @@ score from current facts. Both paths write an audit entry.
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| POST | `/incidents/{id}/analyses` | operational role | Request an AI proposal |
-| GET | `/incidents/{id}/analyses` | operational role | List proposals for an incident |
+| POST | `/incidents/{id}/analyses` | dispatch side | Request an AI proposal |
+| GET | `/incidents/{id}/analyses` | dispatch side | List proposals for an incident |
 | POST | `/incidents/{id}/analyses/{analysis_id}/review` | DISPATCHER+ | Accept, edit or reject a proposal |
 
 A proposal is never a fact: `IncidentAnalysisRead` is a separate resource from
@@ -255,8 +267,8 @@ reviewed once: a second attempt gets `409 ANALYSIS_ALREADY_REVIEWED`.
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | POST | `/incidents/{id}/media` | owner or DISPATCHER+ | Upload an image (multipart) |
-| GET | `/incidents/{id}/media` | owner or operational role | List media metadata |
-| GET | `/media/{media_id}/content` | owner or operational role | Stream the bytes |
+| GET | `/incidents/{id}/media` | owner or dispatch side | List media metadata |
+| GET | `/media/{media_id}/content` | owner or dispatch side | Stream the bytes |
 
 Validation: size <= `RAKSHA_MEDIA_MAX_BYTES`, declared MIME in the allow-list,
 **and** magic-byte sniffing that must agree with the declared type. The stored
@@ -276,8 +288,8 @@ With `RAKSHA_CLAMAV_REQUIRED=true`, an unreachable scanner yields
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| GET | `/geo/incidents/nearby` | operational role | Incidents within a radius |
-| GET | `/geo/incidents/bbox` | operational role | Incidents in a viewport, as GeoJSON |
+| GET | `/geo/incidents/nearby` | dispatch side | Incidents within a radius |
+| GET | `/geo/incidents/bbox` | dispatch side | Incidents in a viewport, as GeoJSON |
 
 ### `GET /geo/incidents/nearby?latitude=13.08&longitude=80.27&radius_km=5&limit=50`
 ```json
@@ -306,10 +318,10 @@ incident summary used by the map.
 | GET | `/resources/{id}` | operational | Resource detail |
 | PATCH | `/resources/{id}` | DISPATCH roles | Update a resource |
 | POST | `/resources/{id}/status` | DISPATCH roles, or the unit's own operator | Set operational status |
-| GET | `/incidents/{id}/resource-recommendations` | dispatch-side (not hospital operators) | Ranked suggestions, with reasons. Never dispatches. |
+| GET | `/incidents/{id}/resource-recommendations` | dispatch side | Ranked suggestions, with reasons. Never dispatches. |
 | POST | `/incidents/{id}/dispatches` | DISPATCH roles | Dispatch a resource. The approver is the authenticated caller; the body cannot name one. |
-| GET | `/incidents/{id}/dispatches` | operational | Resources sent to an incident |
-| GET | `/dispatches/mine` | operational | The caller's own assignments |
+| GET | `/incidents/{id}/dispatches` | dispatch side | Resources sent to an incident |
+| GET | `/dispatches/mine` | operational | The caller's own assignments (a responder's whole view of an incident: a scene brief without the reporter) |
 | GET | `/dispatches/{id}` | DISPATCH roles, or the unit's operator | Dispatch detail |
 | POST | `/dispatches/{id}/status` | DISPATCH roles, or the unit's operator | Progress; a legal-transition table applies |
 
@@ -324,7 +336,7 @@ incident summary used by the map.
 | POST | `/hospitals/{id}/capacity` | the hospital's operator, or DISPATCH roles | Report capacity |
 | GET | `/hospitals/{id}/notices` | the hospital's operator, or DISPATCH roles | Inbound patients |
 | POST | `/incidents/{id}/hospital-notices` | DISPATCH roles | Tell a hospital what is coming |
-| GET | `/incidents/{id}/hospital-notices` | dispatch-side (not hospital operators) | Hospitals notified for an incident |
+| GET | `/incidents/{id}/hospital-notices` | dispatch side | Hospitals notified for an incident |
 | POST | `/hospital-notices/{id}/status` | the hospital's operator, or DISPATCH roles | Acknowledge, divert or close |
 
 A notice carries no reporter identity, contact detail, description or

@@ -47,8 +47,8 @@ measured and fixed in a development environment only.**
 - `./scripts/check.sh` — **20/20 steps green** (ruff, black, mypy, pytest, migration
   chain + drift check, AI pytest, pip-audit, npm audit, then eslint + tsc + vitest +
   build for all three front ends). Read from its actual final line.
-- **532 backend tests** (none skipped, including those that start a real
-  `redis-server`), **31 AI tests**, **273 frontend tests** (45 citizen, 223 control centre, 5 responder). 836 total, all passing.
+- **550 backend tests** (none skipped, including those that start a real
+  `redis-server`), **31 AI tests**, **279 frontend tests** (45 citizen, 229 control centre, 5 responder). 860 total, all passing.
 - Migrations `0001 → 0015`; the gate upgrades to head, fails on model/migration
   drift and downgrades to base on every run (and cleans up even if it fails).
 - Backup → restore → compare, on a 100k-incident database: all checks pass; each
@@ -161,7 +161,7 @@ Every Phase 10–14 capability now has a screen in the control centre (dispatch,
 hospitals, notifications, analytics, MFA enrolment, administration). The next
 engineering priorities are, in order: **trying a real mail provider** (recovery email is built
 and verified only against a local test mailbox), MFA enrolment in the citizen and responder
-apps, hospital editing, and the responder-visibility question in `docs/SECURITY.md` §3.
+apps, and hospital editing.
 Verify each in a real browser, as the sign-in, dispatch and admin runs were — type
 checks and unit tests do not show that a flow actually works.
 
@@ -182,12 +182,25 @@ layer could not be seen rendered here (no outbound access to the tile server).
 Building the hospital-operator view exposed that `HOSPITAL_OPERATOR` could read
 **every incident** (reporter name, report text, contact phone, exact location)
 through the API — against `docs/SECURITY.md` and the whole point of the minimised
-inbound notice. Fixed: `INCIDENT_VIEW_ROLES` (operational roles minus hospital
-operator) now guards incident, geo, media, analysis, incident-dispatch,
+inbound notice. Fixed: `INCIDENT_VIEW_ROLES` (originally operational roles minus
+hospital operator; see below for the responder change) guards incident, geo, media, analysis, incident-dispatch,
 incident-notice and resource-recommendation reads
-(`tests/integration/test_hospital_operator_privacy.py`). **Still open:** the same
-table says a `RESPONDER` reads *assigned* incidents only, but responders can read
-the whole queue — decide whether that is intended before any pilot (`docs/SECURITY.md` §3).
+(`tests/integration/test_hospital_operator_privacy.py`).
+
+**Responder visibility — decided and built (2026-10-10):** `INCIDENT_VIEW_ROLES` is now
+`DISPATCH_ROLES`, so a responder cannot read the queue, an incident, its history, media,
+analyses, dispatches, notices, recommendations or the map feed. They keep what the
+responder app needs: their own assignments and the scene brief (no reporter), progress
+updates and notifications. An incident can no longer be *assigned* to a responder or
+hospital operator. The control centre refuses a responder's sign-in and points them to the
+responder app. A field supervisor who needs the wider picture uses a dispatcher account;
+a read-only supervisor tier would be a new role, not a loosening
+(`docs/SECURITY.md` §3, `tests/integration/test_responder_privacy.py`,
+`scripts/e2e/responder-scope.mjs`).
+
+**Found while verifying:** the default CORS origins (config, `.env.example`, compose)
+omitted the responder app on `:3002`, so a stack started from the example file could not
+sign a responder in ("Could not reach the server"). Fixed.
 
 ### 3a. Dispatch workflow (built, browser-verified)
 
@@ -448,7 +461,7 @@ npm run dev --workspace @raksha/responder-web      # :3002
 
 ```bash
 ./scripts/check.sh            # the full gate — read the LAST line
-cd backend && .venv/bin/pytest -q          # 532 backend tests
+cd backend && .venv/bin/pytest -q          # 550 backend tests
 cd .. && PYTHONPATH=. backend/.venv/bin/pytest ai/tests -q   # 31 AI tests
 ```
 

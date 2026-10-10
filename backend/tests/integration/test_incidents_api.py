@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -435,18 +436,34 @@ def test_recomputing_clears_an_override(
 
 
 # --- assignment --------------------------------------------------------------
-def test_an_incident_can_be_assigned_to_a_responder(
+def test_an_incident_can_be_assigned_to_dispatch_staff(
     client: TestClient, make_user, authed_client, incident_payload
 ) -> None:
     created = report(authed_client(make_user(UserRole.CITIZEN)), incident_payload)
-    responder = make_user(UserRole.RESPONDER)
+    colleague = make_user(UserRole.DISPATCHER)
     dispatcher = authed_client(make_user(UserRole.DISPATCHER))
 
     body = dispatcher.post(
         f"/api/v1/incidents/{created['id']}/assign",
-        json={"assigned_to_id": str(responder.id)},
+        json={"assigned_to_id": str(colleague.id)},
     ).json()
-    assert body["assigned_to"]["id"] == str(responder.id)
+    assert body["assigned_to"]["id"] == str(colleague.id)
+
+
+@pytest.mark.parametrize("role", [UserRole.RESPONDER, UserRole.HOSPITAL_OPERATOR])
+def test_an_incident_cannot_be_assigned_to_a_role_that_cannot_read_it(
+    client: TestClient, make_user, authed_client, incident_payload, role: UserRole
+) -> None:
+    """Owning an incident you cannot open would be a contradiction. Field units
+    are sent with a dispatch; they are not made the incident's assignee."""
+    created = report(authed_client(make_user(UserRole.CITIZEN)), incident_payload)
+    dispatcher = authed_client(make_user(UserRole.DISPATCHER))
+
+    response = dispatcher.post(
+        f"/api/v1/incidents/{created['id']}/assign",
+        json={"assigned_to_id": str(make_user(role).id)},
+    )
+    assert response.status_code == 400
 
 
 def test_a_citizen_cannot_be_assigned_an_incident(

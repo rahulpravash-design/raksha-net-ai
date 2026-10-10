@@ -247,17 +247,17 @@ def test_the_reporter_can_read_their_own_incident(
     )
 
 
-def test_a_responder_may_read_but_not_dispatch(
+def test_a_responder_can_neither_read_incident_records_nor_change_them(
     client: TestClient, make_user, authed_client, incident_payload
 ) -> None:
+    # Least privilege (docs/SECURITY.md section 3): a responder works from the
+    # assignments dispatched to their unit, not from the incident queue.
     incident = make_incident(authed_client, make_user, incident_payload)
     responder = authed_client(make_user(UserRole.RESPONDER))
 
-    assert responder.get(f"/api/v1/incidents/{incident['id']}").status_code == 200
-    assert responder.get("/api/v1/incidents").status_code == 200
-    assert (
-        responder.post(
-            f"/api/v1/incidents/{incident['id']}/status", json={"status": "RECEIVED"}
-        ).status_code
-        == 403
-    )
+    assert responder.get(f"/api/v1/incidents/{incident['id']}").status_code in (403, 404)
+    assert responder.get("/api/v1/incidents").status_code == 403
+    # 404 rather than 403: an incident a role cannot read is not confirmed to exist.
+    assert responder.post(
+        f"/api/v1/incidents/{incident['id']}/status", json={"status": "RECEIVED"}
+    ).status_code in (403, 404)

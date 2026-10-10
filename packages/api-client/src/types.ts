@@ -15,7 +15,10 @@ export const USER_ROLES = [
 ] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
-/** Roles allowed to see the whole incident picture rather than only their own. */
+/**
+ * Roles on the operational side of the platform. Not all of them may read
+ * incident records — see `INCIDENT_VIEW_ROLES`.
+ */
 export const OPERATIONAL_ROLES: readonly UserRole[] = [
   "RESPONDER",
   "DISPATCHER",
@@ -29,6 +32,20 @@ export const DISPATCH_ROLES: readonly UserRole[] = [
   "DISPATCHER",
   "ADMIN",
   "SUPER_ADMIN",
+];
+
+/**
+ * Roles allowed to read incident records (reporter, report text, exact location).
+ * Mirrors the backend's `INCIDENT_VIEW_ROLES`: the dispatch side only. A responder
+ * sees the assignments dispatched to their unit, in the responder app; a hospital
+ * operator sees the inbound-patient notices addressed to their hospital.
+ */
+export const INCIDENT_VIEW_ROLES: readonly UserRole[] = DISPATCH_ROLES;
+
+/** Roles the control centre admits: the dispatch side, and hospital operators. */
+export const CONSOLE_ROLES: readonly UserRole[] = [
+  ...DISPATCH_ROLES,
+  "HOSPITAL_OPERATOR",
 ];
 
 export const INCIDENT_CATEGORIES = [

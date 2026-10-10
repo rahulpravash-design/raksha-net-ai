@@ -145,9 +145,14 @@ Stated plainly, so this is not mistaken for a finished redesign:
 * `analytics.mjs` — builds one complete report→dispatch→resolved case, then checks the
   cards against the API's own figures (sample size, category total), that hotspots
   show cell centres and never the report's exact coordinates, period and category
-  filters re-query, responder and hospital operator get no link and are sent home
-  (and the API refuses a responder), mobile overflow.
+  filters re-query, a hospital operator gets no link and is sent home (and the API
+  refuses a responder), mobile overflow.
 * `dispatch.mjs` — the dispatch workflow (see CHECKPOINT).
+* `responder-scope.mjs` — a responder is refused every incident read by the API (queue,
+  detail, history, media, analyses, dispatches, notices, recommendations, map feed) and
+  cannot be made an incident's assignee, still reads their own assignments; the control
+  centre keeps them on the login page with a pointer to the responder app and leaves no
+  session; a dispatcher is unaffected.
 
 Chromium ran WebGL through software rendering (SwiftShader). That proves the
 scene initialises and draws; it says nothing about GPU performance.

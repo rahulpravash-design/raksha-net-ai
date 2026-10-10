@@ -14,7 +14,6 @@ from app.core.logging import get_logger
 from app.models.enums import (
     DISPATCH_ROLES,
     INCIDENT_VIEW_ROLES,
-    OPERATIONAL_ROLES,
     IncidentCategory,
     IncidentStatus,
     NotificationKind,
@@ -466,9 +465,10 @@ class IncidentService:
             assignee = self.users.get(payload.assigned_to_id)
             if assignee is None or not assignee.is_active:
                 raise ValidationError("The selected user cannot be assigned.")
-            if assignee.role not in OPERATIONAL_ROLES:
+            if assignee.role not in INCIDENT_VIEW_ROLES:
                 raise ValidationError(
-                    "Only responders and operators can be assigned to an incident."
+                    "Only dispatch staff can be assigned to an incident; "
+                    "field units are sent with a dispatch."
                 )
 
         incident.assigned_to_id = payload.assigned_to_id

@@ -97,17 +97,10 @@ check("no console/CSP errors (inventory)", problems.length === 0);
 if (problems.length) out.push("   " + problems.join(" | "));
 await ctx.close();
 
-// ---- role: responder gets read-only, API refuses writes ---------------------
+// ---- role: responder, API refuses writes ------------------------------------
 const r = await call("POST", "/resources", { call_sign: "NOPE-" + tag, name: "Nope", resource_type: "AMBULANCE", latitude: 13, longitude: 80 }, resp.access_token);
 check("responder cannot register a resource (403)", r.status === 403);
-try {
-  const rs = await signIn("responder@raksha.example");
-  await rs.page.goto("http://localhost:3001/resources", { waitUntil: "networkidle" });
-  await rs.page.waitForTimeout(1200);
-  const body = await rs.page.locator("body").innerText();
-  check("responder sees no Register button in the control centre", !/Register a resource/.test(body));
-  await rs.ctx.close();
-} catch { out.push("INFO  responder is not admitted to the control-centre UI (sign-in did not reach /dashboard)"); }
+// (a responder is not admitted to the control centre at all — see responder-scope.mjs)
 
 // ---- incident detail ----------------------------------------------------------
 const d = await signIn("dispatcher@raksha.example");

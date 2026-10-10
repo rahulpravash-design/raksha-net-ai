@@ -84,7 +84,8 @@ describe("homeFor", () => {
     expect(homeFor("HOSPITAL_OPERATOR")).toBe("/hospitals");
     expect(homeFor("DISPATCHER")).toBe("/dashboard");
     expect(seesIncidents("HOSPITAL_OPERATOR")).toBe(false);
-    expect(seesIncidents("RESPONDER")).toBe(true);
+    expect(seesIncidents("RESPONDER")).toBe(false);
+    expect(seesIncidents("DISPATCHER")).toBe(true);
   });
 });
 

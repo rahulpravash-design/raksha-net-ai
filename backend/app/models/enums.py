@@ -18,7 +18,9 @@ class UserRole(StrEnum):
     SUPER_ADMIN = "SUPER_ADMIN"
 
 
-#: Roles that may see the full incident picture rather than only their own reports.
+#: Roles that work the operation (they get the MFA policy, hospital and resource
+#: reads, notifications). This is NOT who may read incident records — that is the
+#: narrower INCIDENT_VIEW_ROLES below.
 OPERATIONAL_ROLES: frozenset[UserRole] = frozenset(
     {
         UserRole.RESPONDER,
@@ -29,18 +31,21 @@ OPERATIONAL_ROLES: frozenset[UserRole] = frozenset(
     }
 )
 
-#: Roles that may read incident records: reporter identity, report text, contact
-#: details and exact location. A hospital operator is operational (it can see
-#: hospitals and report capacity) but is deliberately NOT here: the hospital sees
-#: only the minimised inbound-patient notice (docs/SECURITY.md section 3).
-INCIDENT_VIEW_ROLES: frozenset[UserRole] = OPERATIONAL_ROLES - {
-    UserRole.HOSPITAL_OPERATOR
-}
-
 #: Roles that may change an incident's status, priority or assignment.
 DISPATCH_ROLES: frozenset[UserRole] = frozenset(
     {UserRole.DISPATCHER, UserRole.ADMIN, UserRole.SUPER_ADMIN}
 )
+
+#: Roles that may read incident records: reporter identity, report text, contact
+#: details and exact location — the dispatch side only.
+#:
+#: Two operational roles are deliberately outside it (least privilege,
+#: docs/SECURITY.md section 3). A hospital operator sees only the minimised
+#: inbound-patient notice. A responder sees only the assignments dispatched to a
+#: unit they operate, through a scene brief that already omits the reporter
+#: (`DispatchIncidentBrief`); the responder app needs nothing more, and a crew
+#: member's phone is the device most likely to be lost.
+INCIDENT_VIEW_ROLES: frozenset[UserRole] = DISPATCH_ROLES
 
 #: Roles that may administer users.
 ADMIN_ROLES: frozenset[UserRole] = frozenset({UserRole.ADMIN, UserRole.SUPER_ADMIN})

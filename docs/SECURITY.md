@@ -147,20 +147,41 @@ Two independent checks, both enforced server-side:
 | Role | Capability |
 |---|---|
 | `CITIZEN` | Create a report; read/cancel own reports; upload media to own reports |
-| `RESPONDER` | Read assigned incidents; update assignment status (Phase 11) |
+| `RESPONDER` | See the assignments dispatched to a unit they operate, through a scene brief that omits the reporter; update that assignment's status (Phase 11). **Cannot read incident records** — the queue, incident detail, map feed, media and AI analyses are closed to this role (`INCIDENT_VIEW_ROLES`). Not admitted to the control centre; they use the responder app. |
 | `DISPATCHER` | Read all incidents; transition status; override priority; assign; dispatch |
 | `HOSPITAL_OPERATOR` | See hospitals; report their own hospital's capacity; read and answer inbound-patient notices for it (Phase 12). **Cannot read incident records** — reporter, report text, contact and exact location are closed to this role (`INCIDENT_VIEW_ROLES`). |
 | `ADMIN` | User and resource administration; read audit logs |
 | `SUPER_ADMIN` | All of the above; manage administrators |
 
 Least privilege is the rule: a hospital operator sees the clinical and ETA
-information relevant to an inbound patient, not the reporter's contact details.
+information relevant to an inbound patient, not the reporter's contact details,
+and a responder sees the scene they were sent to, not the queue.
 
-**Known discrepancy (not fixed):** the table says a `RESPONDER` reads *assigned*
-incidents, but responders are in `INCIDENT_VIEW_ROLES` and can read the whole
-queue. Decide whether that is intended before a pilot. The hospital-operator
-equivalent was corrected on 2026-10-10 after a hospital-operator screen exposed it
-(`tests/integration/test_hospital_operator_privacy.py`).
+**Incident records are the dispatch side's alone.** `INCIDENT_VIEW_ROLES` is
+`DISPATCH_ROLES` (`DISPATCHER`, `ADMIN`, `SUPER_ADMIN`). Two operational roles are
+deliberately outside it:
+
+- **Hospital operator** — corrected on 2026-10-10 after a hospital-operator screen
+  exposed it (`tests/integration/test_hospital_operator_privacy.py`).
+- **Responder** — decided on 2026-10-10. Before, a responder could read the whole
+  incident queue, including reporter identity and contact details, although the
+  responder application only ever needed assigned incidents. A crew member's phone
+  is the device most likely to be lost, so it should hold the least. The scene
+  brief a dispatch carries (`DispatchIncidentBrief`) already omits the reporter; it
+  is the responder's whole view of an incident
+  (`tests/integration/test_responder_privacy.py`).
+
+Consequences, all deliberate: an incident cannot be *assigned* to a responder or a
+hospital operator (field units are sent with a dispatch; the incident's assignee is
+dispatch staff); the control centre refuses a responder's sign-in and points them
+to the responder app; and a field supervisor who needs the wider picture uses a
+dispatcher account. If a pilot needs a supervisor tier that reads incidents but
+cannot dispatch, that is a new role with its own review, not a loosening of this
+one.
+
+A role that may not read an incident is told it does not exist (`404`) where the
+endpoint is also open to the reporter, and refused (`403`) elsewhere. Neither
+response carries incident content.
 
 ## 4. Input validation
 

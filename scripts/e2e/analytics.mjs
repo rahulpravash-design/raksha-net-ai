@@ -73,7 +73,8 @@ check("no console/CSP errors", d.problems.length === 0);
 await d.ctx.close();
 
 // who cannot see it
-for (const [email, label] of [["responder@raksha.example", "responder"], ["hospital@raksha.example", "hospital operator"]]) {
+// (a responder is not admitted to the control centre at all — responder-scope.mjs)
+for (const [email, label] of [["hospital@raksha.example", "hospital operator"]]) {
   const s = await signIn(email);
   await s.page.waitForTimeout(2500);
   check(`${label} sees no Analytics link`, (await s.page.getByRole("link", { name: "Analytics" }).count()) === 0);

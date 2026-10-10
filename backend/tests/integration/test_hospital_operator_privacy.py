@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 
 from app.models.enums import (
+    DISPATCH_ROLES,
     INCIDENT_VIEW_ROLES,
     OPERATIONAL_ROLES,
     UserRole,
@@ -24,11 +25,15 @@ from tests.integration.test_hospitals_api import (
 
 
 def test_the_role_sets_are_what_the_docs_describe() -> None:
-    assert UserRole.HOSPITAL_OPERATOR in OPERATIONAL_ROLES
-    assert UserRole.HOSPITAL_OPERATOR not in INCIDENT_VIEW_ROLES
-    assert OPERATIONAL_ROLES - {UserRole.HOSPITAL_OPERATOR} == INCIDENT_VIEW_ROLES
+    # Incident records are the dispatch side's alone. Two operational roles are
+    # deliberately outside it, each with a narrower view of its own.
+    assert INCIDENT_VIEW_ROLES == DISPATCH_ROLES
+    assert {UserRole.HOSPITAL_OPERATOR, UserRole.RESPONDER} == (
+        OPERATIONAL_ROLES - INCIDENT_VIEW_ROLES
+    )
     assert UserRole.DISPATCHER in INCIDENT_VIEW_ROLES
-    assert UserRole.RESPONDER in INCIDENT_VIEW_ROLES
+    assert UserRole.RESPONDER not in INCIDENT_VIEW_ROLES
+    assert UserRole.HOSPITAL_OPERATOR not in INCIDENT_VIEW_ROLES
 
 
 @pytest.fixture
@@ -110,8 +115,8 @@ def test_the_hospital_operators_own_work_still_functions(world, operator_client)
     assert capacity.status_code == 200
 
 
-def test_dispatchers_and_responders_keep_incident_access(world, as_role) -> None:
-    for role in (UserRole.DISPATCHER, UserRole.RESPONDER, UserRole.ADMIN):
+def test_the_dispatch_side_keeps_incident_access(world, as_role) -> None:
+    for role in (UserRole.DISPATCHER, UserRole.ADMIN, UserRole.SUPER_ADMIN):
         client, _ = as_role(role)
         response = client.get(f"/api/v1/incidents/{world['incident']['id']}")
         assert response.status_code == 200, role
