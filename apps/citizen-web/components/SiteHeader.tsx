@@ -27,6 +27,9 @@ export function SiteHeader() {
               <Link href="/reports" className="px-2 py-1 hover:underline">
                 My reports
               </Link>
+              <Link href="/account/security" className="px-2 py-1 hover:underline">
+                Security
+              </Link>
               <Link
                 href="/report"
                 className="rounded-lg bg-red-600 px-3 py-1.5 font-semibold text-white hover:bg-red-700"

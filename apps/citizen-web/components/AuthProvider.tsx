@@ -31,10 +31,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const api = getApiClient(() => {
-    setUser(null);
-    router.push("/login");
-  });
+  const api = getApiClient(
+    () => {
+      setUser(null);
+      router.push("/login");
+    },
+    // Policy requires two-factor for this account: everything else is refused
+    // until it is set up, so take the user straight to the place that does it.
+    () => router.push("/account/security"),
+    // An administrator-set password is still in force: it must be replaced first.
+    () => router.push("/account/security"),
+  );
 
   const loadUser = useCallback(async () => {
     if (!tokenStore.getAccessToken()) {

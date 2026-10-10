@@ -25,6 +25,9 @@ export function SiteHeader() {
           {loading ? null : user ? (
             <>
               <span className="muted hidden sm:inline">{user.full_name}</span>
+              <Link href="/account/security" className="px-2 py-1 hover:underline">
+                Security
+              </Link>
               <NotificationBell
               api={getApiClient()}
               hrefFor={(n) => n.dispatch_id ? `/assignments/${n.dispatch_id}` : null}

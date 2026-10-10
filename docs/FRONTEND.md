@@ -1,8 +1,10 @@
 # Front-end design system and 3D layer
 
 Scope: the control centre (`apps/control-center`). The citizen and responder
-apps keep their existing look; they share only the notification bell
-(`packages/ui`).
+apps keep their existing look; they share the notification bell, the recovery forms,
+the form primitives (`Button`, `Field`, `TextInput`, …) and the account-security panels
+(password change, two-factor enrolment) through `packages/ui`. Each app's
+`components/ui.tsx` is now only a re-export of the shared primitives.
 
 ## 1. What exists
 
@@ -59,7 +61,7 @@ apps keep their existing look; they share only the notification bell
 |---|---|---|
 | `three`, `@react-three/fiber` | The 3D scene. | Loaded only on the landing page and the Globe tab (dynamic import). |
 | `motion` | Entrance, layout and reduced-motion handling in one place. | ~tens of KB. |
-| `qrcode` (+ `@types/qrcode`) | The MFA enrolment QR. Authenticator apps are normally enrolled by scanning; the setup key is shown too as a fallback. Used only for its module matrix. | Small; loaded with the security page. |
+| `qrcode` (+ `@types/qrcode`) | The MFA enrolment QR (now a dependency of `packages/ui`, shared by all three apps). Authenticator apps are normally enrolled by scanning; the setup key is shown too as a fallback. Used only for its module matrix. | Small; loaded with the security page. |
 | `world-atlas` (data), `topojson-client` | Real coastlines for the globe instead of an invented planet. 55 KB Natural Earth 1:110m, public domain. | Part of the lazy chunk. |
 | `@types/three`, `@types/topojson-client` (dev) | Types. | — |
 

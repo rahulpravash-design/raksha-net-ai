@@ -12,13 +12,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@raksha/api-client": "*"
+    "@raksha/api-client": "*",
+    "qrcode": "^1.5.4"
   },
   "peerDependencies": {
     "react": ">=19"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "@types/qrcode": "^1.5.6"
   }
 }

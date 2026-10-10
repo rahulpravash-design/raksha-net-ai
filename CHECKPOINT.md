@@ -154,14 +154,13 @@ of it is the responder app's assignments list (`api.myAssignments`).
 | ~~Hospital capacity, nearby hospitals, send/track an inbound notice~~ **BUILT** in the control centre for dispatchers **and** hospital operators (`/hospitals`, incident Hospitals panel; browser-verified). A separate hospital-operator *app* was not built — the operator uses a reduced control-centre view. | — | — |
 | ~~Notification inbox (+ unread badge)~~ **BUILT** (`packages/ui` `NotificationBell`, all three headers; browser-verified for the responder) | — | — |
 | ~~Analytics~~ **BUILT** (`/analytics`; hotspots listed as coarsened cells, not mapped) | — | — |
-| ~~MFA enrolment (QR/URI, confirm, disable)~~ **BUILT** in the control centre (`/account/security`; browser-verified, QR decoded with OpenCV, enforced-policy redirect proven). Not built in the citizen and responder apps. | — | — |
+| ~~MFA enrolment (QR/URI, confirm, disable)~~ **BUILT** in all three apps from one shared component (`/account/security`; control centre browser-verified with QR decoded by OpenCV and enforced-policy redirect; responder and citizen `responder-security.mjs`; an unenrolled responder under `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL=true` is sent to the enrolment screen). No recovery codes. | — | — |
 | ~~Admin: unlock / reset MFA / create operators~~ **BUILT** (`/admin/users`; also hospital registration and a crew picker). Passwords: change, forced change on administrator-set passwords, and temporary reset are built (migration 0014) | — | — |
 
 Every Phase 10–14 capability now has a screen in the control centre (dispatch, resources,
 hospitals, notifications, analytics, MFA enrolment, administration). The next
 engineering priorities are, in order: **trying a real mail provider** (recovery email is built
-and verified only against a local test mailbox), MFA enrolment in the citizen and responder
-apps, and hospital editing.
+and verified only against a local test mailbox), and hospital editing.
 Verify each in a real browser, as the sign-in, dispatch and admin runs were — type
 checks and unit tests do not show that a flow actually works.
 
@@ -408,7 +407,7 @@ Everything below is committed. Nothing is staged or modified.
     were still only exercised through the test suite**, not through a UI/live run.
 13. **Phase 16 is not finished by its code.** No penetration test, no operating
     authority acceptance. `docs/SECURITY.md` §12 lists every other gap: no MFA
-    enrolment UI or recovery codes; front-end CSP keeps `'unsafe-inline'`;
+    recovery codes; front-end CSP keeps `'unsafe-inline'`;
     ClamAV client untested against a real ClamAV; MFA enforcement off by default;
     dev-tooling advisory (`braces`) not gating.
 14. **The browser end-to-end scripts are not in the repository.** They were

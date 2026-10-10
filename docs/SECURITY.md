@@ -378,7 +378,12 @@ dependency-audit gating.
 - **No operating authority has accepted the residual risk.**
 - **The malware scanner has not been run against a real ClamAV.**
 - **The front-end CSP allows `'unsafe-inline'`** (section 6).
-- **MFA has no enrolment UI and no recovery codes** (section 2).
+- **MFA has no recovery codes** (section 2). Enrolment, password change and turn-off are
+  built in all three apps from one shared component (`packages/ui` `AccountSecurity`);
+  before it existed the responder app had no way to enrol, so enforcing two-factor would
+  have locked every responder out of their own application (now proven the other way:
+  `scripts/e2e/responder-security.mjs`, and an enforced-policy run that lands an unenrolled
+  responder on the enrolment screen).
 - **MFA enforcement is off by default** and must be turned on (a production-like
   environment will not start without it).
 - **Lockout and MFA were verified against a local stack** — not under load, not
