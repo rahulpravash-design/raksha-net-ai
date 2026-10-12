@@ -101,7 +101,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(ConcurrencyLimitMiddleware, settings=settings)
     app.add_middleware(MetricsMiddleware, settings=settings)
     app.add_middleware(SecurityHeadersMiddleware, settings=settings)
-    app.add_middleware(AccessLogMiddleware)
+    app.add_middleware(AccessLogMiddleware, settings=settings)
     app.add_middleware(CorrelationIdMiddleware)
     app.add_middleware(
         CORSMiddleware,

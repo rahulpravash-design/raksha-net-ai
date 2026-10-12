@@ -138,6 +138,9 @@ class Settings(BaseSettings):
     rate_limit_default_per_minute: int = 120
     rate_limit_auth_per_minute: int = 10
     rate_limit_report_per_minute: int = 12
+    #: Proxies in front of the application that append to ``X-Forwarded-For`` (see
+    #: ``app.core.client_address``). 0 = use the connecting address.
+    trusted_proxy_hops: int = Field(default=0, ge=0, le=5)
 
     #: Consecutive failed logins before an account is time-locked. Counted
     #: per account, not per client — rate limiting above already throttles by
@@ -306,6 +309,12 @@ class Settings(BaseSettings):
             problems.append("RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL must be true")
         if self.encryption_key is None:
             problems.append("RAKSHA_ENCRYPTION_KEY must be set outside development")
+        elif not _all_fernet_keys(self.encryption_key.get_secret_value()):
+            # Caught here, not at the first encrypted write (which would be a 500).
+            problems.append(
+                "RAKSHA_ENCRYPTION_KEY must be one or more comma-separated Fernet keys "
+                "(url-safe base64 of 32 bytes)"
+            )
         if "*" in self.cors_origins:
             problems.append("RAKSHA_CORS_ORIGINS must not contain '*'")
         if not self.cors_origins:
@@ -335,6 +344,23 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Return the process-wide settings instance."""
     return Settings()
+
+
+def _all_fernet_keys(raw: str) -> bool:
+    """Whether every comma-separated part decodes to the 32 bytes a Fernet key is.
+
+    The same test ``cryptography.fernet.Fernet`` applies, without importing it here.
+    """
+    keys = [part.strip() for part in raw.split(",") if part.strip()]
+    if not keys:
+        return False
+    for key in keys:
+        try:
+            if len(base64.urlsafe_b64decode(key.encode("ascii"))) != 32:
+                return False
+        except (ValueError, UnicodeError):
+            return False
+    return True
 
 
 def generate_secret_key() -> str:

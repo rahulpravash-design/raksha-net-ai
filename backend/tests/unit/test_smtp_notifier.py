@@ -106,14 +106,14 @@ def test_email_is_real_only_when_a_host_is_configured() -> None:
 
 
 def test_production_refuses_unencrypted_smtp_and_http_links() -> None:
-    from app.core.config import Environment
+    from app.core.config import Environment, generate_encryption_key
 
     base = {
         "environment": Environment.PRODUCTION,
         "debug": False,
         "secret_key": "x" * 40,
         "mfa_required_for_operational": True,
-        "encryption_key": "a" * 44,
+        "encryption_key": generate_encryption_key(),
         "cors_origins": ["https://app.example.org"],
         "smtp_host": "mail.example.org",
     }

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import base64
+import secrets
+
 import pytest
 
 from app.core.config import Settings, generate_encryption_key
@@ -77,3 +80,47 @@ def test_production_refuses_to_start_without_an_encryption_key() -> None:
     )
     with pytest.raises(RuntimeError, match="ENCRYPTION_KEY"):
         settings.assert_safe_for_environment()
+
+
+def _production(encryption_key: str) -> Settings:
+    return Settings(
+        environment="production",
+        debug=False,
+        secret_key="a-production-grade-secret-key-0123456789",
+        cors_origins=["https://app.example.org"],
+        mfa_required_for_operational=True,
+        encryption_key=encryption_key,
+    )
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "not-a-key",
+        "a" * 44,  # 33 bytes once decoded
+        base64.urlsafe_b64encode(b"x" * 31).decode(),
+        ",",
+    ],
+)
+def test_production_refuses_to_start_with_a_malformed_encryption_key(bad: str) -> None:
+    """Caught at start-up, naming the variable, not at the first encrypted write (a 500)."""
+    with pytest.raises(RuntimeError, match="RAKSHA_ENCRYPTION_KEY must be one or more"):
+        _production(bad).assert_safe_for_environment()
+
+
+def test_production_accepts_a_key_and_a_rotation_list() -> None:
+    old, new = generate_encryption_key(), generate_encryption_key()
+    _production(new).assert_safe_for_environment()
+    _production(f"{new},{old}").assert_safe_for_environment()
+
+
+def test_a_standard_base64_256_bit_value_is_a_usable_key() -> None:
+    """What a host's "generate a random value" feature typically produces (Render's
+    generateValue, for one) must work, including the '+' and '/' of standard base64."""
+    for _ in range(50):
+        raw = base64.b64encode(secrets.token_bytes(32)).decode()
+        settings = _production(raw)
+        settings.assert_safe_for_environment()
+        assert decrypt_value(encrypt_value("+919876543210", settings), settings) == (
+            "+919876543210"
+        )
