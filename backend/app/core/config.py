@@ -19,6 +19,28 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 PLACEHOLDER_SECRET = "generate_a_unique_64_byte_secret_before_running"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
+#: URL schemes that managed PostgreSQL hosts (Render, Heroku, Railway ...) hand out.
+#: SQLAlchemy reads a bare ``postgresql://`` as the psycopg2 driver, which this
+#: project does not install; it ships psycopg 3, whose scheme is ``postgresql+psycopg``.
+_PLAIN_POSTGRES_SCHEMES = ("postgresql://", "postgres://")
+_PSYCOPG_SCHEME = "postgresql+psycopg://"
+
+
+def normalise_database_url(url: str) -> str:
+    """Return ``url`` in the form SQLAlchemy needs to use the installed driver.
+
+    A host-supplied ``postgres://`` or ``postgresql://`` URL is rewritten to
+    ``postgresql+psycopg://``; everything after the scheme (credentials, host, path,
+    query such as ``sslmode``) is kept byte for byte. A URL that already names a
+    driver is returned unchanged, so an explicit choice is never overridden.
+    """
+    stripped = url.strip()
+    lowered = stripped.lower()
+    for scheme in _PLAIN_POSTGRES_SCHEMES:
+        if lowered.startswith(scheme):
+            return _PSYCOPG_SCHEME + stripped[len(scheme) :]
+    return stripped
+
 
 class Environment(StrEnum):
     DEVELOPMENT = "development"
@@ -233,7 +255,7 @@ class Settings(BaseSettings):
     @property
     def sqlalchemy_database_uri(self) -> str:
         if self.database_url:
-            return self.database_url
+            return normalise_database_url(self.database_url)
         password = self.postgres_password.get_secret_value()
         return (
             f"postgresql+psycopg://{self.postgres_user}:{password}"
