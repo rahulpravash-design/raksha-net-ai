@@ -14,6 +14,7 @@ import {
   isOperationalRole,
   INCIDENT_CATEGORIES,
   INCIDENT_STATUSES,
+  observationLabel,
   statusLabel,
   USER_ROLES,
 } from "@raksha/api-client";
@@ -138,5 +139,16 @@ describe("formatting", () => {
     [5 * 1024 * 1024, "5.0 MB"],
   ])("renders %d bytes as %s", (bytes, expected) => {
     expect(formatBytes(bytes)).toBe(expected);
+  });
+});
+
+describe("observationLabel", () => {
+  it("words every vocabulary label as an observation", () => {
+    expect(observationLabel("possible_injured_person")).toBe("Possible injured person");
+    expect(observationLabel("fast_moving_water")).toBe("Fast-moving water");
+  });
+
+  it("still reads sensibly for a label it does not know", () => {
+    expect(observationLabel("new_label")).toBe("New label");
   });
 });

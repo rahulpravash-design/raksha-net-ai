@@ -54,6 +54,34 @@ beforeEach(() => {
 });
 
 describe("AIAnalysisPanel", () => {
+  it("shows each observation as an AI observation, with its source and confidence", async () => {
+    listAnalyses.mockResolvedValue([
+      proposal({
+        model_name: "raksha-heuristic-text-analyzer+claude-opus-5-5",
+        observations: [
+          { label: "possible_injured_person", confidence: 0.72, source: "IMAGE" },
+          { label: "smoke_visible", confidence: 0.41, source: "IMAGE" },
+        ],
+      }),
+    ]);
+    render(<AIAnalysisPanel incidentId="incident-1" canReview={true} onApplied={vi.fn()} />);
+
+    const list = await screen.findByRole("list", { name: /ai observations/i });
+    expect(list).toHaveTextContent("Possible injured person");
+    expect(list).toHaveTextContent("(photo)");
+    expect(list).toHaveTextContent("72%");
+    // Never presented as a fact.
+    expect(screen.getByText(/not verified facts/i)).toBeInTheDocument();
+    expect(list.querySelectorAll('li[title="AI observation: unverified"]')).toHaveLength(2);
+  });
+
+  it("shows no observation section when there are none", async () => {
+    listAnalyses.mockResolvedValue([proposal()]);
+    render(<AIAnalysisPanel incidentId="incident-1" canReview={true} onApplied={vi.fn()} />);
+    await screen.findByText(/ai proposal/i);
+    expect(screen.queryByRole("list", { name: /ai observations/i })).not.toBeInTheDocument();
+  });
+
   it("explains that there is no proposal yet", async () => {
     render(<AIAnalysisPanel incidentId="incident-1" canReview={true} onApplied={vi.fn()} />);
 

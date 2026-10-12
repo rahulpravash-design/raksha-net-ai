@@ -261,6 +261,33 @@ export function formatConfidence(confidence: number | null): string {
   return `${Math.round(confidence * 100)}% confidence`;
 }
 
+/**
+ * Plain words for an AI observation label (ai/common/schemas.py OBSERVATION_VOCABULARY).
+ * The labels are already phrased as observations ("possible injured person"); the words
+ * keep that, and never turn one into a statement of fact.
+ */
+const OBSERVATION_LABELS: Record<string, string> = {
+  standing_water: "Standing water",
+  fast_moving_water: "Fast-moving water",
+  smoke_visible: "Smoke visible",
+  flames_visible: "Flames visible",
+  structural_damage: "Structural damage",
+  collapsed_structure: "Collapsed structure",
+  vehicle_involved: "Vehicle involved",
+  crowd_present: "Crowd present",
+  possible_injured_person: "Possible injured person",
+  blocked_road: "Blocked road",
+  downed_power_line: "Downed power line",
+  darkness_limits_visibility: "Darkness limits visibility",
+};
+
+export function observationLabel(label: string): string {
+  const known = OBSERVATION_LABELS[label];
+  if (known) return known;
+  const words = label.replace(/_/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
