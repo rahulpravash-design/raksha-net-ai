@@ -522,35 +522,38 @@ restart, recreate it with
 
 ---
 
-## 7. Netlify deployment — decided, set up, upload blocked (2026-10-10)
+## 7. Deployment — nothing is deployed (2026-10-12)
 
-**Decision (yours):** front ends on Netlify, backend on a separate host with PostGIS.
+**Decision (yours):** front ends on Netlify, backend on a separate host with PostGIS —
+`docs/DEPLOYMENT.md` §13 is the guide (Render).
 
-**Done:** three Netlify projects in team `rahulpravash` —
-`raksha-control-centre` (`1a83af01-6fd5-4235-ae11-19394bfb5ceb`),
-`raksha-citizen` (`d778c1f3-41ef-4794-b614-d82d3ff1d65b`),
-`raksha-responder` (`b0d68854-9f45-4694-af6c-45850574af16`). Each has
-`NEXT_PUBLIC_API_BASE_URL = https://raksha-backend-not-deployed.invalid` (a deliberate
-placeholder: pages load, every API call fails visibly, and no visitor's browser is pointed
-at their own `localhost`), and the control centre has
-`NEXT_PUBLIC_CITIZEN_APP_URL = https://raksha-citizen.netlify.app`. Each app has a
-`netlify.toml`; Next's `standalone` output is skipped when `NETLIFY` is set. A local
-rehearsal of Netlify's flow (install from the app folder into the workspace root, build
-with `NETLIFY=true`) succeeded.
+**State.** PR #1 is merged; `main` holds the whole project and its CI is green. Three
+Netlify projects exist in team `rahulpravash` — `raksha-control-centre`
+(`1a83af01-6fd5-4235-ae11-19394bfb5ceb`), `raksha-citizen`
+(`d778c1f3-41ef-4794-b614-d82d3ff1d65b`), `raksha-responder`
+(`b0d68854-9f45-4694-af6c-45850574af16`) — each with `NEXT_PUBLIC_API_BASE_URL` set to the
+deliberate placeholder `https://raksha-backend-not-deployed.invalid`, and the control centre
+with `NEXT_PUBLIC_CITIZEN_APP_URL`. The Netlify dashboards still show **no deploys**. The
+merge commit carries a `netlify` check suite stuck at `queued` with no runs and no status,
+which means Netlify's GitHub app can see the repository but built nothing: the projects
+are most likely not linked to it (not confirmable from here). The upload route from the
+development environment is blocked by its network policy (`api.netlify.com`,
+`netlify-mcp.netlify.app`).
 
-**Blocked:** the upload. This session's network policy refuses `api.netlify.com` and
-`netlify-mcp.netlify.app`, so nothing has been deployed and no URL is live. Either add
-those two hosts to the environment's allowed domains and ask for the deploy again, or
-connect the GitHub repository to each project in the Netlify UI with **Base directory**
-`apps/control-center`, `apps/citizen-web`, `apps/responder-web` respectively (the
-committed `netlify.toml` supplies the rest).
+**Next, in order:** (1) in each Netlify site link the repository, branch `main`, Base
+directory `apps/control-center` / `apps/citizen-web` / `apps/responder-web`, then trigger a
+deploy and read its log — three assumptions are unverified (§13.8); (2) create the backend
+on Render per §13; (3) set each site's `NEXT_PUBLIC_API_BASE_URL` and redeploy.
 
-**Still needed for a working system:** a backend host (Render, Railway, Fly.io …) running
-`backend/Dockerfile` with PostgreSQL + PostGIS and Redis — none is connected here. Then set
-each site's `NEXT_PUBLIC_API_BASE_URL` to it and redeploy, and on the backend set
-`RAKSHA_CORS_ORIGINS` to the three Netlify origins and `RAKSHA_CITIZEN_APP_URL`,
-`RAKSHA_CONTROL_CENTER_URL`, `RAKSHA_RESPONDER_APP_URL` (`docs/DEPLOYMENT.md` §13).
-Whatever is deployed is a demo/pilot environment: no penetration test, no authority
+**Fixed this session:** a host-supplied `postgres://` / `postgresql://` database URL crashed
+the backend (`No module named 'psycopg2'`); it is now rewritten to the installed driver
+(`normalise_database_url`, 12 tests).
+
+**Open before any deployment is usable** (`DEPLOYMENT.md` §13.7): there is no production
+procedure to create the first administrator; behind a proxy the rate limiter and audit log see
+the proxy's address (and `--forwarded-allow-ips='*'` is not a safe fix); uploads need a
+persistent disk and a single instance; `repr(Settings)` includes the database password.
+Anything deployed is a demonstration or controlled pilot: no penetration test, no authority
 acceptance.
 
 ---
