@@ -30,3 +30,7 @@ redis==8.1.0
 # (ai/vision/claude_observer.py). Imported only when RAKSHA_AI_PROVIDER=anthropic
 # and a key are set; typed errors, retries and timeouts come with it.
 anthropic==1.13.0
+# Phase 9. openai: the official SDK for the transcription endpoint that OpenAI and
+# Whisper-compatible services share (ai/speech/whisper_transcriber.py). Imported only
+# when RAKSHA_SPEECH_PROVIDER=openai and a key are set; it shares anthropic's HTTP stack.
+openai==3.29.0
