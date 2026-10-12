@@ -32,7 +32,8 @@ ENV PYTHONPATH=/app
 
 EXPOSE 8000
 
+# Follows $PORT when a platform assigns one (Render does), 8000 otherwise.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health/ready', timeout=4)"]
+    CMD ["python", "-c", "import os, urllib.request; urllib.request.urlopen('http://localhost:%s/api/v1/health/ready' % os.environ.get('PORT', '8000'), timeout=4)"]
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

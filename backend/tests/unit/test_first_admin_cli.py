@@ -202,3 +202,49 @@ def test_a_database_failure_is_reported_without_its_details(monkeypatch, capsys)
     assert "OperationalError" in err
     assert "alembic upgrade head" in err
     assert "password authentication" not in err
+
+
+def test_with_skip_if_admin_exists_an_existing_administrator_is_nothing_to_do(
+    monkeypatch, capsys
+) -> None:
+    """A start-up script runs the command on every boot; only the first one creates."""
+
+    def refuse(self, payload):
+        raise AdminAlreadyExistsError()
+
+    monkeypatch.setattr(BootstrapService, "create_first_admin", refuse)
+
+    code = run(
+        [*ARGS, "--password-stdin", "--skip-if-admin-exists"],
+        stdin=SECRET + "\n",
+        opener=no_database,
+    )
+    assert code == cli.EXIT_CREATED
+    assert "nothing to do" in capsys.readouterr().out
+
+
+def test_skip_if_admin_exists_still_refuses_a_taken_email(monkeypatch, capsys) -> None:
+    """Only "an administrator exists" is skipped; a clash with another account is not."""
+
+    def refuse(self, payload):
+        raise EmailAlreadyRegisteredError()
+
+    monkeypatch.setattr(BootstrapService, "create_first_admin", refuse)
+
+    code = run(
+        [*ARGS, "--password-stdin", "--skip-if-admin-exists"],
+        stdin=SECRET + "\n",
+        opener=no_database,
+    )
+    assert code == cli.EXIT_REFUSED
+
+
+def test_skip_if_admin_exists_still_creates_when_there_is_none(captured, capsys) -> None:
+    code = run(
+        [*ARGS, "--password-stdin", "--skip-if-admin-exists"],
+        stdin=SECRET + "\n",
+        opener=no_database,
+    )
+    assert code == cli.EXIT_CREATED
+    assert len(captured) == 1
+    assert SECRET not in capsys.readouterr().out

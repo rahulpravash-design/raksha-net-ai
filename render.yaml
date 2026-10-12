@@ -1,0 +1,83 @@
+# Render Blueprint: the RAKSHA NET AI backend (API + PostgreSQL/PostGIS).
+#
+# FREE TIER = DEMONSTRATION ONLY (docs/DEPLOYMENT.md 13.3 and 13.8): the web service
+# sleeps after 15 idle minutes, uploaded photographs are lost on every restart (no
+# disk), and the free database expires 30 days after creation, without backups. Not for
+# real emergencies: the penetration test and the operating authority's acceptance
+# (Phase 16) have not happened.
+#
+# Apply: Render dashboard -> New -> Blueprint -> this repository. Render asks for every
+# variable marked `sync: false`; nothing secret is stored in this file.
+#
+# This file was written without access to Render's schema from the development
+# environment. Render validates it when it is applied; if it rejects a field, the same
+# settings can be entered by hand (docs/DEPLOYMENT.md 13.3).
+
+services:
+  - type: web
+    name: raksha-api
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    # The Dockerfile copies both backend/ and ai/, so it builds from the repository root.
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    # Migrations, then the optional first administrator, then the API on $PORT.
+    dockerCommand: sh /app/scripts/render_start.sh
+    # Liveness only: a database blip must not restart the API (13.3).
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: RAKSHA_ENVIRONMENT
+        value: production
+      - key: RAKSHA_DEBUG
+        value: "false"
+      - key: RAKSHA_SECRET_KEY
+        generateValue: true
+      # Must be a Fernet key. The API refuses to start, naming this variable, if the
+      # generated value is not one; then set it to the output of:
+      #   python -c "import base64,secrets;print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
+      # Never change it once data exists: encrypted contact details become unreadable.
+      - key: RAKSHA_ENCRYPTION_KEY
+        generateValue: true
+      - key: RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL
+        value: "true"
+      - key: RAKSHA_DATABASE_URL
+        fromDatabase:
+          name: raksha-db
+          property: connectionString
+      - key: RAKSHA_CORS_ORIGINS
+        value: https://raksha-citizen.netlify.app,https://raksha-control-centre.netlify.app,https://raksha-responder.netlify.app
+      - key: RAKSHA_CITIZEN_APP_URL
+        value: https://raksha-citizen.netlify.app
+      - key: RAKSHA_CONTROL_CENTER_URL
+        value: https://raksha-control-centre.netlify.app
+      - key: RAKSHA_RESPONDER_APP_URL
+        value: https://raksha-responder.netlify.app
+      # Trust exactly one proxy-appended X-Forwarded-For entry for rate limits and the
+      # audit trail (app/core/client_address.py). That Render's proxy appends the
+      # caller's address is expected but was not verifiable here: check it after the
+      # first sign-in (13.7): the audit log should show your own address. Taking only
+      # the right-most entry is never spoofable by a client, whatever the answer.
+      - key: RAKSHA_TRUSTED_PROXY_HOPS
+        value: "1"
+      # First super administrator, created once at start-up by scripts/render_start.sh.
+      # Delete these three after the first successful boot. The account must change
+      # the password and enrol two-factor authentication at its first sign-in.
+      - key: FIRST_ADMIN_EMAIL
+        sync: false
+      - key: FIRST_ADMIN_NAME
+        sync: false
+      - key: FIRST_ADMIN_PASSWORD
+        sync: false
+
+databases:
+  - name: raksha-db
+    plan: free
+    region: singapore
+    databaseName: raksha_net_ai
+    user: raksha
+    # Tested only on PostgreSQL 16 with PostGIS 3.4 (13.3).
+    postgresMajorVersion: "16"
+    # No outside access: only services in this Render account can connect.
+    ipAllowList: []
