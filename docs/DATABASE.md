@@ -212,6 +212,12 @@ incidents 0..1───1 incidents               (duplicate_of)
 - `scripts/check_migrations.sh` runs in the gate: it upgrades an empty database
   to head, fails if models and migrations disagree (`alembic check`), then
   downgrades to base. A model change without a migration fails the build.
+- The drift check ignores tables and views that an installed extension owns
+  (`migrations/env.py`). The `postgis/postgis` image used by CI and
+  docker-compose also installs the topology and TIGER geocoder extensions and
+  puts their schemas on the search path, so without the filter their tables
+  read as tables the models dropped. Only objects present in the database and
+  absent from the models are skipped; every other difference still fails.
 - A migration that rewrites data (`0010`, which encrypts existing contact
   numbers) must be re-runnable and must reverse cleanly; it skips a value
   already in the target form.
@@ -220,7 +226,8 @@ Current chain: `0001_enable_postgis` -> `0002_create_core_schema` ->
 `0003_incident_analyses` -> `0004_priority_engine_version` -> `0005_resources`
 -> `0006_dispatches` -> `0007_hospitals` -> `0008_notifications` ->
 `0009_account_lockout` -> `0010_encrypt_contact_details` -> `0011_mfa` ->
-`0012_media_scan_status` -> `0013_incident_created_at_index` -> `0014_must_change_password`.
+`0012_media_scan_status` -> `0013_incident_created_at_index` -> `0014_must_change_password`
+-> `0015_password_reset_tokens` -> `0016_mfa_recovery_codes`.
 
 ## 6. Data retention
 

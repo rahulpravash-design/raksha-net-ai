@@ -52,6 +52,10 @@ measured and fixed in a development environment only.**
   `redis-server`), **31 AI tests**, **335 frontend tests** (45 citizen, 280 control centre, 10 responder). 1000 total, all passing.
 - Migrations `0001 → 0016`; the gate upgrades to head, fails on model/migration
   drift and downgrades to base on every run (and cleans up even if it fails).
+- **GitHub Actions was red from `845ba46` (the drift gate) until the fix in
+  `migrations/env.py`**: the CI database image adds the TIGER/topology extensions,
+  whose tables `alembic check` reported as dropped. The local gate passed because
+  the local PostGIS lacks them. Read CI on GitHub; do not infer it from the local gate.
 - Backup → restore → compare, on a 100k-incident database: all checks pass; each
   refusal path (corrupt file, wrong age key, wrong encryption key, existing target)
   was exercised. See `infrastructure/deployment/RUNBOOK.md`.

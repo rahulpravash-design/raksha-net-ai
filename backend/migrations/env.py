@@ -11,7 +11,7 @@ import os
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import Connection, engine_from_config, pool, text
 
 # Importing the models package registers every mapper on ``Base.metadata``,
 # which autogenerate compares against.
@@ -32,16 +32,51 @@ _database_url = (
 config.set_main_option("sqlalchemy.url", _database_url.replace("%", "%%"))
 
 
-def include_object(object_, name, type_, reflected, compare_to):  # type: ignore[no-untyped-def]
-    """Skip PostGIS' own managed objects.
+#: PostGIS' own tables and views. They belong to the extension, not to this
+#: application, and autogenerate must never propose dropping them. Offline mode has
+#: no database to ask, so these are named; online mode also asks the catalog.
+_POSTGIS_RELATIONS = frozenset(
+    {"spatial_ref_sys", "geography_columns", "geometry_columns"}
+)
 
-    ``spatial_ref_sys`` belongs to the extension, not to this application, and
-    autogenerate must never propose dropping it.
+_EXTENSION_RELATIONS_SQL = text("""
+    SELECT c.relname
+    FROM pg_depend d
+    JOIN pg_class c ON c.oid = d.objid
+    WHERE d.classid = 'pg_class'::regclass AND d.deptype = 'e'
+    """)
+
+
+def _extension_relations(connection: Connection) -> frozenset[str]:
+    """Every table and view that an installed PostgreSQL extension owns.
+
+    The ``postgis/postgis`` image (CI and docker-compose) also installs the
+    topology and TIGER geocoder extensions and puts their schemas on the search
+    path, so reflection sees their tables beside this application's. Without this
+    filter ``alembic check`` reports each of them as a table the models dropped.
     """
-    return not (
-        type_ == "table"
-        and name in {"spatial_ref_sys", "geography_columns", "geometry_columns"}
+    return _POSTGIS_RELATIONS | frozenset(
+        connection.execute(_EXTENSION_RELATIONS_SQL).scalars()
     )
+
+
+def _object_filter(foreign: frozenset[str]):  # type: ignore[no-untyped-def]
+    """Skip database objects that belong to an extension rather than to the models.
+
+    Only objects found in the database and absent from the models are skipped, so
+    a model whose table is missing is still reported, and so is a table left
+    behind by a model that was removed.
+    """
+
+    def include_object(object_, name, type_, reflected, compare_to):  # type: ignore[no-untyped-def]
+        if not reflected or compare_to is not None:
+            return True
+        if type_ == "table":
+            return name not in foreign
+        table = getattr(object_, "table", None)
+        return table is None or table.name not in foreign
+
+    return include_object
 
 
 def run_migrations_offline() -> None:
@@ -51,7 +86,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
-        include_object=include_object,
+        include_object=_object_filter(_POSTGIS_RELATIONS),
     )
     with context.begin_transaction():
         context.run_migrations()
@@ -63,13 +98,19 @@ def run_migrations_online() -> None:
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
+    # Read the catalog on a connection of its own. A query on the migration
+    # connection would begin a transaction that alembic then joins instead of
+    # owning, and the migrations would run but never be committed.
+    with connectable.connect() as probe:
+        foreign = _extension_relations(probe)
+
     with connectable.connect() as connection:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
             compare_server_default=True,
-            include_object=include_object,
+            include_object=_object_filter(foreign),
         )
         with context.begin_transaction():
             context.run_migrations()
