@@ -527,23 +527,34 @@ restart, recreate it with
 **Decision (yours):** front ends on Netlify, backend on a separate host with PostGIS —
 `docs/DEPLOYMENT.md` §13 is the guide (Render).
 
-**State.** PR #1 is merged; `main` holds the whole project and its CI is green. Three
-Netlify projects exist in team `rahulpravash` — `raksha-control-centre`
-(`1a83af01-6fd5-4235-ae11-19394bfb5ceb`), `raksha-citizen`
-(`d778c1f3-41ef-4794-b614-d82d3ff1d65b`), `raksha-responder`
+**State.** `main` holds the whole project and its CI is green. Three Netlify projects exist in
+team `rahulpravash` — `raksha-control-centre` (`1a83af01-6fd5-4235-ae11-19394bfb5ceb`),
+`raksha-citizen` (`d778c1f3-41ef-4794-b614-d82d3ff1d65b`), `raksha-responder`
 (`b0d68854-9f45-4694-af6c-45850574af16`) — each with `NEXT_PUBLIC_API_BASE_URL` set to the
 deliberate placeholder `https://raksha-backend-not-deployed.invalid`, and the control centre
-with `NEXT_PUBLIC_CITIZEN_APP_URL`. The Netlify dashboards still show **no deploys**. The
-merge commit carries a `netlify` check suite stuck at `queued` with no runs and no status,
-which means Netlify's GitHub app can see the repository but built nothing: the projects
-are most likely not linked to it (not confirmable from here). The upload route from the
-development environment is blocked by its network policy (`api.netlify.com`,
-`netlify-mcp.netlify.app`).
+with `NEXT_PUBLIC_CITIZEN_APP_URL`. After the repository was linked, Netlify built `main`
+(`ab0f992`) and **every build failed**: *Plugin "@netlify/plugin-nextjs" failed - Your publish
+directory was not found at /opt/build/repo/.next* (deploy `6acc9583784c693bfa1035e0` of
+`raksha-responder`: `plugin_state: failed_build`, build exit code 2). No site is live.
 
-**Next, in order:** (1) in each Netlify site link the repository, branch `main`, Base
-directory `apps/control-center` / `apps/citizen-web` / `apps/responder-web`, then trigger a
-deploy and read its log — three assumptions are unverified (§13.9); (2) create the backend
-on Render per §13; (3) set each site's `NEXT_PUBLIC_API_BASE_URL` and redeploy.
+**Root cause (reproduced).** Netlify builds these sites from the repository root, and with a
+Package directory resolves `publish` against that root. `netlify.toml` said `publish = ".next"`
+and `command = "npm run build"`: the plugin looked in `<root>/.next` while the build wrote
+`apps/<app>/.next`, and `npm run build` at the root built all three apps. Reproduced with
+Netlify's own build engine on a clean checkout of `main`; the same engine completes all three
+apps with the corrected files. Details and the other layout: `DEPLOYMENT.md` §13.2.
+
+**Fix (on the development branch, not yet in `main`):** each `netlify.toml` now has
+`command = "npm run build --workspace @raksha/<app>"` and `publish = "apps/<app>/.next"`;
+`scripts/check_netlify_config.py` guards the values (in `scripts/check.sh` and the CI front-end
+job). **Needs from you:** merge it to `main`; in each Netlify site set *Package directory*
+`apps/control-center` / `apps/citizen-web` / `apps/responder-web` with *Base directory* empty;
+*Trigger deploy → Clear cache and deploy site*; read the deploy log. Not verified: the sites'
+real dashboard settings, any real Netlify build, and that the `proxy.ts` middleware handler runs
+on Netlify (§13.9).
+
+**Then:** (2) create the backend on Render per §13; (3) set each site's
+`NEXT_PUBLIC_API_BASE_URL` and redeploy.
 
 **Fixed this session:** a host-supplied `postgres://` / `postgresql://` database URL crashed
 the backend (`No module named 'psycopg2'`); it is now rewritten to the installed driver
