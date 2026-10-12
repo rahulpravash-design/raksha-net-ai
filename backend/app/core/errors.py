@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import InterfaceError, OperationalError
 from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -231,6 +232,18 @@ class ServiceBusyError(AppError):
         self.retry_after = retry_after
 
 
+class DatabaseUnavailableError(AppError):
+    """The database could not be reached or dropped the connection.
+
+    Distinct from a bug (500): the request was fine and retrying later can succeed,
+    which is what a client, a load balancer and an operator each need to be told.
+    """
+
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    code = "SERVICE_UNAVAILABLE"
+    message = "The service is temporarily unavailable. Please try again shortly."
+
+
 class AnalysisUnavailableError(AppError):
     status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     code = "ANALYSIS_UNAVAILABLE"
@@ -308,6 +321,27 @@ def register_exception_handlers(app: FastAPI) -> None:
             status_code=busy.status_code,
             content=busy.to_payload(),
             headers={"Retry-After": str(busy.retry_after)},
+        )
+
+    @app.exception_handler(OperationalError)
+    @app.exception_handler(InterfaceError)
+    async def _database_unavailable(
+        _: Request, exc: OperationalError | InterfaceError
+    ) -> JSONResponse:
+        # Connection refused, host unreachable, server restarting, dropped mid-query.
+        # The driver's message can name the database host, so it goes to the log only.
+        logger.error(
+            "database_unavailable",
+            extra={
+                "error_type": type(exc.orig or exc).__name__,
+                "detail": str(exc.orig)[:200],
+            },
+        )
+        unavailable = DatabaseUnavailableError()
+        return JSONResponse(
+            status_code=unavailable.status_code,
+            content=unavailable.to_payload(),
+            headers={"Retry-After": "5"},
         )
 
     @app.exception_handler(Exception)

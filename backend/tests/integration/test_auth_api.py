@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -65,6 +68,44 @@ def test_an_invalid_email_is_rejected(client: TestClient) -> None:
     )
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_registration_stores_a_bcrypt_hash_and_never_the_password(
+    client: TestClient, db_session: Session
+) -> None:
+    client.post("/api/v1/auth/register", json=REGISTRATION)
+
+    stored = db_session.scalar(
+        select(User.hashed_password).where(User.email == "asha.r@example.org")
+    )
+    assert stored is not None
+    assert stored.startswith("$2")  # bcrypt
+    assert REGISTRATION["password"] not in stored
+
+
+def test_registration_never_writes_the_password_to_the_logs(
+    client: TestClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Covers the success, duplicate and weak-password paths: each one logs."""
+    caplog.set_level(logging.DEBUG)
+    client.post("/api/v1/auth/register", json=REGISTRATION)
+    client.post("/api/v1/auth/register", json=REGISTRATION)
+    client.post("/api/v1/auth/register", json=REGISTRATION | {"password": "short-pw-1"})
+
+    everything = caplog.text + " ".join(
+        str(value) for record in caplog.records for value in vars(record).values()
+    )
+    assert REGISTRATION["password"] not in everything
+    assert "short-pw-1" not in everything
+
+
+def test_registration_responses_never_carry_a_hash(client: TestClient) -> None:
+    created = client.post("/api/v1/auth/register", json=REGISTRATION)
+    duplicate = client.post("/api/v1/auth/register", json=REGISTRATION)
+
+    for response in (created, duplicate):
+        assert "$2" not in response.text
+        assert "hashed_password" not in response.text
 
 
 # --- login -------------------------------------------------------------------
