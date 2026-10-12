@@ -1,6 +1,7 @@
 # RAKSHA NET AI — Development Roadmap
 
-> **Current phase marker: Phases 0–14 complete, except Phases 8 and 9.
+> **Current phase marker: Phases 0–14 complete, except Phase 9; Phase 8 is PARTIAL
+> (photo observations by a hosted model, off until configured, accuracy unmeasured).
 > Phase 16 is code-complete; the penetration test and operating-authority
 > acceptance it requires cannot be done by software and are NOT done.**
 > **Phase 17 is measured and fixed in a development environment, with no
@@ -194,12 +195,30 @@ measurable. ✅
 
 ---
 
-## Phase 8 — Computer Vision ⬜ NOT STARTED
+## Phase 8 — Computer Vision ⚠️ PARTIAL — built behind configuration; accuracy unmeasured
 
 Observations from report photographs, with a fixed label vocabulary, confidence
 values and EXIF stripping. Observations are never rendered as facts.
 
-**Built so far (2026-10-10): the privacy half.** Embedded metadata — EXIF GPS
+**Built (2026-10-12): photo observations by Claude, off until configured.** When a
+deployment sets `RAKSHA_AI_ENABLED=true`, `RAKSHA_AI_PROVIDER=anthropic` and an API key, an
+operator-requested analysis also sends up to four of the report's stored photographs to
+Claude (`ai/vision/claude_observer.py`, official `anthropic` SDK, default model
+`claude-opus-5-5`). The answer is constrained by a JSON schema to `OBSERVATION_VOCABULARY`,
+validated again, stored as AI-derived with both model names (`ai/common/composite.py`), and
+shown in the control centre as "AI observation" chips with a confidence and "(photo)". If the
+photographs cannot be analysed (refusal, timeout, provider error, unusable answer), the text
+proposal still arrives with a reasoning factor saying so. The audit record of each analysis
+counts the photographs sent and names the provider.
+
+Why this, when the colour-histogram heuristic below was rejected: a general vision model can
+tell smoke from fog in a way a histogram cannot, and every result stays an observation a person
+weighs. What has *not* changed is the evaluation gap: there is still no labelled photo set, so
+how often it is wrong on emergency photographs is unknown. The phase stays PARTIAL until
+per-label metrics exist (below). Turning the provider on sends report photographs to a third
+party (`docs/AI_ARCHITECTURE.md` section 11): that is the operating authority's decision.
+
+**Built earlier (2026-10-10): the privacy half.** Embedded metadata — EXIF GPS
 position, device model and serial, thumbnail, XMP, IPTC, comments — is stripped
 from every stored photograph (`app/utils/image_metadata.py`, `docs/SECURITY.md`
 section 5). That is the "EXIF stripping" the phase asks for, and it is worth having
