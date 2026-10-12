@@ -16,7 +16,8 @@ ALEMBIC_DATABASE_URL="$(.venv/bin/python -c "
 from app.core.config import get_settings
 s = get_settings()
 base = s.sqlalchemy_database_uri
-print(s.test_database_url or (base if base.endswith('_test') else base + '_test'))
+test_url = s.test_database_url.get_secret_value() if s.test_database_url else None
+print(test_url or (base if base.endswith('_test') else base + '_test'))
 ")"
 export ALEMBIC_DATABASE_URL
 

@@ -559,9 +559,14 @@ race test fails without the lock. Not run on a real host.
 
 **Open before any deployment is usable** (`DEPLOYMENT.md` §13.8): behind a proxy the rate
 limiter and audit log see the proxy's address (and `--forwarded-allow-ips='*'` is not a safe
-fix); uploads need a persistent disk and a single instance; `repr(Settings)` includes the
-database password. Anything deployed is a demonstration or controlled pilot: no penetration
-test, no authority acceptance.
+fix); uploads need a persistent disk and a single instance. Anything deployed is a
+demonstration or controlled pilot: no penetration test, no authority acceptance.
+
+**Fixed after that:** settings no longer print credentials. `database_url`, `test_database_url`
+and `redis_url` are `SecretStr`, and `sqlalchemy_database_uri` is a plain property rather than
+a pydantic computed field, so none of `repr`, `str`, `model_dump()` or `model_dump_json()`
+shows a password (7 tests, including a guard that fails if a credential-looking setting is
+added as a plain `str`).
 
 ---
 

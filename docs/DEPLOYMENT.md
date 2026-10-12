@@ -433,9 +433,11 @@ with only one, losing their device and recovery codes locks the organisation out
 4. **Free plans are for throwaway demos only.** Per Render's documentation, free web services
    spin down after inactivity and have no persistent disk; free PostgreSQL expires after
    30 days without backups; free Key Value is in-memory and loses data on restart.
-5. **`repr(Settings)` and `Settings.model_dump()` include the database password** (the
-   assembled URL is a computed field). Nothing logs settings today; keep it that way until
-   the field is excluded.
+5. **Settings no longer print their credentials.** `repr`, `str`, `model_dump()` and
+   `model_dump_json()` used to include the database password (the assembled URL was a computed
+   field, and `database_url` / `test_database_url` / `redis_url` were plain strings that can
+   carry one). They are now masked like the other secrets, and a test fails if a new credential
+   setting is added as a plain string.
 
 ### 13.9 What has and has not been verified
 
