@@ -247,24 +247,64 @@ the front ends' `NEXT_PUBLIC_API_BASE_URL` (13.2) both have to be right.
 
 One Netlify project per app, each linked to the GitHub repository, production branch
 `main`. GitHub Actions does not deploy anything: a site builds only when its own Netlify
-project is linked to the repository.
+project is linked to the repository, and a green CI run says nothing about Netlify.
 
-| Netlify project | Address | Base directory |
+The repository is an npm workspace, so every site builds from the **repository root** and
+selects its app with the **Package directory** (Netlify's recommended monorepo layout). In
+each site: *Site configuration → Build & deploy → Continuous deployment*:
+
+| Netlify project | Address | Package directory |
 |---|---|---|
 | `raksha-control-centre` | `https://raksha-control-centre.netlify.app` | `apps/control-center` |
 | `raksha-citizen` | `https://raksha-citizen.netlify.app` | `apps/citizen-web` |
 | `raksha-responder` | `https://raksha-responder.netlify.app` | `apps/responder-web` |
 
-Each folder's `netlify.toml` sets the build command (`npm run build`), publish directory
-(`.next`) and Node 22; the three files are identical and each app is a Next.js 16 app with
-no framework differences. When `NETLIFY` is set, `next.config.ts` skips
-`output: "standalone"` (that is for the Docker image). Every page is rendered per request
-(the CSP nonce, `SECURITY.md` §6), and `proxy.ts` issues the nonce.
+Same for all three: repository `rahulpravash-design/raksha-net-ai`, production branch `main`,
+**Base directory empty**. Leave the build command and publish directory as they are: the app's
+`netlify.toml` (read from the Package directory) overrides them. The Next.js plugin
+(`@netlify/plugin-nextjs`) is detected and installed by Netlify; do not add it to the file or to
+`package.json`.
 
-**Linked correctly?** In each site: *Site configuration → Build & deploy → Continuous
-deployment* must show this repository and branch `main`. After a push to `main` the commit
-should carry a Netlify status or check, and the site's *Deploys* tab should list a build.
-If the commit shows only GitHub Actions, Netlify is not building it.
+What the file sets, and why it matters. Each `netlify.toml` has
+`command = "npm run build --workspace @raksha/<app>"` and `publish = "apps/<app>/.next"`, both
+**relative to the repository root**, which is where Netlify resolves them when a Package
+directory is used. Reproduced with Netlify's own build engine, the previous values
+(`npm run build`, `publish = ".next"`) fail like this: `npm run build` at the root runs the
+root script and builds all three apps, then `publish = ".next"` points at `<root>/.next`, which
+does not exist, so the plugin stops with *Plugin "@netlify/plugin-nextjs" failed - Your publish
+directory was not found at: /opt/build/repo/.next*. `scripts/check_netlify_config.py` (part of
+`scripts/check.sh` and the CI front-end job) fails if the values drift.
+
+If the log shows one of these, the dashboard and the file disagree:
+
+| Error in the deploy log | Meaning | Fix |
+|---|---|---|
+| `publish directory was not found at: /opt/build/repo/.next` | The build ran at the root without this app's file (Package directory not set) or with an old file | Set the Package directory; deploy the current `main` |
+| `publish directory cannot be the same as the base directory` | No `publish` reached the plugin: the file was not read | Set the Package directory |
+| `publish directory was not found at: …/apps/<app>/apps/<app>/.next` | A Base directory of `apps/<app>` is set as well | Clear the Base directory |
+
+The build log's *Config file* line should name `apps/<app>/netlify.toml`. (The other supported
+layout is a Base directory of `apps/<app>` with `publish = ".next"`, which is what the file said
+before; it was checked the same way, but the two layouts need different `publish` values, so
+the files and `scripts/check_netlify_config.py` assume the Package-directory one.)
+
+Which change needs what:
+
+| Change | Needs |
+|---|---|
+| `netlify.toml` or any code | a commit, pushed and merged to `main`; Netlify then builds `main` by itself |
+| Package directory, Base directory, branch, repository link | the Netlify dashboard (a file cannot change them); then a new deploy |
+| `NEXT_PUBLIC_*` variables | the dashboard; **then a new deploy**, because they are compiled in |
+| A fresh deploy without a code change | *Deploys → Trigger deploy → Clear cache and deploy site* |
+
+Each site's deploy log (*Deploys* → the deploy) is the evidence a deployment worked; a local
+build is not. After a deploy succeeds, open the site: the page should load and `view-source`
+should show a per-request `nonce` on its scripts (the Content-Security-Policy is issued by
+`proxy.ts`).
+
+Each folder's `netlify.toml` also sets Node 22; the three apps differ only in their name. When
+`NETLIFY` is set, `next.config.ts` skips `output: "standalone"` (that is for the Docker image).
+Every page is rendered per request (the CSP nonce, `SECURITY.md` §6).
 
 | Variable (Netlify, per site) | Sites | Value |
 |---|---|---|
@@ -442,18 +482,26 @@ with only one, losing their device and recovery codes locks the organisation out
 ### 13.9 What has and has not been verified
 
 Established in this repository: the backend and the three apps build and pass their tests
-and security audit in CI and locally; each app builds with `NETLIFY=true`; a
-`postgres://`/`postgresql://` URL reaches the installed driver (unit tests); the first-administrator
-command works end to end against a scratch database in production mode (create, refuse a second run, forced password change, mandatory MFA enrolment, then access); the start
-command, ports and environment names above are read from the code and the Dockerfile.
+and security audit in CI and locally; a `postgres://`/`postgresql://` URL reaches the installed
+driver (unit tests); the first-administrator command works end to end against a scratch database
+in production mode (create, refuse a second run, forced password change, mandatory MFA enrolment,
+then access); the start command, ports and environment names above are read from the code and the
+Dockerfile.
 
-**Not verified** (no access from the development environment): that the Netlify projects are
-linked to this repository and build; that Netlify installs the npm workspace from the
-repository root when the base directory is `apps/<app>` (if it does not, the fallback is
-Netlify's monorepo layout: leave *Base directory* empty and set *Package directory* to the app
-folder); that Netlify's Next.js runtime serves Next 16's `proxy.ts`; Render's port, health
-check, pre-deploy, shell/one-off-job and disk-ownership behaviour; the PostGIS version Render provides; any live
-request between a Netlify site and a deployed backend.
+Netlify, checked with Netlify's own build engine (`@netlify/build` with `@netlify/plugin-nextjs`,
+run locally on a clean checkout of the committed code): the reported failure is reproduced with the
+old files and gone with the new ones, for all three apps, in the Package-directory layout; the
+plugin builds the server handler and bundles `proxy.ts` as a middleware handler (so this plugin
+version understands Next 16's proxy); `npm install` run inside an app folder installs the whole
+workspace at the repository root.
+
+**Not verified** (no access from the development environment): the sites' real dashboard settings
+(whether each has the Package directory set), and any real Netlify build; that the `proxy.ts`
+middleware handler loads and runs on Netlify (its configuration load needs `edge.netlify.com`, which
+is unreachable here, so that one warning was seen but not resolved locally); any difference between
+Netlify's build machines and the local engine (working directory, installer); Render's port,
+health check, pre-deploy, shell/one-off-job and disk-ownership behaviour; the PostGIS version
+Render provides; any live request between a Netlify site and a deployed backend.
 
 Sources: Render, [supported PostgreSQL extensions](https://render.com/docs/postgresql-extensions)
 and [free-tier limits](https://render.com/docs/free); Netlify, [monorepos](https://docs.netlify.com/build/configure-builds/monorepos/).
