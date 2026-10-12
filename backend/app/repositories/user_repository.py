@@ -14,10 +14,28 @@ from sqlalchemy.orm import Session
 from app.models.enums import UserRole
 from app.models.user import MfaRecoveryCode, PasswordResetToken, RefreshToken, User
 
+#: Key of the advisory lock that serialises creation of the first administrator.
+#: Any constant will do, as long as nothing else in the database uses it.
+ADMIN_BOOTSTRAP_LOCK_KEY = 0x52414B5348410001
+
 
 class UserRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def lock_admin_bootstrap(self) -> None:
+        """Hold a transaction-scoped lock until commit or rollback, so two processes
+        deciding whether an administrator exists cannot both decide "none"."""
+        self.session.execute(select(func.pg_advisory_xact_lock(ADMIN_BOOTSTRAP_LOCK_KEY)))
+
+    def administrator_count(self) -> int:
+        """Every administrator account, active or not: a deactivated one is still one."""
+        stmt = (
+            select(func.count())
+            .select_from(User)
+            .where(User.role.in_((UserRole.ADMIN, UserRole.SUPER_ADMIN)))
+        )
+        return int(self.session.scalar(stmt) or 0)
 
     def get(self, user_id: uuid.UUID) -> User | None:
         return self.session.get(User, user_id)
