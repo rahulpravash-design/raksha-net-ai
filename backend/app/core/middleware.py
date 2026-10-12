@@ -13,7 +13,7 @@ from starlette.responses import JSONResponse, Response
 
 from app.core import metrics
 from app.core.config import Settings
-from app.core.errors import RateLimitedError, ServiceBusyError
+from app.core.errors import RateLimitedError, ServiceBusyError, unexpected_error_response
 from app.core.logging import get_logger, request_id_var
 from app.core.rate_limit import get_rate_limiter, stable_key
 
@@ -25,6 +25,25 @@ RequestHandler = Callable[[Request], Awaitable[Response]]
 #: ``/metrics`` is here so that, under overload, the monitoring that would show
 #: the overload is not itself shed, throttled or logged.
 PROBE_PATHS = frozenset({"/api/v1/health", "/api/v1/health/ready", "/metrics"})
+
+
+class UnhandledErrorMiddleware(BaseHTTPMiddleware):
+    """Turn an uncaught exception into the 500 envelope *inside* the other middleware.
+
+    Starlette answers an uncaught exception from its outermost layer, outside CORS, so
+    that response carried no ``Access-Control-Allow-Origin``. A browser then hides the
+    status and shows a bare network failure, and a bug in the backend reads to the
+    visitor as "could not reach the server". Registered first, so it is innermost: the
+    response it returns passes back out through CORS, the request id and the access log
+    like any other. Only failures before the response starts can be turned into a
+    response; one during streaming still propagates.
+    """
+
+    async def dispatch(self, request: Request, call_next: RequestHandler) -> Response:
+        try:
+            return await call_next(request)
+        except Exception as exc:  # the boundary: nothing may escape unlogged
+            return unexpected_error_response(exc)
 
 
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
