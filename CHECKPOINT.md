@@ -544,17 +544,36 @@ and `command = "npm run build"`: the plugin looked in `<root>/.next` while the b
 Netlify's own build engine on a clean checkout of `main`; the same engine completes all three
 apps with the corrected files. Details and the other layout: `DEPLOYMENT.md` §13.2.
 
-**Fix (on the development branch, not yet in `main`):** each `netlify.toml` now has
+**Fix (merged to `main` in PR #5, `cccbbac`):** each `netlify.toml` now has
 `command = "npm run build --workspace @raksha/<app>"` and `publish = "apps/<app>/.next"`;
 `scripts/check_netlify_config.py` guards the values (in `scripts/check.sh` and the CI front-end
-job). **Needs from you:** merge it to `main`; in each Netlify site set *Package directory*
-`apps/control-center` / `apps/citizen-web` / `apps/responder-web` with *Base directory* empty;
-*Trigger deploy → Clear cache and deploy site*; read the deploy log. Not verified: the sites'
-real dashboard settings, any real Netlify build, and that the `proxy.ts` middleware handler runs
-on Netlify (§13.9).
+job). Netlify's deploy previews for PR #5 built and reached `ready` with `plugin_state: success`
+on all three sites (read through the Netlify connector). **Needs from you:** confirm the
+production builds of `main` in each site's *Deploys* tab (their IDs and logs are not readable
+from here); each site's *Package directory* `apps/control-center` / `apps/citizen-web` /
+`apps/responder-web` with *Base directory* empty. Not verified: that the `proxy.ts` middleware
+handler runs on Netlify (§13.9).
 
 **Then:** (2) create the backend on Render per §13; (3) set each site's
 `NEXT_PUBLIC_API_BASE_URL` and redeploy.
+
+**Registration says "Could not reach the server" (2026-10-12).** Cause, from the code: the form
+calls `fetch(NEXT_PUBLIC_API_BASE_URL + "/api/v1/auth/register")`; with the deliberate `.invalid`
+placeholder (RFC 2606: never resolves) `fetch` throws a `TypeError`, which the page renders as that
+generic message. The registration endpoint exists (`POST /api/v1/auth/register`: citizen only,
+bcrypt, duplicate email 409) but **no backend is deployed**, so there is nothing to answer even with
+a correct URL. Whether each Netlify site currently holds the placeholder or nothing could not be
+read (the connector's env-var listing returned `[]` for all three); both cases are now handled.
+Changed: `packages/api-client/src/config.ts` validates the address (unset, malformed, non-http,
+credentials in it, `.invalid`/documentation hosts, `http://` in production, `localhost` on a remote
+page) and `ApiClient` then refuses every request with an `ApiConfigurationError` (an `ApiError`, so
+every screen shows its actionable message); an amber banner shows on every page of a misconfigured
+deployment; the silent `?? "http://localhost:8000"` fallback is gone from `lib/config.ts` and
+`proxy.ts` in all three apps (development builds only keep it); the CSP builder no longer throws on
+a bad address. Backend: a database outage now returns a 503 with CORS headers instead of a 500
+(`DatabaseUnavailableError`). **Found, not fixed:** any other uncaught backend exception returns a
+500 *without* CORS headers, which a browser also shows as "Could not reach the server"
+(`DEPLOYMENT.md` §13.10). Still needs a real backend and a redeploy of each site with its URL.
 
 **Fixed this session:** a host-supplied `postgres://` / `postgresql://` database URL crashed
 the backend (`No module named 'psycopg2'`); it is now rewritten to the installed driver
