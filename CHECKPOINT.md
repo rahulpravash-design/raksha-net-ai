@@ -571,9 +571,10 @@ every screen shows its actionable message); an amber banner shows on every page 
 deployment; the silent `?? "http://localhost:8000"` fallback is gone from `lib/config.ts` and
 `proxy.ts` in all three apps (development builds only keep it); the CSP builder no longer throws on
 a bad address. Backend: a database outage now returns a 503 with CORS headers instead of a 500
-(`DatabaseUnavailableError`). **Found, not fixed:** any other uncaught backend exception returns a
-500 *without* CORS headers, which a browser also shows as "Could not reach the server"
-(`DEPLOYMENT.md` §13.10). Verified in a real browser against the local backend with synthetic data (reproduction of the
+(`DatabaseUnavailableError`). Follow-up: any other uncaught backend exception used to return a 500
+*without* CORS headers, which a browser also showed as "Could not reach the server"; an innermost
+`UnhandledErrorMiddleware` now returns it through CORS (`DEPLOYMENT.md` §13.10). The control centre's
+`NEXT_PUBLIC_CITIZEN_APP_URL` no longer falls back to localhost in production. Verified in a real browser against the local backend with synthetic data (reproduction of the
 original message with the old code, the new banner with the same placeholder, then a full registration
 and a refused duplicate): `DEPLOYMENT.md` §13.9. Gate green (`All checks passed.`); pushed to the
 development branch, not merged. Still needs a real backend and a redeploy of each site with its URL.

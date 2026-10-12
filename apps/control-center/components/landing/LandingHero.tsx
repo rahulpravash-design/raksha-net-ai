@@ -141,12 +141,19 @@ export function LandingHero() {
             >
               {action.label}
             </Link>
-            <a
-              href={`${CITIZEN_APP_URL}/report`}
-              className="rounded-lg border border-[var(--accent)]/60 px-6 py-3 text-sm font-bold tracking-wide transition hover:bg-[var(--accent)]/10"
-            >
-              REPORT AN EMERGENCY
-            </a>
+            {CITIZEN_APP_URL ? (
+              <a
+                href={`${CITIZEN_APP_URL}/report`}
+                className="rounded-lg border border-[var(--accent)]/60 px-6 py-3 text-sm font-bold tracking-wide transition hover:bg-[var(--accent)]/10"
+              >
+                REPORT AN EMERGENCY
+              </a>
+            ) : (
+              <p role="status" className="muted self-center text-xs">
+                Emergency reporting is not linked on this deployment: the site owner must set
+                NEXT_PUBLIC_CITIZEN_APP_URL to the citizen app&apos;s https:// address and redeploy.
+              </p>
+            )}
           </motion.div>
 
           <p className="muted mt-6 text-xs">

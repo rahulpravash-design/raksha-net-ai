@@ -40,5 +40,8 @@ export const MAP_TILES = {
  * Where "Report an emergency" leads. The citizen application is a separate
  * deployable, so this is its public address, not a route in this app.
  */
-export const CITIZEN_APP_URL =
-  process.env.NEXT_PUBLIC_CITIZEN_APP_URL ?? "http://localhost:3000";
+export const CITIZEN_APP_URL: string | undefined =
+  process.env.NEXT_PUBLIC_CITIZEN_APP_URL?.trim() ||
+  // Only a development build may guess. In production a guess would send every visitor
+  // to *their own* localhost, so an unset value means "not linked" and the page says so.
+  (process.env.NODE_ENV === "production" ? undefined : "http://localhost:3000");
