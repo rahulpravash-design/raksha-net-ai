@@ -37,6 +37,7 @@ from app.models.incident import (
 )
 from app.models.notification import Notification, NotificationDelivery
 from app.models.resource import Resource
+from app.models.transcript import VoiceTranscript
 from app.models.user import RefreshToken, User
 
 __all__ = [
@@ -73,4 +74,5 @@ __all__ = [
     "SeverityLevel",
     "User",
     "UserRole",
+    "VoiceTranscript",
 ]

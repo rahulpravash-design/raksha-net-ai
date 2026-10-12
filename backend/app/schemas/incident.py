@@ -40,6 +40,9 @@ class IncidentCreate(BaseModel):
     medical_required: bool = False
     immediate_danger: bool = False
     contact_phone: str | None = Field(default=None, max_length=32)
+    #: The transcript the reporter dictated this description from, if they did. The
+    #: description itself is always the reporter's confirmed words.
+    transcript_id: uuid.UUID | None = None
 
     @field_validator("description")
     @classmethod

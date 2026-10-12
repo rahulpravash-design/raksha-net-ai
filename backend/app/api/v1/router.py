@@ -16,6 +16,7 @@ from app.api.v1.endpoints import (
     media,
     notifications,
     resources,
+    transcriptions,
     users,
 )
 
@@ -26,6 +27,7 @@ api_router.include_router(users.router)
 api_router.include_router(incidents.router)
 api_router.include_router(media.router)
 api_router.include_router(analyses.router)
+api_router.include_router(transcriptions.router)
 api_router.include_router(resources.router)
 api_router.include_router(resources.recommendations_router)
 api_router.include_router(dispatches.router)

@@ -49,6 +49,7 @@ from app.services.status_machine import (
     assert_role_may_transition,
     assert_transition_allowed,
 )
+from app.services.transcription_service import TranscriptionService
 from app.utils.codes import generate_reference_code
 from app.utils.geo import validate_coordinates
 from app.utils.messages import citizen_status_message
@@ -99,6 +100,11 @@ class IncidentService:
         )
         self.repo.set_location(incident, coords)
         self.repo.add(incident)
+        # Attaching the transcript the description was dictated from never fails the
+        # report: a transcript that cannot be attached is logged and left behind.
+        dictated = payload.transcript_id is not None and TranscriptionService(
+            self.session, self.settings
+        ).attach_to_incident(payload.transcript_id, incident, reporter=reporter)
 
         self._apply_priority(
             incident,
@@ -125,6 +131,7 @@ class IncidentService:
                 "priority_band": (
                     incident.priority_band.value if incident.priority_band else None
                 ),
+                "dictated": dictated,
             },
         )
         self.session.commit()

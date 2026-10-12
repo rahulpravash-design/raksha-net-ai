@@ -138,6 +138,9 @@ class Settings(BaseSettings):
     rate_limit_default_per_minute: int = 120
     rate_limit_auth_per_minute: int = 10
     rate_limit_report_per_minute: int = 12
+    #: Each transcription is a paid call to a third party; a reporter who hits this
+    #: can still type, so it is lower than the report limit.
+    rate_limit_transcription_per_minute: int = 6
     #: Proxies in front of the application that append to ``X-Forwarded-For`` (see
     #: ``app.core.client_address``). 0 = use the connecting address.
     trusted_proxy_hops: int = Field(default=0, ge=0, le=5)
@@ -225,6 +228,20 @@ class Settings(BaseSettings):
     #: Unset = the provider's default model (ai/vision/claude_observer.py).
     ai_model: str | None = None
     ai_timeout_seconds: int = 20
+    #: Voice reports (Phase 9). ``openai`` plus an API key, with ``ai_enabled``, offers a
+    #: reporter dictation; unset, the report form offers typing only. A recording is sent
+    #: to the provider once and discarded: it is never stored, only the transcript is
+    #: (docs/AI_ARCHITECTURE.md section 11).
+    speech_provider: Literal["openai"] | None = None
+    speech_api_key: SecretStr | None = None
+    #: Unset = ``whisper-1``. The model must return segment detail (``verbose_json``):
+    #: the confidence every transcript records is computed from it.
+    speech_model: str | None = None
+    #: An OpenAI-compatible transcription service instead of OpenAI's own.
+    speech_base_url: str | None = None
+    speech_timeout_seconds: int = Field(default=30, ge=1, le=120)
+    #: Two minutes of browser-recorded speech is well under 4 MB; 25 MB is OpenAI's limit.
+    speech_max_bytes: int = Field(default=8 * 1024 * 1024, ge=1, le=25 * 1024 * 1024)
 
     # --- Priority engine (Phase 7) ------------------------------------------
     #: Which registered configuration is active. Rolling back to an earlier
@@ -325,6 +342,10 @@ class Settings(BaseSettings):
             problems.append("RAKSHA_CORS_ORIGINS must list the allowed origins")
         if any(origin.startswith("http://") for origin in self.cors_origins):
             problems.append("RAKSHA_CORS_ORIGINS must use https outside development")
+
+        if self.speech_base_url and not self.speech_base_url.startswith("https://"):
+            # Citizens' recordings must not cross a network in clear.
+            problems.append("RAKSHA_SPEECH_BASE_URL must be an https:// URL")
 
         if self.email_configured:
             if self.smtp_security == "none":
