@@ -50,6 +50,14 @@ class UserRegister(UserBase):
     password: str = Field(min_length=1, max_length=128)
 
 
+class FirstAdminCreate(UserBase):
+    """The first super administrator, created by an operator with shell access to the
+    deployment (``app.cli.create_first_admin``). It is never an HTTP request body, and
+    it has no role field: the role is fixed by the service."""
+
+    password: str = Field(min_length=1, max_length=128)
+
+
 class UserCreate(UserBase):
     """Administrative creation, where the role is chosen."""
 

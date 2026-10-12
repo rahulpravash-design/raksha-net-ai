@@ -197,10 +197,27 @@ never in the repository or beside the database backups.
 - **Lost or replaced phone (MFA)**: an administrator calls
   `POST /api/v1/users/{id}/reset-mfa`. This also ends that user's sessions. The
   user then enrols again. An administrator cannot reset their own; if the only
-  administrator loses their device, another administrator (or the database) is
-  the only way back — there are no recovery codes.
+  administrator loses their device, one of their one-time recovery codes (kept
+  from enrolment, `docs/SECURITY.md` section 2) signs them in without it;
+  without those, another administrator (or the database) is the only way back.
 - Verify the person first. An MFA reset is a password-only account for as long
   as it takes them to re-enrol.
+
+## First administrator (a new deployment)
+
+A new deployment has no administrator. From a shell on the backend, after `alembic upgrade head`:
+
+```
+python -m app.cli.create_first_admin --email you@example.org --name "Your Full Name"
+```
+
+Type the password at the prompt (or `--password-stdin`). It creates one `SUPER_ADMIN` and
+refuses (exit 3) if any administrator already exists; `docs/DEPLOYMENT.md` section 13.7 has the
+rules and the exit codes. The new account must change its password and, in production, enrol
+MFA at first sign-in. Then create a second super administrator in the control centre.
+
+The command is not a recovery tool: it will not run once an administrator exists, even a
+deactivated one. If every administrator is locked out, see "Someone is locked out" above.
 
 ## Malware scanning
 

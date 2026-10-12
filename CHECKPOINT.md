@@ -542,19 +542,26 @@ development environment is blocked by its network policy (`api.netlify.com`,
 
 **Next, in order:** (1) in each Netlify site link the repository, branch `main`, Base
 directory `apps/control-center` / `apps/citizen-web` / `apps/responder-web`, then trigger a
-deploy and read its log — three assumptions are unverified (§13.8); (2) create the backend
+deploy and read its log — three assumptions are unverified (§13.9); (2) create the backend
 on Render per §13; (3) set each site's `NEXT_PUBLIC_API_BASE_URL` and redeploy.
 
 **Fixed this session:** a host-supplied `postgres://` / `postgresql://` database URL crashed
 the backend (`No module named 'psycopg2'`); it is now rewritten to the installed driver
 (`normalise_database_url`, 12 tests).
 
-**Open before any deployment is usable** (`DEPLOYMENT.md` §13.7): there is no production
-procedure to create the first administrator; behind a proxy the rate limiter and audit log see
-the proxy's address (and `--forwarded-allow-ips='*'` is not a safe fix); uploads need a
-persistent disk and a single instance; `repr(Settings)` includes the database password.
-Anything deployed is a demonstration or controlled pilot: no penetration test, no authority
-acceptance.
+**First administrator:** `python -m app.cli.create_first_admin` (`DEPLOYMENT.md` §13.7) creates
+the one `SUPER_ADMIN` a new deployment needs. A shell command, not a route; refuses once any
+administrator exists; advisory-locked; password only from a prompt or stdin; audited as
+`user.first_admin_created`; the account must change its password and enrol MFA at first
+sign-in. Run end to end against a scratch database in production mode (create, refuse a
+second run, forced password change, mandatory MFA, then admin access); 26 new tests, and the
+race test fails without the lock. Not run on a real host.
+
+**Open before any deployment is usable** (`DEPLOYMENT.md` §13.8): behind a proxy the rate
+limiter and audit log see the proxy's address (and `--forwarded-allow-ips='*'` is not a safe
+fix); uploads need a persistent disk and a single instance; `repr(Settings)` includes the
+database password. Anything deployed is a demonstration or controlled pilot: no penetration
+test, no authority acceptance.
 
 ---
 

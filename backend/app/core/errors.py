@@ -167,6 +167,14 @@ class EmailAlreadyRegisteredError(ConflictError):
     message = "An account with this email address already exists."
 
 
+class AdminAlreadyExistsError(ConflictError):
+    code = "ADMIN_ALREADY_EXISTS"
+    message = (
+        "An administrator account already exists, so no first administrator "
+        "can be created."
+    )
+
+
 class InvalidStatusTransitionError(ConflictError):
     code = "INCIDENT_INVALID_TRANSITION"
     message = "That status change is not permitted from the current status."

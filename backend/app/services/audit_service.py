@@ -41,6 +41,7 @@ class AuditAction:
     TOKEN_REUSE_DETECTED = "auth.token_reuse_detected"  # noqa: S105 - an action name
     USER_REGISTERED = "user.registered"
     USER_CREATED = "user.created"
+    FIRST_ADMIN_CREATED = "user.first_admin_created"
     USER_UPDATED = "user.updated"
     USER_ROLE_CHANGED = "user.role_changed"
     USER_DEACTIVATED = "user.deactivated"

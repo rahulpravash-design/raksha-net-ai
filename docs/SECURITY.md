@@ -42,6 +42,32 @@ location. Security is a functional requirement, not a hardening phase.
   `401 INVALID_CREDENTIALS` after comparable work, so the endpoint is not a user
   enumeration oracle.
 
+### The first administrator
+
+The API cannot create the first administrator (only an administrator can, and
+self-registration makes citizens), so `python -m app.cli.create_first_admin` does. It is a
+shell command for an operator of the deployment, **not an HTTP route**: a route would be a
+setup page that anyone who reached a new deployment first could use. Its rules:
+
+- It creates exactly one `SUPER_ADMIN`, and **only while no `ADMIN` or `SUPER_ADMIN` exists**,
+  active or not. Afterwards it refuses, so it is no way to mint administrators later.
+- The decision and the insert happen under a PostgreSQL advisory lock, so two simultaneous runs
+  cannot both succeed (`test_two_simultaneous_runs_create_exactly_one_administrator` fails if
+  the lock is removed).
+- The password is read from a hidden prompt or from standard input - never an argument or an
+  environment variable - and is not echoed, logged, or kept in the audit entry.
+- It will not run when the configuration is one that a production-like environment refuses to
+  start with.
+- The account has `must_change_password` set and, where policy requires it, must enrol MFA
+  before it can do anything else, exactly like an administrator-created account.
+- The audit entry is `user.first_admin_created`, with no actor and metadata
+  `{"role": "SUPER_ADMIN", "via": "cli"}`.
+
+Anyone who can run the command has a shell on the deployment and, with it, the database and
+the application's secrets; the command adds no authority such a person did not already have.
+What it does mean is that **the first administrator is whoever gets there first** - run it as
+part of bringing the deployment up, and check the audit log for `user.first_admin_created`.
+
 ### Passwords: change, forced change, administrator reset
 
 * `POST /auth/password` needs the current password, and a current TOTP code when MFA is
@@ -325,7 +351,8 @@ in the database and holds regardless of this backend.
 Append-only. Written for: login success and failure, account lock and unlock,
 MFA enrolment, enabling, disabling and reset, logout, token reuse
 detection, rejected malware uploads, role change, user activation/deactivation, incident status change,
-priority override, assignment, media access, and every administrative action.
+priority override, assignment, media access, creation of the first administrator
+(`user.first_admin_created`), and every administrative action.
 
 Each entry records actor, actor role, action, entity, IP, user agent, timestamp
 and a metadata object. The metadata object is explicitly filtered: no tokens, no
