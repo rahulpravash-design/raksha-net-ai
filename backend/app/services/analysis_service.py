@@ -19,7 +19,13 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from ai.common.interfaces import AnalyzerUnavailable, get_analyzer
+from ai.common.interfaces import (
+    MAX_IMAGE_BYTES,
+    MAX_IMAGES,
+    AnalyzerUnavailable,
+    VisionConfig,
+    get_analyzer,
+)
 from ai.common.schemas import AnalysisRequest, AnalysisResult
 from ai.common.validation import AnalysisRejected, validate_analysis
 from sqlalchemy.orm import Session
@@ -49,6 +55,7 @@ from app.schemas.incident import IncidentUpdate
 from app.services.audit_service import AuditAction, AuditService
 from app.services.auth_service import RequestContext
 from app.services.incident_service import IncidentService
+from app.services.media_service import MediaService
 from app.utils.time import utcnow
 
 logger = get_logger(__name__)
@@ -103,14 +110,25 @@ class AnalysisService:
         if incident is None:
             raise NotFoundError("Incident not found.")
 
+        vision = self._vision_config()
+        # Photographs leave the platform only when a provider is configured, and only
+        # for an analysis an operator asked for (docs/AI_ARCHITECTURE.md section 11).
+        photos = (
+            MediaService(self.session, self.settings).photos_for_analysis(
+                incident.id, limit=MAX_IMAGES, max_bytes=MAX_IMAGE_BYTES
+            )
+            if vision is not None
+            else []
+        )
         request = AnalysisRequest(
             incident_id=str(incident.id),
             description=incident.description,
             category_hint=incident.category.value,
+            image_bytes=photos,
         )
 
         try:
-            result = get_analyzer(self.settings.ai_enabled).analyze(request)
+            result = get_analyzer(self.settings.ai_enabled, vision).analyze(request)
             result = validate_analysis(result)
         except AnalyzerUnavailable as exc:
             self.audit.record(
@@ -153,6 +171,9 @@ class AnalysisService:
                 "analysis_id": str(analysis.id),
                 "model_name": result.model_name,
                 "model_version": result.model_version,
+                # What left the platform, and to whom: the record of a data transfer.
+                "photos_sent": len(photos),
+                "provider": result.provider,
             },
         )
         self.session.commit()
@@ -167,6 +188,18 @@ class AnalysisService:
             },
         )
         return analysis
+
+    def _vision_config(self) -> VisionConfig | None:
+        """Photo analysis, when this deployment has configured a provider and AI is on."""
+        settings = self.settings
+        if not (settings.ai_enabled and settings.ai_provider and settings.ai_api_key):
+            return None
+        return VisionConfig(
+            provider=settings.ai_provider,
+            api_key=settings.ai_api_key.get_secret_value(),
+            model=settings.ai_model,
+            timeout_seconds=float(settings.ai_timeout_seconds),
+        )
 
     def _persist(
         self, incident_id: uuid.UUID, result: AnalysisResult

@@ -217,8 +217,12 @@ class Settings(BaseSettings):
 
     # --- AI (Phase 6+) -----------------------------------------------------
     ai_enabled: bool = False
-    ai_provider: str | None = None
+    #: Photo analysis (Phase 8). ``anthropic`` plus an API key turns it on; unset, an
+    #: analysis reads the report's text only. Photos are sent to the provider only when
+    #: an operator requests an analysis (docs/AI_ARCHITECTURE.md section 11).
+    ai_provider: Literal["anthropic"] | None = None
     ai_api_key: SecretStr | None = None
+    #: Unset = the provider's default model (ai/vision/claude_observer.py).
     ai_model: str | None = None
     ai_timeout_seconds: int = 20
 
