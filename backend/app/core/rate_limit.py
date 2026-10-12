@@ -118,7 +118,7 @@ def build_rate_limiter(settings: Settings) -> RateLimiter:
         import redis
 
         client = redis.Redis.from_url(
-            settings.redis_url,
+            settings.redis_url.get_secret_value(),
             socket_connect_timeout=REDIS_TIMEOUT_SECONDS,
             socket_timeout=REDIS_TIMEOUT_SECONDS,
         )

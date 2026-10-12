@@ -39,7 +39,7 @@ from app.models.user import User
 def _test_database_url() -> str:
     settings = get_settings()
     if settings.test_database_url:
-        return settings.test_database_url
+        return settings.test_database_url.get_secret_value()
     base = settings.sqlalchemy_database_uri
     return base if base.endswith("_test") else f"{base}_test"
 

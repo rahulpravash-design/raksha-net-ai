@@ -13,7 +13,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 
-from pydantic import Field, SecretStr, computed_field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 PLACEHOLDER_SECRET = "generate_a_unique_64_byte_secret_before_running"
@@ -83,8 +83,10 @@ class Settings(BaseSettings):
     postgres_host: str = Field(default="localhost", alias="POSTGRES_HOST")
     postgres_port: int = Field(default=5432, alias="POSTGRES_PORT")
 
-    database_url: str | None = None
-    test_database_url: str | None = None
+    #: A connection URL carries the database password, so it is a ``SecretStr``: it
+    #: stays out of ``repr``, ``model_dump`` and any log line that prints settings.
+    database_url: SecretStr | None = None
+    test_database_url: SecretStr | None = None
     db_pool_size: int = 10
     db_max_overflow: int = 20
     #: Seconds a request waits for a free connection before giving up with a
@@ -94,7 +96,8 @@ class Settings(BaseSettings):
     db_echo: bool = False
 
     # --- Redis -------------------------------------------------------------
-    redis_url: str = "redis://localhost:6379/0"
+    #: May embed a password (``redis://:password@host``), hence a ``SecretStr``.
+    redis_url: SecretStr = SecretStr("redis://localhost:6379/0")
 
     # --- Security ----------------------------------------------------------
     secret_key: SecretStr = SecretStr(PLACEHOLDER_SECRET)
@@ -251,11 +254,12 @@ class Settings(BaseSettings):
     # ----------------------------------------------------------------------
     # Derived values
     # ----------------------------------------------------------------------
-    @computed_field  # type: ignore[prop-decorator]
+    # A plain property, not a pydantic computed field: a computed field is part of
+    # ``repr`` and ``model_dump``, and this value contains the database password.
     @property
     def sqlalchemy_database_uri(self) -> str:
         if self.database_url:
-            return normalise_database_url(self.database_url)
+            return normalise_database_url(self.database_url.get_secret_value())
         password = self.postgres_password.get_secret_value()
         return (
             f"postgresql+psycopg://{self.postgres_user}:{password}"
