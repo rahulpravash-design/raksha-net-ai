@@ -111,6 +111,24 @@ export function ErrorBanner({ message }: { message: string | null }) {
 }
 
 /**
+ * Shown on every page of a deployment whose API address is unusable (unset, malformed,
+ * a placeholder). Forms would otherwise look healthy until someone submitted one.
+ * Takes the message as a string because a server layout renders it: the config problem
+ * itself is not a prop a client component should need to know the shape of.
+ */
+export function ApiConfigNotice({ message }: { message: string | null }) {
+  if (!message) return null;
+  return (
+    <div
+      role="alert"
+      className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-100"
+    >
+      {message}
+    </div>
+  );
+}
+
+/**
  * Priority badge.
  *
  * Carries its own text label, so the band survives greyscale and colour-blind

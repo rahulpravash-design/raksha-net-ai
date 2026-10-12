@@ -35,6 +35,13 @@ describe("contentSecurityPolicy", () => {
     expect(policy["base-uri"]).toBe("'self'");
   });
 
+  it("allows no API origin when the API address is unusable, instead of throwing", () => {
+    const policy = directives(
+      contentSecurityPolicy({ apiBaseUrl: undefined, nonce: "n", dev: false }),
+    );
+    expect(policy["connect-src"]).toBe("'self'");
+  });
+
   it("allows map tiles from the configured host, subdomains included", () => {
     const osm = directives(contentSecurityPolicy({ ...base, nonce: "n" }));
     expect(osm["img-src"]).toContain("https://*.tile.openstreetmap.org");

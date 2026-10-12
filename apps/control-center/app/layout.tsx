@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
 
+import { ApiConfigNotice } from "@raksha/ui";
+
 import { AuthProvider } from "@/components/AuthProvider";
 import { MotionProvider } from "@/components/animations/MotionProvider";
+import { API_CONFIG } from "@/lib/config";
 
 import "./globals.css";
 
@@ -27,6 +30,9 @@ export default async function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className="min-h-screen">
+        <ApiConfigNotice
+          message={API_CONFIG.ok ? null : API_CONFIG.problem.message}
+        />
         <MotionProvider>
           <AuthProvider>{children}</AuthProvider>
         </MotionProvider>

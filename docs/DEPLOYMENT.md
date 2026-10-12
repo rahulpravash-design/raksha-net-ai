@@ -308,13 +308,15 @@ Every page is rendered per request (the CSP nonce, `SECURITY.md` §6).
 
 | Variable (Netlify, per site) | Sites | Value |
 |---|---|---|
-| `NEXT_PUBLIC_API_BASE_URL` | all three | The backend's public HTTPS origin. **Compiled into the bundle and into the CSP, so redeploy after changing it.** Until a backend exists it holds a deliberate `.invalid` placeholder; leave it rather than guess a URL. |
+| `NEXT_PUBLIC_API_BASE_URL` | all three | The backend's public HTTPS origin. **Compiled into the bundle and into the CSP, so redeploy after changing it.** Until a backend exists it holds a deliberate `.invalid` placeholder; leave it rather than guess a URL. The apps recognise the placeholder (and an unset, malformed, `http://` or `localhost` value) and show 13.10's message instead of attempting a request. |
 | `NEXT_PUBLIC_CITIZEN_APP_URL` | control centre | `https://raksha-citizen.netlify.app` |
 | `NEXT_PUBLIC_MAP_TILE_URL`, `NEXT_PUBLIC_MAP_ATTRIBUTION`, `NEXT_PUBLIC_DEFAULT_MAP_*` | optional | Only to override OpenStreetMap tiles or the default map view |
 
 Every variable the front ends read starts with `NEXT_PUBLIC_` and is therefore public. Put
-no secret in any of them. If the unset API variable were ever relied on, the apps fall back to
-`http://localhost:8000`, which is why the placeholder is set explicitly.
+no secret in any of them (an API address with a username or password in it is rejected for that
+reason). Only a *development* build falls back to `http://localhost:8000`; a production build with
+the variable unset has no API address and says so (13.10). Netlify's `NODE_ENV` is `production`
+for every build, previews included, so this applies to all deploys.
 
 ### 13.3 Backend on Render
 
@@ -495,13 +497,42 @@ plugin builds the server handler and bundles `proxy.ts` as a middleware handler 
 version understands Next 16's proxy); `npm install` run inside an app folder installs the whole
 workspace at the repository root.
 
+Registration path (`scripts/e2e/registration.mjs`, Chromium, synthetic data only, local stack): with
+the *pre-fix* code built with the `.invalid` placeholder the page showed "Could not reach the server"
+after the browser posted to the placeholder host (the original report, reproduced); with the fixed code
+and the same placeholder it shows the configuration banner and sends no request; built against the
+local API (`http://localhost:8000`) a new citizen registered (201), landed on `/report`, was stored as
+`CITIZEN` with a bcrypt hash and a `user.registered` audit row, and a second attempt with the same email
+got the server's 409 message. A real database outage returns 503 (unit test, real refused connection).
+
 **Not verified** (no access from the development environment): the sites' real dashboard settings
 (whether each has the Package directory set), and any real Netlify build; that the `proxy.ts`
 middleware handler loads and runs on Netlify (its configuration load needs `edge.netlify.com`, which
 is unreachable here, so that one warning was seen but not resolved locally); any difference between
 Netlify's build machines and the local engine (working directory, installer); Render's port,
 health check, pre-deploy, shell/one-off-job and disk-ownership behaviour; the PostGIS version
-Render provides; any live request between a Netlify site and a deployed backend.
+Render provides; any live request between a Netlify site and a deployed backend (none exists: registration on the Netlify sites cannot work until a backend is deployed and each site's `NEXT_PUBLIC_API_BASE_URL` is set and redeployed); the current value of that variable on each Netlify site (the connector returns an empty list).
+
+### 13.10 "Could not reach the server" and "not connected to its server"
+
+Every front-end request goes to `NEXT_PUBLIC_API_BASE_URL` + `/api/v1/...`. What a visitor sees
+depends on why it cannot succeed:
+
+| The page says | Cause | Fix |
+|---|---|---|
+| An amber banner on every page and, on submit, "This site is not connected to its RAKSHA NET AI server. `NEXT_PUBLIC_API_BASE_URL` is not set / still holds a placeholder / ..." | The variable is unset, malformed, the `.invalid` placeholder, `http://` (production), `localhost` on a remote page, or has credentials in it. No request was made. | Set the variable on that Netlify site to the backend's real `https://` origin and **redeploy** (it is compiled in). Until a backend exists this message is the correct behaviour. |
+| "Could not reach the server. Please check your connection." | The address looks valid, but the browser's request failed: the backend is stopped, asleep (Render free tier), not yet deployed at that name, the certificate or DNS is wrong, or **the backend did not allow this site's origin (CORS)**. | Open the browser's developer tools, *Network* tab, and look at the failed `register`/`login` request: "blocked by CORS policy" in the console means add the site's exact `https://` origin to the backend's `RAKSHA_CORS_ORIGINS` (13.4); a DNS or connection error means the backend is not there. `curl -i https://<backend>/api/v1/health` should return 200. |
+| A message from the server, e.g. "The service is temporarily unavailable" (HTTP 503) | The backend is up but cannot reach PostgreSQL. | Check the database service and `DATABASE_URL`; `GET /api/v1/health/ready` reports it. |
+
+Two details worth knowing. The CSP's `connect-src` is built from the same variable, so a wrong
+address also makes the browser refuse the request before it leaves. And an *unexpected* backend
+error (an uncaught exception, HTTP 500) is answered by Starlette's outermost handler, outside the
+CORS layer: checked against this code, that response has no `Access-Control-Allow-Origin`, so a
+browser reports it as the same generic network failure even though the backend answered. A database
+outage is handled explicitly (a 503 that does carry the CORS headers, covered by
+`tests/unit/test_database_unavailable.py`). Other uncaught exceptions are a **known gap**: if "Could
+not reach the server" persists with a healthy `curl` to `/api/v1/health`, read the backend log for
+`unhandled_exception` first.
 
 Sources: Render, [supported PostgreSQL extensions](https://render.com/docs/postgresql-extensions)
 and [free-tier limits](https://render.com/docs/free); Netlify, [monorepos](https://docs.netlify.com/build/configure-builds/monorepos/).

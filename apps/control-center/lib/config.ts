@@ -5,8 +5,19 @@
  * `NEXT_PUBLIC_` variable — it is compiled into the bundle the browser downloads.
  */
 
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+import { resolveApiConfig } from "@raksha/api-client";
+
+/**
+ * The API address, validated. A production build with it unset, malformed or still the
+ * `.invalid` placeholder yields `ok: false` and a message for the site owner; there is
+ * deliberately no fallback to localhost outside development (see
+ * `packages/api-client/src/config.ts`). `process.env.NEXT_PUBLIC_API_BASE_URL` must be
+ * written out in full here: Next.js only inlines that exact expression.
+ */
+export const API_CONFIG = resolveApiConfig({
+  value: process.env.NEXT_PUBLIC_API_BASE_URL,
+  production: process.env.NODE_ENV === "production",
+});
 
 export const MAP_DEFAULTS = {
   centre: {
