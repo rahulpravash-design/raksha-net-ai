@@ -18,8 +18,12 @@
 
 export interface CspOptions {
   nonce: string;
-  /** The API's base URL: the only origin besides this one the page may call. */
-  apiBaseUrl: string;
+  /**
+   * The API's base URL: the only origin besides this one the page may call. Undefined
+   * when the API address is unusable (see `resolveApiConfig`); the page then may call
+   * nothing but itself, which is exactly what its pre-flight configuration error says.
+   */
+  apiBaseUrl: string | undefined;
   /** A map tile URL template (`{s}` allowed); its origin may serve images. */
   tileUrl?: string | undefined;
   /** Development adds `'unsafe-eval'` for React's debugging aids; production never does. */
@@ -38,7 +42,7 @@ export function newNonce(): string {
 }
 
 export function contentSecurityPolicy({ nonce, apiBaseUrl, tileUrl, dev }: CspOptions): string {
-  const apiOrigin = new URL(apiBaseUrl).origin;
+  const connectSources = apiBaseUrl ? `'self' ${new URL(apiBaseUrl).origin}` : "'self'";
   const tileOrigin = new URL((tileUrl ?? DEFAULT_TILES).replace("{s}", "*")).origin;
   return [
     "default-src 'self'",
@@ -46,7 +50,7 @@ export function contentSecurityPolicy({ nonce, apiBaseUrl, tileUrl, dev }: CspOp
     "style-src 'self' 'unsafe-inline'",
     `img-src 'self' data: blob: ${tileOrigin}`,
     "font-src 'self' data:",
-    `connect-src 'self' ${apiOrigin}`,
+    `connect-src ${connectSources}`,
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",

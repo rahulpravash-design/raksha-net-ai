@@ -1,8 +1,13 @@
 "use client";
 
-import { ApiClient, BrowserTokenStore } from "@raksha/api-client";
+import {
+  ApiClient,
+  BrowserTokenStore,
+  apiConnection,
+  resolveApiConfig,
+} from "@raksha/api-client";
 
-import { API_BASE_URL } from "./config";
+import { API_CONFIG } from "./config";
 
 /**
  * One client and one token store per browser tab.
@@ -15,6 +20,19 @@ export const tokenStore = new BrowserTokenStore();
 
 let client: ApiClient | null = null;
 
+/**
+ * The build-time config, checked once more in the browser: an API at `localhost` cannot
+ * work for a visitor on any other host, and only the browser knows which host that is.
+ */
+function connectionConfig() {
+  if (!API_CONFIG.ok || typeof window === "undefined") return API_CONFIG;
+  return resolveApiConfig({
+    value: API_CONFIG.baseUrl,
+    production: process.env.NODE_ENV === "production",
+    pageOrigin: window.location.origin,
+  });
+}
+
 export function getApiClient(
   onUnauthenticated?: () => void,
   onMfaEnrolmentRequired?: () => void,
@@ -22,7 +40,7 @@ export function getApiClient(
 ): ApiClient {
   if (!client) {
     client = new ApiClient({
-      baseUrl: API_BASE_URL,
+      ...apiConnection(connectionConfig()),
       tokens: tokenStore,
       ...(onUnauthenticated ? { onUnauthenticated } : {}),
       ...(onMfaEnrolmentRequired ? { onMfaEnrolmentRequired } : {}),

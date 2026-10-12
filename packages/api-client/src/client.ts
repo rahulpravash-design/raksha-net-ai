@@ -8,6 +8,7 @@
  *    backend's reuse detection and log the user out).
  */
 
+import type { ApiConfigProblem } from "./config";
 import type {
   AnalysisReviewInput,
   AdminUser,
@@ -99,6 +100,26 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Raised, before any network call, when the front end was built without a usable API
+ * address (see `config.ts`). It is an `ApiError` on purpose: every screen already shows
+ * an `ApiError`'s message, so each one reports the misconfiguration instead of falling
+ * back to "Could not reach the server". Status 0 because no response exists.
+ */
+export class ApiConfigurationError extends ApiError {
+  readonly problem: ApiConfigProblem;
+
+  constructor(problem: ApiConfigProblem) {
+    super(0, {
+      code: "API_NOT_CONFIGURED",
+      message: problem.message,
+      details: { reason: problem.code },
+    });
+    this.name = "ApiConfigurationError";
+    this.problem = problem;
+  }
+}
+
 export interface TokenStore {
   getAccessToken(): string | null;
   getRefreshToken(): string | null;
@@ -108,6 +129,11 @@ export interface TokenStore {
 
 export interface ApiClientOptions {
   baseUrl: string;
+  /**
+   * Set when the API address failed validation (`resolveApiConfig`). Every request then
+   * throws an `ApiConfigurationError` without touching the network.
+   */
+  configProblem?: ApiConfigProblem;
   tokens?: TokenStore;
   /** Called when the session ends irrecoverably, so the UI can redirect. */
   onUnauthenticated?: () => void;
@@ -136,6 +162,7 @@ interface RequestOptions {
 
 export class ApiClient {
   private readonly baseUrl: string;
+  private readonly configProblem: ApiConfigProblem | undefined;
   private readonly tokens: TokenStore | undefined;
   private readonly onUnauthenticated: (() => void) | undefined;
   private readonly onMfaEnrolmentRequired: (() => void) | undefined;
@@ -146,6 +173,7 @@ export class ApiClient {
 
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
+    this.configProblem = options.configProblem;
     this.tokens = options.tokens;
     this.onUnauthenticated = options.onUnauthenticated;
     this.onMfaEnrolmentRequired = options.onMfaEnrolmentRequired;
@@ -687,6 +715,7 @@ export class ApiClient {
 
   /** The URL an authenticated client can fetch the bytes from. */
   mediaContentUrl(mediaId: string): string {
+    if (this.configProblem) throw new ApiConfigurationError(this.configProblem);
     return `${this.baseUrl}/api/v1/media/${mediaId}/content`;
   }
 
@@ -727,7 +756,9 @@ export class ApiClient {
   }
 
   // --- internals -----------------------------------------------------------
+  /** Every request builds its URL first, so this is the one place that refuses. */
   private buildUrl(path: string, query?: Record<string, unknown>): string {
+    if (this.configProblem) throw new ApiConfigurationError(this.configProblem);
     const url = new URL(`${this.baseUrl}${path}`);
     for (const [key, value] of Object.entries(query ?? {})) {
       if (value === undefined || value === null || value === "") continue;
