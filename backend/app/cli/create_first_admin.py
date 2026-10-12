@@ -7,15 +7,21 @@ shell on the deployment (a Render shell, ``docker compose exec``, a one-off job)
     python -m app.cli.create_first_admin --email you@example.org --name "Your Name"
 
 The password is typed at a hidden prompt. For scripted use, ``--password-stdin`` reads
-it from standard input. It is never accepted as an argument or an environment variable,
-because both end up in process listings, shell history or job configuration.
+it from standard input. It is never accepted as an argument, which would end up in
+process listings and shell history. (A host without a shell, such as Render's free tier,
+can feed it from a secret through ``backend/scripts/render_start.sh``; see
+``docs/DEPLOYMENT.md`` 13.7.)
+
+``--skip-if-admin-exists`` makes an existing administrator "nothing to do" (exit 0)
+instead of a refusal, so a start-up script can run the command on every boot.
 
 It creates one ``SUPER_ADMIN`` and refuses to run again once any administrator exists.
 The account must choose a new password and, where policy requires, enrol two-factor
 authentication at its first sign-in. See ``docs/DEPLOYMENT.md`` section 13.
 
-Exit status: 0 created; 2 bad input or an unsafe configuration; 3 refused because an
-administrator (or the email address) already exists; 4 the database could not be used.
+Exit status: 0 created (or, with ``--skip-if-admin-exists``, an administrator already
+existed); 2 bad input or an unsafe configuration; 3 refused because an administrator (or
+the email address) already exists; 4 the database could not be used.
 """
 
 from __future__ import annotations
@@ -98,6 +104,11 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Read the password from standard input instead of prompting.",
     )
+    parser.add_argument(
+        "--skip-if-admin-exists",
+        action="store_true",
+        help="Exit 0 without changes if an administrator already exists.",
+    )
     return parser
 
 
@@ -135,6 +146,9 @@ def main(
             user = BootstrapService(session, settings).create_first_admin(payload)
             email, user_id = user.email, user.id
     except (AdminAlreadyExistsError, EmailAlreadyRegisteredError) as exc:
+        if isinstance(exc, AdminAlreadyExistsError) and args.skip_if_admin_exists:
+            print("An administrator already exists; nothing to do.")
+            return EXIT_CREATED
         _fail(f"Refused: {exc.message}")
         if isinstance(exc, AdminAlreadyExistsError):
             _fail(

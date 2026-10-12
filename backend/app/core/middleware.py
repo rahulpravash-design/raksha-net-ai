@@ -12,6 +12,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 from app.core import metrics
+from app.core.client_address import client_address
 from app.core.config import Settings
 from app.core.errors import RateLimitedError, ServiceBusyError, unexpected_error_response
 from app.core.logging import get_logger, request_id_var
@@ -67,6 +68,10 @@ class CorrelationIdMiddleware(BaseHTTPMiddleware):
 class AccessLogMiddleware(BaseHTTPMiddleware):
     """One structured log line per request, with its duration."""
 
+    def __init__(self, app: object, settings: Settings) -> None:
+        super().__init__(app)  # type: ignore[arg-type]
+        self.settings = settings
+
     async def dispatch(self, request: Request, call_next: RequestHandler) -> Response:
         started = time.perf_counter()
         response = await call_next(request)
@@ -80,7 +85,9 @@ class AccessLogMiddleware(BaseHTTPMiddleware):
                     "path": request.url.path,
                     "status_code": response.status_code,
                     "duration_ms": duration_ms,
-                    "client_ip": request.client.host if request.client else None,
+                    "client_ip": client_address(
+                        request, self.settings.trusted_proxy_hops
+                    ),
                 },
             )
         response.headers["X-Response-Time-ms"] = str(duration_ms)
@@ -232,7 +239,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         identity = request.headers.get("authorization") or (
-            request.client.host if request.client else "unknown"
+            client_address(request, self.settings.trusted_proxy_hops) or "unknown"
         )
         key = f"api:{stable_key(identity)}"
         decision = get_rate_limiter().check(

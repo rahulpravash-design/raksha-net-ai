@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ipaddress
 from collections.abc import Callable, Iterable
 from typing import Annotated
 
@@ -10,6 +9,7 @@ from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.core.client_address import client_address
 from app.core.config import Settings, get_settings
 from app.core.errors import (
     ForbiddenError,
@@ -39,25 +39,10 @@ DbSession = Annotated[Session, Depends(get_db)]
 AppSettings = Annotated[Settings, Depends(get_settings)]
 
 
-def _client_ip(request: Request) -> str | None:
-    """Return the client address only when it really is an IP address.
-
-    ``request.client.host`` is not guaranteed to be one: behind a unix socket,
-    or under a test client, it can be an arbitrary label. The audit columns are
-    ``INET``, so an unparseable value must become NULL rather than fail the
-    request it was only being recorded alongside.
-    """
-    if request.client is None or not request.client.host:
-        return None
-    try:
-        return str(ipaddress.ip_address(request.client.host))
-    except ValueError:
-        return None
-
-
-def get_request_context(request: Request) -> RequestContext:
+def get_request_context(request: Request, settings: AppSettings) -> RequestContext:
     return RequestContext(
-        ip_address=_client_ip(request),
+        # Behind a proxy this is the forwarded client address, not the proxy's.
+        ip_address=client_address(request, settings.trusted_proxy_hops),
         user_agent=request.headers.get("user-agent"),
     )
 

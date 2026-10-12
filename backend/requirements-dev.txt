@@ -4,6 +4,9 @@
 pytest==9.1.1
 pytest-cov==7.1.0
 httpx==0.28.1
+# Reads render.yaml in tests/unit/test_render_blueprint.py. Already installed as an extra
+# of uvicorn[standard]; pinned here so the test does not depend on that by accident.
+PyYAML==6.0.3
 
 ruff==0.16.8
 black==26.5.1

@@ -557,6 +557,17 @@ handler runs on Netlify (§13.9).
 **Then:** (2) create the backend on Render per §13; (3) set each site's
 `NEXT_PUBLIC_API_BASE_URL` and redeploy.
 
+**Backend on Render: ready to apply (decision: free tier, demonstration only).** `render.yaml`
+at the repository root creates the web service (Docker, `backend/Dockerfile`) and a free
+PostgreSQL 16 database in Singapore; steps in `DEPLOYMENT.md` §13.1. Without a shell or
+pre-deploy step, `backend/scripts/render_start.sh` migrates, creates the first administrator
+from `FIRST_ADMIN_*` secrets once (`--skip-if-admin-exists`), then serves on `$PORT`.
+`RAKSHA_TRUSTED_PROXY_HOPS` (blueprint: 1) takes the client address from the proxy-appended
+`X-Forwarded-For` entry, never the client-written one; whether Render appends exactly one is to
+be checked in the audit log after the first sign-in. A malformed `RAKSHA_ENCRYPTION_KEY` now stops
+the start-up with a message instead of failing the first encrypted write. Not verified: the
+blueprint against Render's schema (unreachable from here), and anything on a live Render host.
+
 **Registration says "Could not reach the server" (2026-10-12).** Cause, from the code: the form
 calls `fetch(NEXT_PUBLIC_API_BASE_URL + "/api/v1/auth/register")`; with the deliberate `.invalid`
 placeholder (RFC 2606: never resolves) `fetch` throws a `TypeError`, which the page renders as that
