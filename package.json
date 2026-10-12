@@ -1,0 +1,23 @@
+{
+  "name": "raksha-net-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RAKSHA NET AI \u2014 AI-assisted emergency response and resource coordination",
+  "workspaces": [
+    "packages/*",
+    "apps/citizen-web",
+    "apps/control-center",
+    "apps/responder-web"
+  ],
+  "scripts": {
+    "dev:citizen": "npm run dev --workspace @raksha/citizen-web",
+    "dev:control": "npm run dev --workspace @raksha/control-center",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}

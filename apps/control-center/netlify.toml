@@ -1,0 +1,9 @@
+# Netlify build for this app. The repository is an npm workspace, so on Netlify set
+# Base directory = this app's folder (apps/<app>); dependencies install at the root.
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_TELEMETRY_DISABLED = "1"

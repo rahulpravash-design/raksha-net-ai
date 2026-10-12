@@ -1,0 +1,124 @@
+# RAKSHA NET AI — local development stack.
+#
+#   cp .env.example .env     # then set POSTGRES_PASSWORD and RAKSHA_SECRET_KEY
+#   docker compose up
+#
+# This file is for development only. Staging and production use managed
+# PostgreSQL and a real secret store — see docs/DEPLOYMENT.md.
+
+name: raksha-net-ai
+
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-raksha}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-raksha_net_ai}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./database/schema/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-raksha} -d ${POSTGRES_DB:-raksha_net_ai}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      RAKSHA_ENVIRONMENT: development
+      RAKSHA_DEBUG: "true"
+      RAKSHA_LOG_FORMAT: console
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-raksha}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-raksha_net_ai}
+      RAKSHA_REDIS_URL: redis://redis:6379/0
+      RAKSHA_RATE_LIMIT_BACKEND: redis
+      RAKSHA_SECRET_KEY: ${RAKSHA_SECRET_KEY:?set RAKSHA_SECRET_KEY in .env}
+      RAKSHA_CORS_ORIGINS: http://localhost:3000,http://localhost:3001,http://localhost:3002
+      # The V2 analyzer is a local rule-based heuristic (ai/nlp/text_analyzer.py):
+      # no external provider, no API key, nothing to configure. Safe to enable
+      # by default in this development-only stack.
+      RAKSHA_AI_ENABLED: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - media-data:/app/storage/media
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Migrations run before the server so a fresh checkout comes up ready.
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    restart: unless-stopped
+
+  citizen-web:
+    build:
+      context: .
+      dockerfile: apps/citizen-web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  control-center:
+    build:
+      context: .
+      dockerfile: apps/control-center/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3001:3001"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  responder-web:
+    build:
+      context: .
+      dockerfile: apps/responder-web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3002:3002"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  redis-data:
+  media-data:

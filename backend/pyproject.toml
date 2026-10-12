@@ -1,0 +1,71 @@
+[project]
+name = "raksha-net-ai-backend"
+version = "1.0.0"
+description = "RAKSHA NET AI — AI-assisted emergency response and resource coordination"
+requires-python = ">=3.11"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 90
+exclude = ["migrations/versions", ".venv"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # bugbear
+    "UP",   # pyupgrade
+    "C4",   # comprehensions
+    "SIM",  # simplify
+    "RUF",  # ruff-specific
+    "S",    # bandit (security)
+]
+ignore = [
+    "E501",    # line length is handled by the formatter
+    "B008",    # FastAPI's Depends() in a default is the documented idiom
+    "S101",    # assert is fine in tests
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S105", "S106", "S311"]   # test fixtures carry obvious fake secrets
+"app/core/config.py" = ["S105"]
+
+[tool.black]
+line-length = 90
+target-version = ["py311"]
+extend-exclude = "migrations/versions|\\.venv"
+
+[tool.mypy]
+python_version = "3.11"
+plugins = ["pydantic.mypy"]
+warn_unused_configs = true
+warn_redundant_casts = true
+disallow_untyped_defs = true
+no_implicit_optional = true
+check_untyped_defs = true
+ignore_missing_imports = true
+exclude = ["migrations/", "\\.venv/", "tests/"]
+
+[[tool.mypy.overrides]]
+module = ["geoalchemy2.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The repository root, so `import ai...` resolves the same way it does for the
+# running application (see scripts/dev_backend.sh and backend/Dockerfile).
+pythonpath = [".."]
+addopts = "-q --strict-markers"
+filterwarnings = ["ignore::DeprecationWarning"]
+markers = [
+    "integration: requires a live PostgreSQL + PostGIS database",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/main.py", "*/migrations/*"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "raise NotImplementedError"]

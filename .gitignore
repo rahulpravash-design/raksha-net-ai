@@ -1,0 +1,64 @@
+# ---------- Python ----------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# ---------- Node / Next.js ----------
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# ---------- Environment & secrets ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+!infrastructure/**/*.example.key
+secrets/
+
+# ---------- Local data & uploads ----------
+/data/
+/storage/
+/backend/storage/
+/backend/uploads/
+*.sqlite
+*.sqlite3
+*.db
+
+# ---------- Editors / OS ----------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---------- Logs ----------
+logs/
+*.log
+
+# Database and media backups (scripts/backup.sh) hold every report in plaintext.
+/backups/
+
+# Netlify CLI link state
+.netlify

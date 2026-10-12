@@ -1,0 +1,27 @@
+{
+  "name": "@raksha/ui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "React components shared by the RAKSHA NET AI front ends.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./csp": "./src/csp.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@raksha/api-client": "*",
+    "qrcode": "^1.5.4"
+  },
+  "peerDependencies": {
+    "react": ">=19"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "typescript": "^5.9.3",
+    "@types/qrcode": "^1.5.6"
+  }
+}
