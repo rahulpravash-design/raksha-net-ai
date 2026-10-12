@@ -1,8 +1,23 @@
-# Netlify build for this app. The repository is an npm workspace, so on Netlify set
-# Base directory = this app's folder (apps/<app>); dependencies install at the root.
+# Netlify settings for this app (Next.js 16, in an npm workspace).
+#
+# Netlify dashboard, per site (Site configuration > Build & deploy > Continuous deployment):
+#   Repository         rahulpravash-design/raksha-net-ai, production branch: main
+#   Base directory     (leave empty: the repository root)
+#   Package directory  apps/control-center      <- Netlify reads THIS file from there
+#   Build command and Publish directory: leave as they are; this file overrides them.
+#
+# Both paths below are relative to the REPOSITORY ROOT, which is where Netlify resolves
+# them when a Package directory is used. Getting that wrong fails like this (reproduced
+# with Netlify's own build engine):
+#   * `npm run build` at the root runs the root script, which builds all three apps, and
+#   * `publish = ".next"` then points at <root>/.next, which never exists, so the Next.js
+#     plugin fails: "Your publish directory was not found at: /opt/build/repo/.next".
+# Do not also set a Base directory of apps/control-center: publish would then resolve to
+# apps/control-center/apps/control-center/.next. The Next.js plugin is detected and installed by Netlify;
+# it is deliberately not listed here. See docs/DEPLOYMENT.md section 13.2.
 [build]
-  command = "npm run build"
-  publish = ".next"
+  command = "npm run build --workspace @raksha/control-center"
+  publish = "apps/control-center/.next"
 
 [build.environment]
   NODE_VERSION = "22"

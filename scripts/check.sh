@@ -36,6 +36,8 @@ run "ai: pytest"          bash -c "PYTHONPATH=. backend/.venv/bin/pytest ai/test
 run "backend: pip-audit"  backend/.venv/bin/pip-audit -r backend/requirements.txt --strict
 run "frontend: npm audit" npm audit --omit=dev --audit-level=high
 
+run "netlify config"      backend/.venv/bin/python scripts/check_netlify_config.py
+
 for app in citizen-web control-center responder-web; do
   run "$app: eslint"    npm run lint --silent --workspace "@raksha/$app"
   run "$app: tsc"       npm run typecheck --silent --workspace "@raksha/$app"

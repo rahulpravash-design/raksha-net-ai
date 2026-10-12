@@ -132,6 +132,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Netlify configuration
+        # Netlify resolves publish and the build command against the repository root; a
+        # wrong value fails only on Netlify (docs/DEPLOYMENT.md section 13.2).
+        run: python3 scripts/check_netlify_config.py ${{ matrix.app }}
+
       - name: Lint
         run: npm run lint --workspace @raksha/${{ matrix.app }}
 
