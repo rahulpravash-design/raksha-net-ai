@@ -217,7 +217,7 @@ process with PostgreSQL + PostGIS, an optional Redis and an uploads volume). The
 runs on a host that can run `backend/Dockerfile`; this section is written for **Render**,
 whose managed PostgreSQL lists PostGIS as a supported extension.
 
-**Status: nothing is deployed.** What is established and what is not is listed in 13.8.
+**Status: nothing is deployed.** What is established and what is not is listed in 13.9.
 Whatever is deployed from this guide is a **demonstration or controlled pilot**: there has
 been no independent penetration test and no acceptance by an operating authority
 (`SECURITY.md` §12). Do not use it for real emergencies.
@@ -241,7 +241,7 @@ the front ends' `NEXT_PUBLIC_API_BASE_URL` (13.2) both have to be right.
    operating owner's sign-off, and a backup first** (`RELEASE.md`).
 3. Smoke-test the API with `curl` (13.6).
 4. Set `NEXT_PUBLIC_API_BASE_URL` on the three Netlify sites and redeploy them (13.2).
-5. Create the first administrator — **not yet possible, see 13.7 item 1**.
+5. Create the first administrator from a shell on the backend (13.7).
 
 ### 13.2 Front ends on Netlify
 
@@ -375,12 +375,50 @@ curl -isS -X OPTIONS "$API/api/v1/auth/login" \
 Then, with an account that exists, sign in from each Netlify site and upload one photograph
 from the citizen site. Do not report a deployment as working before this has been done.
 
-### 13.7 Known gaps — resolve before relying on this deployment
+### 13.7 Creating the first administrator
 
-1. **No way to create the first administrator in production.** The seed refuses to run
-   there; administrators are created through the API by an existing administrator; citizen
-   sign-up creates citizens only. Until a one-off, audited bootstrap exists, the control centre
-   and responder apps have no usable account. Not implemented; it needs a design decision.
+A new deployment has no administrator, and only an administrator can create one through the
+API, so the backend ships a command for it. It is **not an HTTP endpoint**: it is run by
+someone with a shell on the deployment (`docker compose exec backend ...`, or on Render a
+shell or one-off job on the service - which plans offer one is for you to confirm in the
+dashboard), so there is no setup page for anyone else to find.
+
+```
+python -m app.cli.create_first_admin --email you@example.org --name "Your Full Name"
+```
+
+It asks for the password at a hidden prompt, twice. For scripted use add `--password-stdin`
+and pipe the password in. The password is never accepted as an argument or an environment
+variable, because both leak into process listings, shell history and job settings.
+
+What it guarantees:
+
+- It creates one account, with the role `SUPER_ADMIN` (the only role the API will not hand to
+  an ordinary administrator, and the one that can manage other administrators).
+- It runs **only while no administrator account of any kind exists**, active or not. Once one
+  does, it refuses (exit status 3) and changes nothing, so it cannot be used later to mint
+  more. Further administrators are created in the control centre.
+- Two runs at the same moment cannot both succeed (a database lock decides).
+- It refuses to run when the configuration is one that production would refuse to start with
+  (`RAKSHA_DEBUG` on, placeholder secret, and so on) - fix that first.
+- The account must choose a new password at first sign-in and, where
+  `RAKSHA_MFA_REQUIRED_FOR_OPERATIONAL` is on, enrol two-factor authentication before it can do
+  anything else. Keep the recovery codes shown at enrolment.
+- The creation is written to the audit log as `user.first_admin_created` (no actor, because none
+  exists yet). The password is never logged, printed or stored in the audit trail.
+
+Exit status: `0` created; `2` bad input or an unsafe configuration; `3` refused (an administrator
+or that email already exists); `4` the database could not be used (check the settings and that
+`alembic upgrade head` has run).
+
+Do this once the backend is up and migrated (13.3), and before anyone tries to sign in to the
+control centre. Create a second super administrator from the control centre as soon as you can:
+with only one, losing their device and recovery codes locks the organisation out
+(`RUNBOOK.md`, "Someone is locked out").
+
+### 13.8 Known gaps — resolve before relying on this deployment
+
+1. **First administrator:** resolved by the command in 13.7. It has been run end to end against a scratch database in production mode, but not on a real host.
 2. **Client addresses behind a proxy.** Rate limits and the audit log use the connecting
    address. Uvicorn starts with its default of trusting forwarded headers only from
    the loopback addresses, so behind Render's proxy every user appears to be the proxy: one shared
@@ -399,11 +437,12 @@ from the citizen site. Do not report a deployment as working before this has bee
    assembled URL is a computed field). Nothing logs settings today; keep it that way until
    the field is excluded.
 
-### 13.8 What has and has not been verified
+### 13.9 What has and has not been verified
 
 Established in this repository: the backend and the three apps build and pass their tests
 and security audit in CI and locally; each app builds with `NETLIFY=true`; a
-`postgres://`/`postgresql://` URL reaches the installed driver (unit tests); the start
+`postgres://`/`postgresql://` URL reaches the installed driver (unit tests); the first-administrator
+command works end to end against a scratch database in production mode (create, refuse a second run, forced password change, mandatory MFA enrolment, then access); the start
 command, ports and environment names above are read from the code and the Dockerfile.
 
 **Not verified** (no access from the development environment): that the Netlify projects are
@@ -411,7 +450,7 @@ linked to this repository and build; that Netlify installs the npm workspace fro
 repository root when the base directory is `apps/<app>` (if it does not, the fallback is
 Netlify's monorepo layout: leave *Base directory* empty and set *Package directory* to the app
 folder); that Netlify's Next.js runtime serves Next 16's `proxy.ts`; Render's port, health
-check, pre-deploy and disk-ownership behaviour; the PostGIS version Render provides; any live
+check, pre-deploy, shell/one-off-job and disk-ownership behaviour; the PostGIS version Render provides; any live
 request between a Netlify site and a deployed backend.
 
 Sources: Render, [supported PostgreSQL extensions](https://render.com/docs/postgresql-extensions)
