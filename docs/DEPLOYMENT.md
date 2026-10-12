@@ -309,7 +309,7 @@ Every page is rendered per request (the CSP nonce, `SECURITY.md` §6).
 | Variable (Netlify, per site) | Sites | Value |
 |---|---|---|
 | `NEXT_PUBLIC_API_BASE_URL` | all three | The backend's public HTTPS origin. **Compiled into the bundle and into the CSP, so redeploy after changing it.** Until a backend exists it holds a deliberate `.invalid` placeholder; leave it rather than guess a URL. The apps recognise the placeholder (and an unset, malformed, `http://` or `localhost` value) and show 13.10's message instead of attempting a request. |
-| `NEXT_PUBLIC_CITIZEN_APP_URL` | control centre | `https://raksha-citizen.netlify.app` |
+| `NEXT_PUBLIC_CITIZEN_APP_URL` | control centre | `https://raksha-citizen.netlify.app`. Unset in production, the landing page withholds its "Report an emergency" link and says why, rather than pointing visitors at their own `localhost`. |
 | `NEXT_PUBLIC_MAP_TILE_URL`, `NEXT_PUBLIC_MAP_ATTRIBUTION`, `NEXT_PUBLIC_DEFAULT_MAP_*` | optional | Only to override OpenStreetMap tiles or the default map view |
 
 Every variable the front ends read starts with `NEXT_PUBLIC_` and is therefore public. Put
@@ -525,14 +525,15 @@ depends on why it cannot succeed:
 | A message from the server, e.g. "The service is temporarily unavailable" (HTTP 503) | The backend is up but cannot reach PostgreSQL. | Check the database service and `DATABASE_URL`; `GET /api/v1/health/ready` reports it. |
 
 Two details worth knowing. The CSP's `connect-src` is built from the same variable, so a wrong
-address also makes the browser refuse the request before it leaves. And an *unexpected* backend
-error (an uncaught exception, HTTP 500) is answered by Starlette's outermost handler, outside the
-CORS layer: checked against this code, that response has no `Access-Control-Allow-Origin`, so a
-browser reports it as the same generic network failure even though the backend answered. A database
-outage is handled explicitly (a 503 that does carry the CORS headers, covered by
-`tests/unit/test_database_unavailable.py`). Other uncaught exceptions are a **known gap**: if "Could
-not reach the server" persists with a healthy `curl` to `/api/v1/health`, read the backend log for
-`unhandled_exception` first.
+address also makes the browser refuse the request before it leaves. And a backend *crash* used to
+look identical to an unreachable backend: Starlette answers an uncaught exception from its outermost
+layer, outside CORS, so the 500 carried no `Access-Control-Allow-Origin` (checked against this code)
+and a browser reported it as a network failure. `UnhandledErrorMiddleware` now sits innermost and
+turns it into the normal 500 envelope, so it passes back out through CORS, the request id and the
+access log (`tests/unit/test_unhandled_errors.py`); a database outage is likewise a 503
+(`tests/unit/test_database_unavailable.py`). If "Could not reach the server" persists with a healthy
+`curl` to `/api/v1/health`, look first at the network, DNS, TLS and CORS configuration: a backend
+crash now returns a readable 500 that the page can show, so it is no longer the likely cause.
 
 Sources: Render, [supported PostgreSQL extensions](https://render.com/docs/postgresql-extensions)
 and [free-tier limits](https://render.com/docs/free); Netlify, [monorepos](https://docs.netlify.com/build/configure-builds/monorepos/).

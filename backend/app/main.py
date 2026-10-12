@@ -25,6 +25,7 @@ from app.core.middleware import (
     MetricsMiddleware,
     RateLimitMiddleware,
     SecurityHeadersMiddleware,
+    UnhandledErrorMiddleware,
 )
 
 logger = get_logger(__name__)
@@ -93,6 +94,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Middleware runs in reverse registration order, so the correlation id is
     # registered last and therefore wraps everything else.
+    # First registered = innermost: an uncaught exception becomes a response here, so it
+    # still passes back out through CORS (see UnhandledErrorMiddleware).
+    app.add_middleware(UnhandledErrorMiddleware)
     app.add_middleware(RateLimitMiddleware, settings=settings)
     app.add_middleware(ConcurrencyLimitMiddleware, settings=settings)
     app.add_middleware(MetricsMiddleware, settings=settings)

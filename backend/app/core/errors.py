@@ -346,14 +346,18 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _unhandled(_: Request, exc: Exception) -> JSONResponse:
-        # Log the detail; return none of it.
-        logger.exception("unhandled_exception", exc_info=exc)
-        internal = AppError(
-            message="An internal error occurred.",
-            code="INTERNAL_ERROR",
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-        return JSONResponse(status_code=500, content=internal.to_payload())
+        return unexpected_error_response(exc)
+
+
+def unexpected_error_response(exc: Exception) -> JSONResponse:
+    """The 500 envelope for a bug. The detail goes to the log; none of it to the client."""
+    logger.exception("unhandled_exception", exc_info=exc)
+    internal = AppError(
+        message="An internal error occurred.",
+        code="INTERNAL_ERROR",
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+    )
+    return JSONResponse(status_code=internal.status_code, content=internal.to_payload())
 
 
 def _code_for_status(status_code: int) -> str:
