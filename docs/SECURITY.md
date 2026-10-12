@@ -366,6 +366,11 @@ No application code path updates or deletes an audit row.
 - Deny-list at the formatter: `password`, `hashed_password`, `token`,
   `refresh_token`, `authorization`, `secret`, `api_key`, `latitude`,
   `longitude`.
+- Settings never print their credentials: every setting that can carry one (the
+  passwords, keys and tokens, and the database, test-database and Redis URLs, which embed a
+  password) is a `SecretStr`, and the assembled `sqlalchemy_database_uri` is a plain property,
+  not a pydantic computed field, so `repr`, `str`, `model_dump()` and `model_dump_json()`
+  show `**********`. A test fails if a credential-looking setting is added as a plain `str`.
 - Secrets come from the environment; in production from a managed secret store
   (AWS Secrets Manager / Vault / equivalent). `.env` is git-ignored and
   `.env.example` contains only placeholders.
