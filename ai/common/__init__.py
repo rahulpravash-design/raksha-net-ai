@@ -1,9 +1,14 @@
 """The AI boundary. The backend imports from here and nowhere else in `ai/`."""
 
 from ai.common.interfaces import (
+    MAX_IMAGE_BYTES,
+    MAX_IMAGES,
     AnalyzerUnavailable,
     EmergencyAnalyzer,
+    ImageObserver,
     NullAnalyzer,
+    ObservationUnavailable,
+    VisionConfig,
     get_analyzer,
 )
 from ai.common.schemas import (
@@ -21,6 +26,8 @@ from ai.common.validation import (
 )
 
 __all__ = [
+    "MAX_IMAGES",
+    "MAX_IMAGE_BYTES",
     "OBSERVATION_VOCABULARY",
     "AnalysisRejected",
     "AnalysisRequest",
@@ -28,9 +35,12 @@ __all__ = [
     "AnalysisSource",
     "AnalyzerUnavailable",
     "EmergencyAnalyzer",
+    "ImageObserver",
     "NullAnalyzer",
     "Observation",
+    "ObservationUnavailable",
     "ReviewDecision",
+    "VisionConfig",
     "get_analyzer",
     "is_low_confidence",
     "validate_analysis",

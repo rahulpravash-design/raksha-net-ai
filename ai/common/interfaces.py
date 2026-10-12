@@ -7,9 +7,10 @@ practice rather than only on paper.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
-from ai.common.schemas import AnalysisRequest, AnalysisResult
+from ai.common.schemas import AnalysisRequest, AnalysisResult, Observation
 
 
 class AnalyzerUnavailable(RuntimeError):
@@ -18,6 +19,44 @@ class AnalyzerUnavailable(RuntimeError):
     Callers treat this as "no analysis", never as "nothing is wrong". Reporting
     and triage continue on the reporter's own words.
     """
+
+
+#: Photographs per analysis, and bytes per photograph, that an image observer accepts.
+#: 5 MB is the per-image limit of the provider in use (Anthropic); larger photos are
+#: skipped by the backend rather than sent to fail.
+MAX_IMAGES = 4
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+
+
+class ObservationUnavailable(RuntimeError):
+    """Photographs could not be analysed. The message is safe to show a dispatcher.
+
+    Like :class:`AnalyzerUnavailable` it means "no observations", never "nothing seen".
+    """
+
+
+@runtime_checkable
+class ImageObserver(Protocol):
+    """Proposes observations from photographs. Never decides anything."""
+
+    name: str
+    version: str
+    provider: str
+    model: str
+
+    def observe(self, images: list[bytes]) -> list[Observation]:
+        """Return observations, or raise :class:`ObservationUnavailable`."""
+        ...
+
+
+@dataclass(frozen=True)
+class VisionConfig:
+    """What the backend passes when a deployment has configured a photo provider."""
+
+    provider: str
+    api_key: str
+    model: str | None = None
+    timeout_seconds: float = 20.0
 
 
 @runtime_checkable
@@ -50,7 +89,7 @@ class NullAnalyzer:
         )
 
 
-def get_analyzer(enabled: bool) -> EmergencyAnalyzer:
+def get_analyzer(enabled: bool, vision: VisionConfig | None = None) -> EmergencyAnalyzer:
     """Return the configured analyzer.
 
     The import is local so that importing ``ai.common`` — which the backend
@@ -64,4 +103,21 @@ def get_analyzer(enabled: bool) -> EmergencyAnalyzer:
         return NullAnalyzer()
     from ai.nlp.text_analyzer import HeuristicTextAnalyzer
 
-    return HeuristicTextAnalyzer()
+    text = HeuristicTextAnalyzer()
+    if vision is None:
+        return text
+    if vision.provider != "anthropic":
+        raise ValueError(f"Unknown photo-analysis provider: {vision.provider!r}")
+
+    # Imported only when configured: without it no provider SDK is loaded at all.
+    from ai.common.composite import CompositeAnalyzer
+    from ai.vision.claude_observer import ClaudeImageObserver
+
+    return CompositeAnalyzer(
+        text,
+        ClaudeImageObserver(
+            api_key=vision.api_key,
+            model=vision.model,
+            timeout_seconds=vision.timeout_seconds,
+        ),
+    )
