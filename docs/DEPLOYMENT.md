@@ -497,13 +497,21 @@ plugin builds the server handler and bundles `proxy.ts` as a middleware handler 
 version understands Next 16's proxy); `npm install` run inside an app folder installs the whole
 workspace at the repository root.
 
+Registration path (`scripts/e2e/registration.mjs`, Chromium, synthetic data only, local stack): with
+the *pre-fix* code built with the `.invalid` placeholder the page showed "Could not reach the server"
+after the browser posted to the placeholder host (the original report, reproduced); with the fixed code
+and the same placeholder it shows the configuration banner and sends no request; built against the
+local API (`http://localhost:8000`) a new citizen registered (201), landed on `/report`, was stored as
+`CITIZEN` with a bcrypt hash and a `user.registered` audit row, and a second attempt with the same email
+got the server's 409 message. A real database outage returns 503 (unit test, real refused connection).
+
 **Not verified** (no access from the development environment): the sites' real dashboard settings
 (whether each has the Package directory set), and any real Netlify build; that the `proxy.ts`
 middleware handler loads and runs on Netlify (its configuration load needs `edge.netlify.com`, which
 is unreachable here, so that one warning was seen but not resolved locally); any difference between
 Netlify's build machines and the local engine (working directory, installer); Render's port,
 health check, pre-deploy, shell/one-off-job and disk-ownership behaviour; the PostGIS version
-Render provides; any live request between a Netlify site and a deployed backend.
+Render provides; any live request between a Netlify site and a deployed backend (none exists: registration on the Netlify sites cannot work until a backend is deployed and each site's `NEXT_PUBLIC_API_BASE_URL` is set and redeployed); the current value of that variable on each Netlify site (the connector returns an empty list).
 
 ### 13.10 "Could not reach the server" and "not connected to its server"
 

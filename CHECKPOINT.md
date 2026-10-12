@@ -573,7 +573,10 @@ deployment; the silent `?? "http://localhost:8000"` fallback is gone from `lib/c
 a bad address. Backend: a database outage now returns a 503 with CORS headers instead of a 500
 (`DatabaseUnavailableError`). **Found, not fixed:** any other uncaught backend exception returns a
 500 *without* CORS headers, which a browser also shows as "Could not reach the server"
-(`DEPLOYMENT.md` §13.10). Still needs a real backend and a redeploy of each site with its URL.
+(`DEPLOYMENT.md` §13.10). Verified in a real browser against the local backend with synthetic data (reproduction of the
+original message with the old code, the new banner with the same placeholder, then a full registration
+and a refused duplicate): `DEPLOYMENT.md` §13.9. Gate green (`All checks passed.`); pushed to the
+development branch, not merged. Still needs a real backend and a redeploy of each site with its URL.
 
 **Fixed this session:** a host-supplied `postgres://` / `postgresql://` database URL crashed
 the backend (`No module named 'psycopg2'`); it is now rewritten to the installed driver
