@@ -236,6 +236,30 @@ the front ends' `NEXT_PUBLIC_API_BASE_URL` (13.2) both have to be right.
 
 ### 13.1 Order of work
 
+**With the blueprint (`render.yaml`, free tier, demonstration only).** It creates the web
+service and a free PostgreSQL 16 database in Singapore, generates `RAKSHA_SECRET_KEY` and
+`RAKSHA_ENCRYPTION_KEY`, links the database, and sets the production variables of 13.3.
+
+1. The blueprint deploys the `main` branch: merge the change that adds it first.
+2. Render dashboard -> **New -> Blueprint** -> this repository. When asked, enter
+   `FIRST_ADMIN_EMAIL`, `FIRST_ADMIN_NAME` and `FIRST_ADMIN_PASSWORD` (at least 12
+   characters, not a common password). Apply.
+3. Watch the deploy log: the migrations, then `Created super administrator ...`. If it says
+   `the first administrator was NOT created`, the line above it says why; the API still
+   starts.
+4. Note the service's address (`https://raksha-api....onrender.com`). Check
+   `https://<address>/api/v1/health` returns `{"status":"ok"...}` (the first request after
+   15 idle minutes takes about a minute while the free instance wakes).
+5. Delete the three `FIRST_ADMIN_*` variables from the service's *Environment* page.
+6. Set `NEXT_PUBLIC_API_BASE_URL` to that address on the three Netlify sites and redeploy
+   them (13.2).
+7. Sign in to the control centre as the administrator: choose a new password, enrol
+   two-factor authentication, keep the recovery codes (13.7). Then check the audit log
+   shows your own address for the sign-in (13.8, item 2).
+
+If Render rejects a field of the blueprint (it was written without access to Render's schema
+from the development environment), create the same resources by hand in this order:
+
 1. Backend host: PostgreSQL, then (optionally) Key Value, then the web service (13.3).
 2. First start applies the migrations (13.3). **A production migration needs the
    operating owner's sign-off, and a backup first** (`RELEASE.md`).
@@ -325,9 +349,12 @@ repository root**, because the Dockerfile copies both `backend/` and `ai/`. The 
 on **8000** (`uvicorn app.main:app --host 0.0.0.0 --port 8000`) as a non-root user. Confirm in
 the dashboard how Render learns the port (it may expect `PORT`).
 
-**Start command and migrations.** The application does not migrate on start. Either use a
-pre-deploy command `alembic upgrade head` (check that your Render plan offers one), or
-override the start command exactly as `docker-compose.yml` does:
+**Start command and migrations.** The application does not migrate on start. The blueprint
+uses `sh /app/scripts/render_start.sh` (`backend/scripts/render_start.sh`): migrations, then
+the optional first administrator (13.7), then the API on the port Render assigns (`$PORT`).
+That needs neither a pre-deploy command nor a shell, which the free tier may not offer. By
+hand, either use a pre-deploy command `alembic upgrade head`, or override the start command
+as `docker-compose.yml` does:
 
 ```
 sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
@@ -373,6 +400,7 @@ mount by uploading a photograph (13.6).
 | `RAKSHA_CITIZEN_APP_URL`, `RAKSHA_CONTROL_CENTER_URL`, `RAKSHA_RESPONDER_APP_URL` | required | The three Netlify addresses; e-mail links use them, and they must be `https` when e-mail is on |
 | `RAKSHA_MEDIA_STORAGE_PATH` | required | The disk's mount path |
 | `RAKSHA_RATE_LIMIT_BACKEND`, `RAKSHA_REDIS_URL` | recommended | `redis` and the Key Value internal URL |
+| `RAKSHA_TRUSTED_PROXY_HOPS` | recommended | `1` behind Render's proxy (13.8, item 2); `0` (the default) when nothing is in front |
 | `RAKSHA_METRICS_TOKEN` | optional | If unset, `/metrics` does not exist (404) |
 | `RAKSHA_SMTP_*`, `RAKSHA_EMAIL_FROM` | optional | Password-recovery e-mail is sent only when `RAKSHA_SMTP_HOST` is set (§12) |
 | `RAKSHA_AI_ENABLED` and `RAKSHA_AI_*` | optional | Leave off unless a provider is configured; reporting does not depend on it |
@@ -430,8 +458,16 @@ python -m app.cli.create_first_admin --email you@example.org --name "Your Full N
 ```
 
 It asks for the password at a hidden prompt, twice. For scripted use add `--password-stdin`
-and pipe the password in. The password is never accepted as an argument or an environment
-variable, because both leak into process listings, shell history and job settings.
+and pipe the password in. The command never accepts the password as an argument, which would
+leak into process listings and shell history.
+
+**Without a shell (Render's free tier).** `render_start.sh` runs the command at every start
+when `FIRST_ADMIN_EMAIL` and `FIRST_ADMIN_PASSWORD` are set, with `--skip-if-admin-exists`, so
+only the first boot creates anything. The password goes to the command on standard input from a
+shell builtin (not in a process listing) and is removed from the environment before the API
+starts. The trade-off: until you delete it, the password sits in the host's secret store. Delete
+the `FIRST_ADMIN_*` variables after the first boot; the forced password change at first sign-in
+(below) means the stored value stops being the account's password either way.
 
 What it guarantees:
 
@@ -449,9 +485,10 @@ What it guarantees:
 - The creation is written to the audit log as `user.first_admin_created` (no actor, because none
   exists yet). The password is never logged, printed or stored in the audit trail.
 
-Exit status: `0` created; `2` bad input or an unsafe configuration; `3` refused (an administrator
-or that email already exists); `4` the database could not be used (check the settings and that
-`alembic upgrade head` has run).
+Exit status: `0` created (or, with `--skip-if-admin-exists`, an administrator already existed);
+`2` bad input or an unsafe configuration; `3` refused (an administrator or that email already
+exists); `4` the database could not be used (check the settings and that `alembic upgrade head`
+has run).
 
 Do this once the backend is up and migrated (13.3), and before anyone tries to sign in to the
 control centre. Create a second super administrator from the control centre as soon as you can:
@@ -461,15 +498,16 @@ with only one, losing their device and recovery codes locks the organisation out
 ### 13.8 Known gaps — resolve before relying on this deployment
 
 1. **First administrator:** resolved by the command in 13.7. It has been run end to end against a scratch database in production mode, but not on a real host.
-2. **Client addresses behind a proxy.** Rate limits and the audit log use the connecting
-   address. Uvicorn starts with its default of trusting forwarded headers only from
-   the loopback addresses, so behind Render's proxy every user appears to be the proxy: one shared
-   rate-limit bucket (including the sign-in limit) and proxy addresses in the audit trail.
-   **Do not set `--forwarded-allow-ips='*'`**: uvicorn then takes the left-most
-   `X-Forwarded-For` entry, which the client controls, so limits could be dodged and the
-   audit address forged. Options: trust only the proxy's documented address range, put the
-   repository's nginx (`infrastructure/nginx/`) in front, or accept the shared limits for a
-   throwaway demo. Undecided.
+2. **Client addresses behind a proxy.** Rate limits and the audit log used the connecting
+   address, which behind Render's proxy is the proxy's: one shared rate-limit bucket (the
+   sign-in limit included) and proxy addresses in the audit trail. `RAKSHA_TRUSTED_PROXY_HOPS`
+   now names how many proxies append to `X-Forwarded-For`, and the client is that many entries
+   from the right (`app/core/client_address.py`); the blueprint sets `1`. The left-most entries,
+   which the client controls, are never read, so this cannot be used to forge an address or
+   dodge a limit (**still do not set uvicorn's `--forwarded-allow-ips='*'`**, which reads the
+   left-most). That Render's proxy appends exactly one entry is expected but **not verified**
+   from the development environment: after the first sign-in, check that the audit log records
+   your own address. If it shows a platform address instead, raise the number by one.
 3. **Uploads need a disk and one instance** (13.3), and the non-root user's write access to
    a mounted disk is unconfirmed.
 4. **Free plans are for throwaway demos only.** Per Render's documentation, free web services
