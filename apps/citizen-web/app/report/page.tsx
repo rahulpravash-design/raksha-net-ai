@@ -8,9 +8,11 @@ import {
   INCIDENT_CATEGORIES,
   categoryLabel,
   type IncidentCategory,
+  type VoiceTranscript,
 } from "@raksha/api-client";
 
 import { useAuth } from "@/components/AuthProvider";
+import { DictationField } from "@/components/DictationField";
 import {
   EMPTY_LOCATION,
   LocationField,
@@ -38,6 +40,8 @@ export default function ReportPage() {
   const [medicalRequired, setMedicalRequired] = useState(false);
   const [immediateDanger, setImmediateDanger] = useState(false);
   const [photos, setPhotos] = useState<File[]>([]);
+  /** The AI transcript the description was dictated from, if it was. */
+  const [transcriptId, setTranscriptId] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -51,10 +55,24 @@ export default function ReportPage() {
   if (loading) return <Spinner label="Checking your session" />;
   if (!user) return null;
 
+  /**
+   * Dictation adds to the description; it never replaces what the reporter already wrote,
+   * and the reporter reads and edits it before sending. An over-long result is caught by
+   * `validate`, not cut off.
+   */
+  function handleTranscript(transcript: VoiceTranscript) {
+    setTranscriptId(transcript.id);
+    setDescription((current) =>
+      current.trim() ? `${current.trimEnd()}\n${transcript.text}` : transcript.text,
+    );
+  }
+
   function validate(): boolean {
     const problems: Record<string, string> = {};
     if (description.trim().length < MIN_DESCRIPTION) {
       problems.description = `Please describe the emergency in at least ${MIN_DESCRIPTION} characters.`;
+    } else if (description.trim().length > MAX_DESCRIPTION) {
+      problems.description = `The description is too long (${MAX_DESCRIPTION} characters at most). Shorten it before sending.`;
     }
     if (location.latitude === null || location.longitude === null) {
       problems.location =
@@ -84,6 +102,7 @@ export default function ReportPage() {
         people_trapped: peopleTrapped,
         medical_required: medicalRequired,
         immediate_danger: immediateDanger,
+        transcript_id: transcriptId,
       });
 
       // The report is already filed at this point. A photograph that fails to
@@ -160,6 +179,8 @@ export default function ReportPage() {
             onChange={(event) => setDescription(event.target.value)}
           />
         </Field>
+
+        <DictationField onTranscript={handleTranscript} disabled={submitting} />
 
         <div className="space-y-1">
           <LocationField
