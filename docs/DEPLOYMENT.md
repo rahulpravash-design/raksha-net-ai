@@ -403,7 +403,7 @@ mount by uploading a photograph (13.6).
 | `RAKSHA_TRUSTED_PROXY_HOPS` | recommended | `1` behind Render's proxy (13.8, item 2); `0` (the default) when nothing is in front |
 | `RAKSHA_METRICS_TOKEN` | optional | If unset, `/metrics` does not exist (404) |
 | `RAKSHA_SMTP_*`, `RAKSHA_EMAIL_FROM` | optional | Password-recovery e-mail is sent only when `RAKSHA_SMTP_HOST` is set (§12) |
-| `RAKSHA_AI_ENABLED` and `RAKSHA_AI_*` | optional | Leave off unless a provider is configured; reporting does not depend on it |
+| `RAKSHA_AI_ENABLED`, `RAKSHA_AI_PROVIDER`, `RAKSHA_AI_API_KEY`, `RAKSHA_AI_MODEL` | optional | `RAKSHA_AI_ENABLED=true` turns on the rule-based text analysis. Photo observations (Phase 8) additionally need `RAKSHA_AI_PROVIDER=anthropic` and `RAKSHA_AI_API_KEY` (secret; billed per use by Anthropic); `RAKSHA_AI_MODEL` defaults to `claude-opus-5-5`. This sends report photographs to Anthropic: decide that first (`AI_ARCHITECTURE.md` section 11). Reporting never depends on any of it. |
 | `RAKSHA_CLAMAV_*` | optional | Without a scanner, uploads are recorded as `UNSCANNED` |
 
 Never run `scripts/seed.sh` against the production database. The seed refuses to, and its

@@ -9,6 +9,7 @@ import {
   confidenceTier,
   formatConfidence,
   formatDateTime,
+  observationLabel,
   type AnalysisReviewDecision,
   type IncidentAnalysis,
   type IncidentCategory,
@@ -233,6 +234,35 @@ export function AIAnalysisPanel({
                   <dd>{triStateLabel(analysis.immediate_rescue_required, "Suggested")}</dd>
                 </div>
               </dl>
+
+              {analysis.observations.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-xs font-semibold">
+                    Observations{" "}
+                    <span className="muted font-normal">
+                      (AI observations, not verified facts)
+                    </span>
+                  </p>
+                  <ul className="mt-1 flex flex-wrap gap-1.5" aria-label="AI observations">
+                    {analysis.observations.map((observation) => (
+                      <li
+                        key={`${observation.source}-${observation.label}`}
+                        title="AI observation: unverified"
+                        className="inline-flex items-center rounded-full border border-dashed border-violet-400 px-2 py-0.5 text-xs"
+                      >
+                        <span className="mr-1 font-semibold text-violet-700 dark:text-violet-300">
+                          AI ·
+                        </span>
+                        {observationLabel(observation.label)}
+                        {observation.source === "IMAGE" && (
+                          <span className="muted ml-1">(photo)</span>
+                        )}
+                        <ConfidenceTag confidence={observation.confidence} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {analysis.reasoning_factors.length > 0 && (
                 <ul className="muted mt-2 list-inside list-disc text-xs">

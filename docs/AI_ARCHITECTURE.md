@@ -132,7 +132,7 @@ original words beside them.
 | Entity extraction | Rules + regex for counts/units | Token-classification model |
 | Structured extraction | LLM with a strict JSON schema + validator | Same, with evaluation gating |
 | Speech-to-text | Hosted ASR with language hints | Fine-tuned on regional speech |
-| Vision | Pretrained detector, fixed label set | Domain-tuned detector |
+| Vision | Hosted vision model (Claude) constrained to the fixed label set; built, off until configured, accuracy unmeasured | Evaluated per label on a labelled set; domain-tuned detector |
 
 A simple baseline ships first in every stage so there is always a measurable
 reference point and a working fallback.
@@ -194,7 +194,14 @@ not change a single line in `backend/app/services`.
 - Emergency text and images are personal data. Redact identifiers before any
   provider call that is not covered by a data-processing agreement.
 - Strip EXIF (including GPS) from images before third-party processing; the
-  backend already holds the authoritative coordinates.
+  backend already holds the authoritative coordinates. (Done at upload, so the stored
+  photographs, the only ones ever sent, carry none.)
+- Photo observations (Phase 8) send report photographs to Anthropic, and only when a
+  provider is configured and an operator requests an analysis. A photograph can show
+  people and cannot be "redacted" the way text can, so enabling the provider is a
+  decision for the operating authority under its data-processing terms. Each analysis's
+  audit record counts the photographs sent and names the provider. Nothing else from
+  the report (words, reporter, contact details, coordinates) goes with them.
 - Never send credentials, tokens or full user records in a prompt.
 - Log the prompt hash and the response metadata, not the raw content, unless
   retention policy explicitly permits it.

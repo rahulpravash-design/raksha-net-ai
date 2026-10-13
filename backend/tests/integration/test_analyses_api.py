@@ -235,3 +235,86 @@ def test_a_proposal_can_never_carry_a_priority_or_dispatch_field(
     """CLAUDE.md section 2 rule 1: AI proposes, it never decides."""
     _, _, analysis = _propose(as_role, incident_payload, monkeypatch)
     assert not set(analysis) & {"priority_score", "priority_band", "assigned_to"}
+
+
+# --- photographs (Phase 8) ---------------------------------------------------
+def _recording_analyzer(seen: list):
+    """Stands in for ``get_analyzer``: records the vision settings and request the
+    service chose, and answers with the real text analyzer. No provider client is built.
+    """
+    from ai.nlp.text_analyzer import HeuristicTextAnalyzer
+
+    def factory(enabled, vision=None):
+        text = HeuristicTextAnalyzer()
+
+        class Recorder:
+            name, version = text.name, text.version
+
+            def analyze(self, request):
+                seen.append((vision, request))
+                return text.analyze(request)
+
+        return Recorder()
+
+    return factory
+
+
+def test_photos_go_to_a_provider_only_when_one_is_configured(
+    as_role, incident_payload, monkeypatch, db_session: Session
+) -> None:
+    from pydantic import SecretStr
+
+    from app.services import analysis_service
+    from tests.integration.test_media_api import png_bytes
+
+    seen: list = []
+    monkeypatch.setattr(analysis_service, "get_analyzer", _recording_analyzer(seen))
+    enable_ai(monkeypatch)
+
+    citizen, _ = as_role(UserRole.CITIZEN)
+    incident = report(citizen, incident_payload)
+    uploaded = citizen.post(
+        f"/api/v1/incidents/{incident['id']}/media",
+        files={"file": ("scene.png", png_bytes(), "image/png")},
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    dispatcher, _ = as_role(UserRole.DISPATCHER)
+    analyses = f"/api/v1/incidents/{incident['id']}/analyses"
+
+    # No provider configured: text only, and the photograph is not even read.
+    assert dispatcher.post(analyses).status_code == 201
+    vision, request = seen[-1]
+    assert vision is None
+    assert request.image_bytes == []
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "ai_provider", "anthropic")
+    monkeypatch.setattr(settings, "ai_api_key", SecretStr("sk-test-not-real"))
+    assert dispatcher.post(analyses).status_code == 201
+    vision, request = seen[-1]
+    assert vision.provider == "anthropic"
+    assert vision.api_key == "sk-test-not-real"
+    assert len(request.image_bytes) == 1
+    assert request.image_bytes[0].startswith(b"\x89PNG")
+
+    # The transfer is on the record: how many photographs left, and to whom.
+    entries = db_session.scalars(
+        select(AuditLog)
+        .where(AuditLog.action == "ai.analysis_created")
+        .order_by(AuditLog.created_at)
+    ).all()
+    assert [entry.event_metadata["photos_sent"] for entry in entries] == [0, 1]
+
+
+def test_with_ai_off_no_photo_is_sent_even_if_a_provider_is_set(
+    monkeypatch, db_session: Session
+) -> None:
+    from pydantic import SecretStr
+
+    from app.services.analysis_service import AnalysisService
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "ai_enabled", False)
+    monkeypatch.setattr(settings, "ai_provider", "anthropic")
+    monkeypatch.setattr(settings, "ai_api_key", SecretStr("sk-test-not-real"))
+    assert AnalysisService(db_session, settings)._vision_config() is None

@@ -568,6 +568,15 @@ be checked in the audit log after the first sign-in. A malformed `RAKSHA_ENCRYPT
 the start-up with a message instead of failing the first encrypted write. Not verified: the
 blueprint against Render's schema (unreachable from here), and anything on a live Render host.
 
+**Phase 8 (photo observations): partial, off until configured.** With `RAKSHA_AI_ENABLED`,
+`RAKSHA_AI_PROVIDER=anthropic` and `RAKSHA_AI_API_KEY`, an operator-requested analysis also
+sends up to four stored (metadata-stripped) photographs to Claude (`ai/vision/claude_observer.py`,
+`anthropic` 1.13.0, default `claude-opus-5-5`, structured output limited to the observation
+vocabulary, server-side refusal fallback). Text proposal survives any photo failure; the
+control centre shows each observation as an "AI observation". Tested only against a fake client:
+no real API call has been made from here (no key), and accuracy on emergency photographs is
+unmeasured (no labelled set), so the phase stays PARTIAL (`ROADMAP.md`).
+
 **Registration says "Could not reach the server" (2026-10-12).** Cause, from the code: the form
 calls `fetch(NEXT_PUBLIC_API_BASE_URL + "/api/v1/auth/register")`; with the deliberate `.invalid`
 placeholder (RFC 2606: never resolves) `fetch` throws a `TypeError`, which the page renders as that

@@ -25,3 +25,8 @@ pyotp==2.10.0
 prometheus-client==0.26.0
 
 redis==8.1.0
+
+# Phase 8. anthropic: the official Claude SDK, for photo observations
+# (ai/vision/claude_observer.py). Imported only when RAKSHA_AI_PROVIDER=anthropic
+# and a key are set; typed errors, retries and timeouts come with it.
+anthropic==1.13.0

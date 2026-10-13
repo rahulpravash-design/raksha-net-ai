@@ -169,7 +169,8 @@ For any non-trivial change:
 
 ## 10. Current development phase
 
-**Phases 0–14 are implemented, except Phases 8 and 9. Phase 16 is
+**Phases 0–14 are implemented, except Phase 9; Phase 8 is partial (photo observations
+by a hosted model, off until configured, accuracy unmeasured). Phase 16 is
 code-complete, but its penetration test and risk acceptance have not happened.
 Phase 17 is measured and fixed in a development environment, with no
 production capacity evidence. Phase 18's artifacts are built (metrics, verified
@@ -196,8 +197,10 @@ See `docs/ROADMAP.md` for the phase definitions and completion criteria. The
 current phase marker is maintained at the top of that file.
 
 Do not implement a future phase unless explicitly asked. Not implemented:
-computer vision (8), voice transcription (9), prediction (15, deliberately —
-no real historical dataset exists). Phase 17 is measured and fixed in a
+voice transcription (9), prediction (15, deliberately — no real historical
+dataset exists). Computer vision (8) is partial: Claude photo observations behind
+`RAKSHA_AI_PROVIDER`, never measured against labelled photographs, so do not
+describe it as evaluated. Phase 17 is measured and fixed in a
 development environment only (`docs/PERFORMANCE.md`); Phase 18 has artifacts but
 no deployment (`docs/DEPLOYMENT.md` section 11). Phase 16 still needs a human penetration test and an
 operating authority's acceptance; do not describe it as finished.

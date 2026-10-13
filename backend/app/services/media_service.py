@@ -141,6 +141,32 @@ class MediaService:
         self._get_incident_for(actor, incident_id, require_write=False)
         return self.repo.list_media(incident_id)
 
+    def photos_for_analysis(
+        self, incident_id: uuid.UUID, *, limit: int, max_bytes: int
+    ) -> list[bytes]:
+        """The incident's stored photographs, for an operator-requested AI analysis.
+
+        Their embedded metadata (location, device) was stripped at upload, so these bytes
+        carry none. The caller has already authorised the operator. A file missing from
+        storage, or larger than the provider accepts, is skipped rather than fatal: the
+        analysis is advisory, and the text proposal must not depend on it.
+        """
+        photos: list[bytes] = []
+        for media in self.repo.list_media(incident_id):
+            if len(photos) >= limit:
+                break
+            if media.media_type is not MediaType.IMAGE or media.size_bytes > max_bytes:
+                continue
+            path = self._absolute_path(media.storage_key)
+            if not path.is_file():
+                logger.error(
+                    "media_object_missing",
+                    extra={"media_id": str(media.id), "storage_key": media.storage_key},
+                )
+                continue
+            photos.append(path.read_bytes())
+        return photos
+
     def read_content(
         self,
         media_id: uuid.UUID,
