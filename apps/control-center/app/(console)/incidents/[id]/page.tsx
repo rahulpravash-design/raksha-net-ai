@@ -22,6 +22,7 @@ import { IncidentHeader } from "@/components/incident/IncidentHeader";
 import { IncidentSkeleton } from "@/components/incident/IncidentSkeleton";
 import { LocationBody, SituationBody } from "@/components/incident/SituationPanel";
 import { StatusTimeline } from "@/components/incident/StatusTimeline";
+import { VoiceTranscriptPanel } from "@/components/VoiceTranscriptPanel";
 import { HospitalNoticePanel } from "@/components/hospitals/HospitalNoticePanel";
 import { MediaGallery } from "@/components/MediaGallery";
 import { PriorityExplanation } from "@/components/PriorityExplanation";
@@ -114,11 +115,14 @@ export default function IncidentConsolePage() {
           </Reveal>
 
           <Reveal index={2}>
-            <AIAnalysisPanel
-              incidentId={incident.id}
-              canReview={mayDispatch}
-              onApplied={() => void load()}
-            />
+            <div className="space-y-4">
+              <VoiceTranscriptPanel incidentId={incident.id} />
+              <AIAnalysisPanel
+                incidentId={incident.id}
+                canReview={mayDispatch}
+                onApplied={() => void load()}
+              />
+            </div>
           </Reveal>
 
           <Reveal index={3}>

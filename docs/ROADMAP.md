@@ -1,7 +1,8 @@
 # RAKSHA NET AI — Development Roadmap
 
-> **Current phase marker: Phases 0–14 complete, except Phase 9; Phase 8 is PARTIAL
-> (photo observations by a hosted model, off until configured, accuracy unmeasured).
+> **Current phase marker: Phases 0–14 complete, except that Phases 8 and 9 are PARTIAL
+> (photo observations and voice reports by hosted models, both off until configured,
+> accuracy unmeasured).
 > Phase 16 is code-complete; the penetration test and operating-authority
 > acceptance it requires cannot be done by software and are NOT done.**
 > **Phase 17 is measured and fixed in a development environment, with no
@@ -252,30 +253,58 @@ observation as AI-derived.
 
 ---
 
-## Phase 9 — Voice & Multilingual Reporting ⬜ NOT STARTED — audio upload deliberately deferred
+## Phase 9 — Voice & Multilingual Reporting ⚠️ PARTIAL — built behind configuration; word error rate unmeasured
 
-Audio upload, transcription with language hints (English, Tamil, code-mixed),
-then the Phase 6 pipeline. Word error rate is measured per language before the
-feature is offered; an unreliable transcript is worse than none.
+Audio, transcription with language hints (English, Tamil, code-mixed), then the Phase 6
+pipeline. Word error rate is measured per language before the feature is offered; an
+unreliable transcript is worse than none.
 
-**Planned approach (decided, not built).** Audio *upload* is buildable now:
-extend the media validator's MIME allow-list and magic-byte table to cover
-audio, which the `MediaType.AUDIO` enum already anticipates. Transcription is
-not: there is no honest rule-based substitute for ASR the way there is for
-keyword extraction, and no provider is configured. Plan is a `Transcriber`
-protocol with a `NullTranscriber` — the same shape as `NullAnalyzer` and
-`NullNotifier` — so the absence is explicit rather than pretended.
+**Built (2026-10-13): dictation into the report form, off until configured.** When a
+deployment sets `RAKSHA_AI_ENABLED=true`, `RAKSHA_SPEECH_PROVIDER=openai` and
+`RAKSHA_SPEECH_API_KEY`, the citizen report form offers "Record a voice report". The browser
+records (`MediaRecorder`: WebM, Ogg or MP4), the backend sends the recording once to an
+OpenAI-compatible transcription endpoint (`ai/speech/whisper_transcriber.py`, official `openai`
+SDK, default `whisper-1`; `RAKSHA_SPEECH_BASE_URL` points it at a Whisper-compatible service
+instead) and returns the words with a confidence. The words are *added to the description box
+for the reporter to read and correct*: the incident's description is whatever the reporter sends.
+With no provider configured the form is exactly what it was, and a provider that fails leaves
+the reporter typing.
 
-**Reconsidered when the rest of the project was finished: not built.** Two reasons.
-(1) Audio carries embedded metadata too (MP4/M4A location atoms, ID3 and Vorbis tags,
-WAV `LIST` chunks), and the platform now strips photographs for exactly that reason;
-accepting audio without doing the same would reopen the leak that was just closed,
-and stripping five container formats is a project of its own. (2) Without
-transcription a voice note is a recording an operator can play — useful, but not the
-feature the phase describes — and a `Transcriber` protocol with no implementation
-and no caller is the speculative abstraction `CLAUDE.md` section 6 warns against.
-Build audio upload, its metadata stripping and a real transcriber together, when an ASR
-provider and per-language word-error-rate measurements exist.
+How it keeps to `CLAUDE.md` section 2:
+
+- **No audio is stored.** The recording lives in memory for one request. `voice_transcripts`
+  (migration 0017) has no column that could hold it. This is also why the earlier objection to
+  building audio upload (embedded location and device tags in five container formats, which the
+  platform strips from photographs for exactly that reason) no longer applies: nothing is kept
+  that an operator could open. The bytes the provider receives are as the browser recorded them;
+  a `MediaRecorder` recording carries no GPS, but the server neither strips nor inspects
+  container metadata, so a file uploaded by hand would be forwarded as given.
+- **Labelled, separate, traceable (rules 2 and 3).** What the model heard is stored apart from
+  the report with its model, version, provider and confidence, and shown to operators as an
+  "AI transcript" (`GET /incidents/{id}/transcripts`, dispatch side only). It records
+  whether the reporter changed the words before sending, and shows the model's own words only
+  when they differ from the description.
+- **Never on the critical path (rule 7).** The panel renders nothing unless the service offers
+  dictation *and* the browser can record. Silence, an unreachable provider, a bad key or a rate
+  limit each end in "please type your report"; a report sent with a transcript that is missing,
+  someone else's or already used is filed regardless. Transcripts never sent with a report are
+  removed once a day old, but only when someone next dictates: there is no scheduler yet.
+- **Confidence is not accuracy.** It is the duration-weighted mean of the model's own average
+  token probability over the segments kept. It ranks transcripts; it says nothing about how
+  often Tamil or code-mixed speech is wrong.
+- **Rate-limited and audited.** `RAKSHA_RATE_LIMIT_TRANSCRIPTION_PER_MINUTE` (default 6, per user)
+  guards a paid third-party call without touching the report limit. Every transfer is audited
+  (provider, size, type; never the words).
+
+**Why it stays PARTIAL.** The completion criterion is word error rate per language, and that
+needs a recorded, transcribed test set in English, Tamil and code-mixed speech that does not
+exist. Beyond that gap: no real provider call has been made from this repository (no key), and
+the recording path was tested against a fake `MediaRecorder`, not a real microphone in a real
+browser. Turning the provider on sends citizens' voices to a third party, which is a decision for
+the operating authority (`docs/AI_ARCHITECTURE.md` section 11).
+
+**Done when:** word error rate is published per language and the form offers dictation only for
+languages that meet an agreed threshold.
 
 ---
 

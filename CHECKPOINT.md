@@ -50,7 +50,7 @@ measured and fixed in a development environment only.**
   build for all three front ends). Read from its actual final line.
 - **634 backend tests** (none skipped, including those that start a real
   `redis-server`), **31 AI tests**, **335 frontend tests** (45 citizen, 280 control centre, 10 responder). 1000 total, all passing.
-- Migrations `0001 → 0016`; the gate upgrades to head, fails on model/migration
+- Migrations `0001 → 0017`; the gate upgrades to head, fails on model/migration
   drift and downgrades to base on every run (and cleans up even if it fails).
 - **GitHub Actions was red from `845ba46` (the drift gate) until the fix in
   `migrations/env.py`**: the CI database image adds the TIGER/topology extensions,
@@ -61,7 +61,7 @@ measured and fixed in a development environment only.**
   was exercised. See `infrastructure/deployment/RUNBOOK.md`.
 - Rate limiting across two real API processes: limit 10 → memory let 19 through,
   Redis exactly 10.
-- The API gained `PATCH /hospitals/{id}` and the MFA recovery-code endpoints; the schema gained `mfa_recovery_codes` (0016).
+- The API gained `PATCH /hospitals/{id}` and the MFA recovery-code endpoints; the schema gained `mfa_recovery_codes` (0016) and `voice_transcripts` (0017).
 
 ---
 
@@ -576,6 +576,22 @@ vocabulary, server-side refusal fallback). Text proposal survives any photo fail
 control centre shows each observation as an "AI observation". Tested only against a fake client:
 no real API call has been made from here (no key), and accuracy on emergency photographs is
 unmeasured (no labelled set), so the phase stays PARTIAL (`ROADMAP.md`).
+
+**Phase 9 (voice reports): partial, off until configured.** With `RAKSHA_AI_ENABLED`,
+`RAKSHA_SPEECH_PROVIDER=openai` and `RAKSHA_SPEECH_API_KEY`, the citizen report form offers
+"Record a voice report" (`apps/citizen-web/components/DictationField.tsx`). The browser records;
+`POST /api/v1/transcriptions` sends the recording once to an OpenAI-compatible endpoint
+(`ai/speech/whisper_transcriber.py`, `openai` 3.29.0, default `whisper-1`, optional
+`RAKSHA_SPEECH_BASE_URL`) and returns the words with a confidence, which are *added to the
+description box for the reporter to correct*. **The audio is never stored**; the transcript is
+(`voice_transcripts`, migration 0017: AI-derived, with model and confidence, linked to the report
+by `transcript_id`, recording whether the reporter edited it) and operators see it as an "AI
+transcript" (`VoiceTranscriptPanel`, dispatch side only). The form shows nothing unless the service
+offers dictation and the browser can record; any failure leaves the reporter typing. Unsent
+transcripts are purged after a day **only opportunistically** (when someone next dictates): there
+is no scheduler. Tested against a fake client and a fake `MediaRecorder` only: no real provider
+call (no key) and no real microphone in a real browser. Word error rate in English, Tamil and
+code-mixed speech is unmeasured (no recorded test set), so the phase stays PARTIAL (`ROADMAP.md`).
 
 **Registration says "Could not reach the server" (2026-10-12).** Cause, from the code: the form
 calls `fetch(NEXT_PUBLIC_API_BASE_URL + "/api/v1/auth/register")`; with the deliberate `.invalid`

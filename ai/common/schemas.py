@@ -110,3 +110,31 @@ class AnalysisRequest(BaseModel):
     language_hint: str | None = None
     image_bytes: list[bytes] = Field(default_factory=list)
     audio_bytes: bytes | None = None
+
+
+#: Language hints a reporter may give for a voice report. Unset means "detect it", which
+#: is also the right choice for code-mixed speech (docs/ROADMAP.md, Phase 9).
+SPEECH_LANGUAGE_HINTS: frozenset[str] = frozenset({"en", "ta"})
+
+
+class Transcript(BaseModel):
+    """The words a speech model heard in one recording. AI-derived, never verified.
+
+    The reporter reads and corrects it before it becomes their report; it is stored
+    apart from the report it was dictated into, with the model and a confidence.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str = Field(min_length=1)
+    #: How sure the model was of its own words (0-1), from its token probabilities.
+    #: It ranks transcripts against each other; it is not a measured accuracy.
+    confidence: float = Field(ge=0.0, le=1.0)
+    #: The language the model detected, as it names it (for example "tamil").
+    language: str | None = None
+    duration_seconds: float | None = Field(default=None, ge=0)
+
+    model_name: str = Field(min_length=1)
+    model_version: str = Field(min_length=1)
+    provider: str = Field(min_length=1)
+    processing_ms: int = Field(ge=0)

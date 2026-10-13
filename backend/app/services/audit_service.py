@@ -68,6 +68,8 @@ class AuditAction:
     AI_ANALYSIS_UNAVAILABLE = "ai.analysis_unavailable"
     AI_ANALYSIS_REJECTED = "ai.analysis_rejected"
     AI_ANALYSIS_REVIEWED = "ai.analysis_reviewed"
+    AI_TRANSCRIPTION_CREATED = "ai.transcription_created"
+    AI_TRANSCRIPTION_UNAVAILABLE = "ai.transcription_unavailable"
 
 
 class AuditService:

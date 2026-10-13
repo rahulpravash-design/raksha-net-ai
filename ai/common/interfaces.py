@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
-from ai.common.schemas import AnalysisRequest, AnalysisResult, Observation
+from ai.common.schemas import AnalysisRequest, AnalysisResult, Observation, Transcript
 
 
 class AnalyzerUnavailable(RuntimeError):
@@ -120,4 +120,77 @@ def get_analyzer(enabled: bool, vision: VisionConfig | None = None) -> Emergency
             model=vision.model,
             timeout_seconds=vision.timeout_seconds,
         ),
+    )
+
+
+# --- speech (Phase 9) ----------------------------------------------------------------
+class TranscriptionUnavailable(RuntimeError):
+    """A recording could not be transcribed. The message is safe to show the reporter.
+
+    It means "no transcript", never "nothing was said": the reporter types instead.
+    """
+
+
+class NoSpeechRecognised(TranscriptionUnavailable):
+    """The provider answered, but heard no speech in the recording."""
+
+
+@runtime_checkable
+class Transcriber(Protocol):
+    """Turns one recording into words a reporter then checks. Never decides anything."""
+
+    name: str
+    version: str
+    provider: str
+    model: str
+
+    def transcribe(
+        self, audio: bytes, *, media_type: str, language: str | None = None
+    ) -> Transcript:
+        """Return the words heard, or raise :class:`TranscriptionUnavailable`."""
+        ...
+
+
+@dataclass(frozen=True)
+class SpeechConfig:
+    """What the backend passes when a deployment has configured a speech provider."""
+
+    provider: str
+    api_key: str
+    model: str | None = None
+    #: An OpenAI-compatible service instead of OpenAI itself; None = the provider's own.
+    base_url: str | None = None
+    timeout_seconds: float = 30.0
+
+
+class NullTranscriber:
+    """No speech provider is configured: it declines, the same way :class:`NullAnalyzer` does."""
+
+    name = "null-transcriber"
+    version = "1.0.0"
+    provider = "none"
+    model = "none"
+
+    def transcribe(
+        self, audio: bytes, *, media_type: str, language: str | None = None
+    ) -> Transcript:
+        raise TranscriptionUnavailable(
+            "Voice reports are not available on this service. Please type your report."
+        )
+
+
+def get_transcriber(enabled: bool, speech: SpeechConfig | None = None) -> Transcriber:
+    """Return the configured transcriber; the provider SDK is imported only when used."""
+    if not enabled or speech is None:
+        return NullTranscriber()
+    if speech.provider != "openai":
+        raise ValueError(f"Unknown speech provider: {speech.provider!r}")
+
+    from ai.speech.whisper_transcriber import WhisperTranscriber
+
+    return WhisperTranscriber(
+        api_key=speech.api_key,
+        model=speech.model,
+        base_url=speech.base_url,
+        timeout_seconds=speech.timeout_seconds,
     )

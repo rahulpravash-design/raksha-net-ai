@@ -302,3 +302,74 @@ describe("ApiClient", () => {
     expect(tokens.refresh).toBeNull();
   });
 });
+
+describe("ApiClient voice reports", () => {
+  let tokens: MemoryTokenStore;
+  beforeEach(() => {
+    tokens = new MemoryTokenStore();
+  });
+
+  function clientWith(response: () => Response) {
+    const fetchImpl = vi.fn(async (..._args: FetchArgs) => response());
+    const client = new ApiClient({
+      baseUrl: "http://api.test",
+      tokens,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    return { client, fetchImpl };
+  }
+
+  it("sends the recording as a multipart file, with the language only when chosen", async () => {
+    const { client, fetchImpl } = clientWith(() => jsonResponse({ id: "t1" }, 201));
+    const recording = new Blob(["audio-bytes"], { type: "audio/webm;codecs=opus" });
+
+    await client.transcribe(recording, "ta");
+    await client.transcribe(recording);
+
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(String(url)).toBe("http://api.test/api/v1/transcriptions");
+    expect((init as RequestInit).method).toBe("POST");
+    const withLanguage = (init as RequestInit).body as FormData;
+    expect(withLanguage.get("language")).toBe("ta");
+    expect((withLanguage.get("file") as File).size).toBe("audio-bytes".length);
+    // The browser sets the multipart boundary; a JSON content type would break it.
+    expect((init as RequestInit).headers).not.toHaveProperty("Content-Type");
+
+    const withoutLanguage = (fetchImpl.mock.calls[1]![1] as RequestInit).body as FormData;
+    expect(withoutLanguage.has("language")).toBe(false);
+  });
+
+  it("reads availability and an incident's transcripts from their own endpoints", async () => {
+    const { client, fetchImpl } = clientWith(() => jsonResponse([]));
+
+    await client.transcriptionAvailability();
+    await client.listTranscripts("inc-9");
+
+    expect(String(fetchImpl.mock.calls[0]![0])).toBe(
+      "http://api.test/api/v1/transcriptions/availability",
+    );
+    expect(String(fetchImpl.mock.calls[1]![0])).toBe(
+      "http://api.test/api/v1/incidents/inc-9/transcripts",
+    );
+  });
+
+  it("raises the server's own message when transcription is unavailable", async () => {
+    const { client } = clientWith(() =>
+      jsonResponse(
+        {
+          error: {
+            code: "TRANSCRIPTION_UNAVAILABLE",
+            message: "Voice reports are not available right now. Please type your report.",
+          },
+        },
+        503,
+      ),
+    );
+
+    await expect(client.transcribe(new Blob(["x"]))).rejects.toMatchObject({
+      status: 503,
+      code: "TRANSCRIPTION_UNAVAILABLE",
+      message: expect.stringContaining("type your report"),
+    });
+  });
+});

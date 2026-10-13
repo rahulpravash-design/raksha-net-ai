@@ -253,6 +253,21 @@ class AnalysisUnavailableError(AppError):
     )
 
 
+class TranscriptionUnavailableError(AppError):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    code = "TRANSCRIPTION_UNAVAILABLE"
+    message = "Voice reports are not available right now. Please type your report."
+
+
+class NoSpeechRecognisedError(AppError):
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
+    code = "NO_SPEECH_RECOGNISED"
+    message = (
+        "No speech was recognised in the recording. Try again closer to the "
+        "microphone, or type your report."
+    )
+
+
 class RateLimitedError(AppError):
     status_code = status.HTTP_429_TOO_MANY_REQUESTS
     code = "RATE_LIMITED"

@@ -157,6 +157,7 @@ nullable; every table also has `id` and timestamps.
 | Table | Phase | Columns | Notes |
 |---|---|---|---|
 | `incident_analyses` | 6 | `incident_id`, `model_name`, `model_version`, `provider?`, `processing_ms?`, `proposed_category?`, `type_confidence?`, `proposed_severity?`, `severity_confidence?`, `people_affected?`, `people_trapped?`, `medical_support_required?`, `immediate_rescue_required?`, `entities`, `observations`, `reasoning_factors`, `review_decision?`, `reviewed_by_id?`, `reviewed_at?`, `review_note?`, `applied_fields?` | AI output, stored apart from `incidents`. `review_decision IS NULL` means pending. |
+| `voice_transcripts` | 9 | `reporter_id`, `incident_id?` (unique; set when the report is sent), `linked_at?`, `reporter_edited?`, `text`, `confidence`, `language?`, `language_hint?`, `duration_seconds?`, `model_name`, `model_version`, `provider`, `processing_ms`, `audio_content_type`, `audio_size_bytes` | What a speech model heard in a reporter's dictation: AI-derived, apart from `incidents`. **No column holds the recording** — it is never stored. Unlinked rows older than a day are removed the next time anyone dictates (no scheduled job yet; see section 6). |
 | `resources` | 10 | `call_sign` (unique), `name`, `resource_type`, `status`, `latitude`, `longitude`, `geom` (GIST), `base_address?`, `capabilities` (jsonb), `crew_size?`, `contact_phone?` (**encrypted**), `operator_id?`, `is_active`, `status_changed_at?` | |
 | `dispatches` | 11 | `incident_id`, `resource_id`, `approved_by_id` (**NOT NULL**), `status`, `distance_km?`, `estimated_minutes?`, `note?`, `cancel_reason?`, `acknowledged_at?`, `en_route_at?`, `on_scene_at?`, `closed_at?` | The NOT NULL approver is the schema-level guarantee that no dispatch exists without a named human. |
 | `hospitals` | 12 | `code` (unique), `name`, `latitude`, `longitude`, `geom` (GIST), `address?`, `contact_phone?` (**encrypted**), `total_beds`, `available_beds`, `icu_total`, `icu_available`, `accepting_emergencies`, `specialties` (jsonb), `managed_by_id?`, `is_active`, `capacity_updated_at?` | CHECKs keep available <= total. |
@@ -192,6 +193,8 @@ users 1───* refresh_tokens
 incidents 1───* incident_media
 incidents 1───* incident_status_history
 incidents 1───* incident_analyses          (Phase 6)
+incidents 1───? voice_transcripts          (Phase 9)
+users     1───* voice_transcripts          (Phase 9, reporter)
 incidents 1───* dispatches                 (Phase 11)
 resources 1───* dispatches                 (Phase 11)
 hospitals 1───* inbound_patient_notices    (Phase 12)
@@ -227,7 +230,7 @@ Current chain: `0001_enable_postgis` -> `0002_create_core_schema` ->
 -> `0006_dispatches` -> `0007_hospitals` -> `0008_notifications` ->
 `0009_account_lockout` -> `0010_encrypt_contact_details` -> `0011_mfa` ->
 `0012_media_scan_status` -> `0013_incident_created_at_index` -> `0014_must_change_password`
--> `0015_password_reset_tokens` -> `0016_mfa_recovery_codes`.
+-> `0015_password_reset_tokens` -> `0016_mfa_recovery_codes` -> `0017_voice_transcripts`.
 
 ## 6. Data retention
 
@@ -239,6 +242,7 @@ Current chain: `0001_enable_postgis` -> `0002_create_core_schema` ->
 | Media | 12 months after closure | Storage lifecycle rule |
 | Audit logs | 36 months | Partition + archive |
 | Refresh tokens | Purged 30 days after expiry | Scheduled job |
+| Voice transcripts never sent with a report | 24 hours | **Opportunistic only:** purged inside `POST /transcriptions` the next time anyone dictates. No scheduler exists yet, so one can outlive its day if nobody dictates afterwards; a scheduled job (Phase 18) would make this a guarantee |
 
 ## 7. Seeds
 

@@ -1,7 +1,8 @@
 # RAKSHA NET AI — AI Architecture
 
-Status: **Phase 6 (text analysis) implemented. Vision, speech and severity
-model stages below remain specified, not implemented.**
+Status: **Phase 6 (text analysis) implemented. Vision (Phase 8) and speech (Phase 9)
+are built behind configuration and unmeasured; the severity model stage below remains
+specified, not implemented.**
 
 `RAKSHA_AI_ENABLED` still defaults to `false`; the platform ships a
 `NullAnalyzer` until it is turned on. With it on, `get_analyzer()` returns
@@ -131,7 +132,7 @@ original words beside them.
 | Text classification | TF-IDF + linear classifier baseline | Fine-tuned transformer |
 | Entity extraction | Rules + regex for counts/units | Token-classification model |
 | Structured extraction | LLM with a strict JSON schema + validator | Same, with evaluation gating |
-| Speech-to-text | Hosted ASR with language hints | Fine-tuned on regional speech |
+| Speech-to-text | Hosted ASR with language hints; built, off until configured, word error rate unmeasured (`ai/speech/whisper_transcriber.py`) | Fine-tuned on regional speech |
 | Vision | Hosted vision model (Claude) constrained to the fixed label set; built, off until configured, accuracy unmeasured | Evaluated per label on a labelled set; domain-tuned detector |
 
 A simple baseline ships first in every stage so there is always a measurable
@@ -202,6 +203,14 @@ not change a single line in `backend/app/services`.
   decision for the operating authority under its data-processing terms. Each analysis's
   audit record counts the photographs sent and names the provider. Nothing else from
   the report (words, reporter, contact details, coordinates) goes with them.
+- Voice reports (Phase 9) send a citizen's recording to the speech provider
+  (`RAKSHA_SPEECH_PROVIDER`), once, when they press record and only when a provider is
+  configured. A voice is personal data and cannot be redacted. The recording is held in
+  memory for the request and discarded: only the transcript is stored, apart from the
+  report, labelled AI-derived. Nothing else from the report goes with it, and the audit
+  record names the provider and the recording's size, never its words. Whether the provider
+  keeps what it receives is that provider's own policy and is not controlled here; enabling
+  it is a decision for the operating authority.
 - Never send credentials, tokens or full user records in a prompt.
 - Log the prompt hash and the response metadata, not the raw content, unless
   retention policy explicitly permits it.

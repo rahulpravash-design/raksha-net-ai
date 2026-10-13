@@ -169,8 +169,8 @@ For any non-trivial change:
 
 ## 10. Current development phase
 
-**Phases 0–14 are implemented, except Phase 9; Phase 8 is partial (photo observations
-by a hosted model, off until configured, accuracy unmeasured). Phase 16 is
+**Phases 0–14 are implemented, except that Phases 8 and 9 are partial (photo observations
+and voice reports by hosted models, both off until configured, accuracy unmeasured). Phase 16 is
 code-complete, but its penetration test and risk acceptance have not happened.
 Phase 17 is measured and fixed in a development environment, with no
 production capacity evidence. Phase 18's artifacts are built (metrics, verified
@@ -197,17 +197,19 @@ See `docs/ROADMAP.md` for the phase definitions and completion criteria. The
 current phase marker is maintained at the top of that file.
 
 Do not implement a future phase unless explicitly asked. Not implemented:
-voice transcription (9), prediction (15, deliberately — no real historical
-dataset exists). Computer vision (8) is partial: Claude photo observations behind
-`RAKSHA_AI_PROVIDER`, never measured against labelled photographs, so do not
-describe it as evaluated. Phase 17 is measured and fixed in a
+prediction (15, deliberately — no real historical dataset exists). Computer vision (8)
+and voice transcription (9) are partial: Claude photo observations behind
+`RAKSHA_AI_PROVIDER`, and dictation into the report form behind `RAKSHA_SPEECH_PROVIDER`
+(the audio is never stored), neither measured against labelled data, so do not
+describe either as evaluated. Phase 17 is measured and fixed in a
 development environment only (`docs/PERFORMANCE.md`); Phase 18 has artifacts but
 no deployment (`docs/DEPLOYMENT.md` section 11). Phase 16 still needs a human penetration test and an
 operating authority's acceptance; do not describe it as finished.
 
-Three things are stubbed behind an interface rather than missing, and each
+Four things are stubbed behind an interface rather than missing, and each
 reports its own absence rather than pretending: `NullAnalyzer` (AI, when
-`RAKSHA_AI_ENABLED` is false), `NullNotifier` (SMS and push always; email unless `RAKSHA_SMTP_HOST` is set, when `SmtpNotifier` takes over) and
+`RAKSHA_AI_ENABLED` is false), `NullTranscriber` (voice, when no speech provider
+is configured), `NullNotifier` (SMS and push always; email unless `RAKSHA_SMTP_HOST` is set, when `SmtpNotifier` takes over) and
 `NullScanner` (uploads recorded as `UNSCANNED`). When you
 add a real implementation, it goes behind the same interface and nothing
 outside that module changes.
