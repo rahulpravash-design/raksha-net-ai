@@ -292,6 +292,8 @@ export interface CreateIncidentInput {
   medical_required: boolean;
   immediate_danger: boolean;
   contact_phone?: string | null;
+  /** The transcript this description was dictated from, if it was. */
+  transcript_id?: string | null;
 }
 
 export interface IncidentQuery {
@@ -369,6 +371,40 @@ export interface IncidentAnalysis {
   reviewed_at: string | null;
   review_note: string | null;
   applied_fields: Record<string, unknown> | null;
+  created_at: string;
+}
+
+// --- voice reports (Phase 9) -----------------------------------------------
+
+/** Language hints a reporter may give; omitted means "detect it". */
+export const SPEECH_LANGUAGES = ["en", "ta"] as const;
+export type SpeechLanguage = (typeof SPEECH_LANGUAGES)[number];
+
+export interface TranscriptionAvailability {
+  available: boolean;
+  max_bytes: number;
+  accepted_types: string[];
+  languages: SpeechLanguage[];
+}
+
+/**
+ * What a speech model heard in a reporter's dictation. AI-derived and
+ * unverified: the report's description is what the reporter sent after
+ * reading this, which may differ (`reporter_edited`).
+ */
+export interface VoiceTranscript {
+  id: string;
+  incident_id: string | null;
+  source: "AI_TRANSCRIPT";
+  text: string;
+  confidence: number;
+  language: string | null;
+  language_hint: SpeechLanguage | null;
+  duration_seconds: number | null;
+  model_name: string;
+  model_version: string;
+  provider: string;
+  reporter_edited: boolean | null;
   created_at: string;
 }
 

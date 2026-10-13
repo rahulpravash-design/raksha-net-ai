@@ -58,7 +58,10 @@ import type {
   ResponderAssignment,
   StatusHistoryEntry,
   TokenResponse,
+  TranscriptionAvailability,
+  SpeechLanguage,
   User,
+  VoiceTranscript,
 } from "./types";
 
 export class ApiError extends Error {
@@ -700,6 +703,38 @@ export class ApiClient {
           reason: options.reason ?? null,
         },
       },
+    );
+  }
+
+  // --- voice reports -------------------------------------------------------
+  /** Whether this deployment can transcribe dictation at all. */
+  async transcriptionAvailability(): Promise<TranscriptionAvailability> {
+    return this.request<TranscriptionAvailability>(
+      "/api/v1/transcriptions/availability",
+    );
+  }
+
+  /**
+   * Send one recording for transcription. The server keeps the transcript,
+   * never the audio; the reporter checks the words before they are sent.
+   */
+  async transcribe(
+    recording: Blob,
+    language: SpeechLanguage | null = null,
+  ): Promise<VoiceTranscript> {
+    const form = new FormData();
+    form.append("file", recording, "recording");
+    if (language) form.append("language", language);
+    return this.requestRaw<VoiceTranscript>("/api/v1/transcriptions", {
+      method: "POST",
+      body: form,
+    });
+  }
+
+  /** Operational roles only: the AI transcript behind a dictated report. */
+  async listTranscripts(incidentId: string): Promise<VoiceTranscript[]> {
+    return this.request<VoiceTranscript[]>(
+      `/api/v1/incidents/${incidentId}/transcripts`,
     );
   }
 
