@@ -264,6 +264,36 @@ reviewed once: a second attempt gets `409 ANALYSIS_ALREADY_REVIEWED`.
 
 ---
 
+## 5b. Voice reports
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| GET | `/transcriptions/availability` | any signed-in user | Whether the form should offer dictation, and its limits |
+| POST | `/transcriptions` | any signed-in user | Transcribe one recording (multipart: `file`, optional `language` = `en` or `ta`) |
+| GET | `/incidents/{id}/transcripts` | dispatch side | The AI transcript behind a dictated report |
+
+`POST /transcriptions` returns `201` with a `VoiceTranscriptRead`: `source` is always
+`AI_TRANSCRIPT`, with `text`, `confidence`, the detected `language`, `model_name`,
+`model_version` and `provider`. It is what a speech model heard, for the reporter to read and
+correct; it is not the report. The recording is read in bounded chunks, sent once to the
+configured provider and discarded: it is never stored. Validation: size <=
+`RAKSHA_SPEECH_MAX_BYTES` (`413`), declared type one of `audio/webm`, `audio/ogg`, `audio/mp4`
+**and** agreeing with the file's own opening bytes (`415`), an empty file or unknown `language`
+(`400`). Limited to `RAKSHA_RATE_LIMIT_TRANSCRIPTION_PER_MINUTE` per user (`429`).
+
+Failures never block a report: `503 TRANSCRIPTION_UNAVAILABLE` (no provider configured, or it
+failed; the message says to type the report) and `422 NO_SPEECH_RECOGNISED`. A provider's own
+reason goes to the audit log, not to the reporter.
+
+To attach it, send the transcript's id as `transcript_id` in `POST /incidents`. The
+description in that request stays the reporter's own text. The transcript is linked only if it
+is the caller's own and not yet used, and records whether the description differs from what the
+model heard (`reporter_edited`); one that cannot be linked is ignored and the report is filed
+regardless. A transcript not sent with a report is removed once it is a day old, but only when someone next
+dictates: there is no scheduled job yet (`DATABASE.md` section 6).
+
+---
+
 ## 6. Media
 
 | Method | Path | Auth | Description |

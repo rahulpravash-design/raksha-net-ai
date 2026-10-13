@@ -261,6 +261,14 @@ format. **It has not been run against an actual ClamAV.**
 
 Planned: signed short-lived URLs once object storage replaces the local backend.
 
+**Voice recordings (Phase 9)** are not uploads in this sense: `POST /transcriptions` reads a
+recording in bounded chunks (`RAKSHA_SPEECH_MAX_BYTES`), requires the declared type
+(`audio/webm`, `audio/ogg`, `audio/mp4`) to agree with the file's opening bytes, holds it in
+memory for the request, sends it to the configured speech provider and discards it. It is
+never written to disk or to the database, so nothing about it can be opened later, scanned or
+leaked from storage. The container's own metadata is neither stripped nor inspected before it
+is forwarded (a browser recording carries no location); that is a limit, not a control.
+
 ## 6. Transport and headers
 
 TLS 1.2+ everywhere outside local development; HSTS at the edge.
@@ -318,6 +326,7 @@ run insecurely.
 | Authentication | 10/min | Client IP |
 | Reporting | 12/min | User ID |
 | General API | 120/min | A digest of the bearer token, else the client IP |
+| Transcription (a paid third-party call) | 6/min | User ID |
 
 Fixed-window counters. Exceeded limits return `429` with `Retry-After`. Emergency
 reporting limits are deliberately generous: rate limiting must not become a
@@ -393,6 +402,7 @@ No application code path updates or deletes an audit row.
 | Backups | Encrypted, tested restore, 30-day retention (procedure documented; not yet exercised in a real deployment) |
 | Retention / coarsening | `DATABASE.md` §6 |
 | Deletion | Account deletion nulls the reporter link and purges contact fields; incident records survive for emergency-record integrity |
+| Voice recordings | Never stored. Sent once to the speech provider when enabled (`AI_ARCHITECTURE.md` section 11); only the AI-derived transcript is kept, apart from the report, and, if never sent with one, removed once a day old, but only when someone next dictates (no scheduled job yet) |
 
 **What column-level encryption does.** Fernet (AES-128-CBC with an HMAC, so
 tampering is detected). A database dump, a backup or a read replica yields
